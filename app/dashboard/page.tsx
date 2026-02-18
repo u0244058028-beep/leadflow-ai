@@ -8,16 +8,26 @@ export default function Dashboard(){
   const [leads,setLeads]=useState<any[]>([])
   const [name,setName]=useState("")
   const [email,setEmail]=useState("")
+  const [activity,setActivity]=useState<string[]>([])
   const [brainRunning,setBrainRunning]=useState(false)
+
+  function addActivity(msg:string){
+
+    setActivity(prev=>[msg,...prev.slice(0,5)])
+  }
 
   async function aiBrain(list:any[]){
 
     if(brainRunning) return
+
     setBrainRunning(true)
+    addActivity("AI scanning leads...")
 
     for(const lead of list){
 
       if(lead.status==="new"){
+
+        addActivity(`Analyzing ${lead.name}...`)
 
         await supabase.from("leads")
           .update({status:"thinking"})
@@ -40,6 +50,8 @@ export default function Dashboard(){
             status:"ready"
           })
           .eq("id",lead.id)
+
+        addActivity(`AI generated follow-up for ${lead.name}`)
       }
     }
 
@@ -76,6 +88,7 @@ export default function Dashboard(){
 
     setName("")
     setEmail("")
+    addActivity("New lead added — AI starting...")
   }
 
   useEffect(()=>{
@@ -104,15 +117,29 @@ export default function Dashboard(){
 
   return(
 
-    <main className="max-w-6xl mx-auto py-12 px-4">
+    <main className="max-w-6xl mx-auto py-12 px-4 space-y-10">
 
-      <h1 className="text-5xl font-bold mb-12">
+      <h1 className="text-5xl font-bold">
         Leadflow AI
       </h1>
 
+      {/* ONBOARDING */}
+
+      {leads.length===0 &&(
+
+        <div className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 p-10 rounded-3xl text-center">
+
+          <p className="text-xl">
+            Add your first lead and watch AI work automatically 🤖
+          </p>
+
+        </div>
+
+      )}
+
       {/* ADD CARD */}
 
-      <div className="bg-gradient-to-br from-neutral-900 to-black p-8 rounded-3xl mb-14 shadow-xl">
+      <div className="bg-neutral-900 p-8 rounded-3xl shadow-xl">
 
         <div className="flex gap-4">
 
@@ -141,19 +168,21 @@ export default function Dashboard(){
 
       </div>
 
-      {/* EMPTY STATE */}
+      {/* ACTIVITY FEED */}
 
-      {leads.length===0 && (
+      <div className="bg-neutral-900 p-6 rounded-3xl">
 
-        <div className="text-center opacity-80">
+        <p className="mb-4 font-semibold">
+          AI Activity
+        </p>
 
-          <p className="text-xl">
-            Add your first lead and watch AI work automatically 🤖
+        {activity.map((a,i)=>(
+          <p key={i} className="text-sm text-gray-400">
+            {a}
           </p>
+        ))}
 
-        </div>
-
-      )}
+      </div>
 
       {/* LEADS */}
 
@@ -162,7 +191,7 @@ export default function Dashboard(){
         {leads.map(l=>(
 
           <div key={l.id}
-            className="bg-neutral-900 p-8 rounded-3xl shadow-lg hover:shadow-xl transition">
+            className="bg-neutral-900 p-8 rounded-3xl shadow-lg">
 
             <div className="flex justify-between items-center">
 
@@ -184,7 +213,7 @@ export default function Dashboard(){
 
             </div>
 
-            {l.ai_followup && (
+            {l.ai_followup &&(
 
               <pre className="bg-black p-6 rounded-2xl mt-6 whitespace-pre-wrap text-sm">
                 {l.ai_followup}
