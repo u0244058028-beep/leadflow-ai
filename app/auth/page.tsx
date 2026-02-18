@@ -19,7 +19,7 @@ export default function AuthPage() {
 
     handleAuth()
 
-  }, [])
+  }, [router])
 
   return <p>Logging you in...</p>
 }
