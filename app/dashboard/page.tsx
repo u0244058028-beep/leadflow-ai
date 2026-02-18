@@ -7,7 +7,7 @@ export default function Dashboard(){
 
   const [leads,setLeads]=useState<any[]>([])
   const [rawInput,setRawInput]=useState("")
-  const [editing,setEditing]=useState<string|null>(null)
+  const [selected,setSelected]=useState<any|null>(null)
 
   async function loadLeads(){
 
@@ -18,8 +18,6 @@ export default function Dashboard(){
 
     setLeads(data||[])
   }
-
-  // SMART CAPTURE
 
   async function smartCapture(){
 
@@ -71,8 +69,6 @@ export default function Dashboard(){
 
   },[])
 
-  const urgent = leads.filter(l=>l.urgency==="URGENT")
-
   function urgencyColor(u:string){
 
     if(u==="URGENT") return "text-red-400"
@@ -80,6 +76,8 @@ export default function Dashboard(){
 
     return "text-gray-400"
   }
+
+  const urgent = leads.filter(l=>l.urgency==="URGENT")
 
   return(
 
@@ -140,7 +138,9 @@ export default function Dashboard(){
             {urgent.map(l=>(
 
               <div key={l.id}
-                className="bg-neutral-900 p-6 rounded-2xl">
+                className="bg-neutral-900 p-6 rounded-2xl cursor-pointer"
+                onClick={()=>setSelected(l)}
+              >
 
                 <p className="font-semibold">{l.name}</p>
 
@@ -171,51 +171,22 @@ export default function Dashboard(){
           {leads.map(l=>(
 
             <div key={l.id}
-              className="bg-neutral-900 p-6 rounded-2xl space-y-4">
+              className="bg-neutral-900 p-6 rounded-2xl cursor-pointer"
+              onClick={()=>setSelected(l)}
+            >
 
               <div className="flex justify-between">
 
                 <div>
 
-                  <p className="font-semibold">
-                    {l.name}
-                  </p>
-
-                  <p className="text-sm text-gray-400">
-                    {l.email}
-                  </p>
+                  <p className="font-semibold">{l.name}</p>
+                  <p className="text-gray-400 text-sm">{l.email}</p>
 
                 </div>
 
                 <p className={urgencyColor(l.urgency)}>
                   {l.urgency}
                 </p>
-
-              </div>
-
-              {l.next_action &&(
-
-                <div className="bg-blue-900/20 border border-blue-500/20 p-3 rounded-xl text-sm">
-
-                  Next action: {l.next_action}
-
-                </div>
-
-              )}
-
-              <div className="flex gap-4">
-
-                <button
-                  onClick={()=>setEditing(l.id)}
-                  className="text-sm underline">
-                  Edit
-                </button>
-
-                <button
-                  onClick={()=>deleteLead(l.id)}
-                  className="text-sm text-red-400 underline">
-                  Delete
-                </button>
 
               </div>
 
@@ -227,6 +198,53 @@ export default function Dashboard(){
 
       </section>
 
+      {/* DETAIL PANEL */}
+
+      {selected &&(
+
+        <div className="fixed right-0 top-0 h-full w-[420px] bg-black border-l border-gray-800 p-6 space-y-4">
+
+          <button
+            onClick={()=>setSelected(null)}
+            className="text-sm underline"
+          >
+            Close
+          </button>
+
+          <h2 className="text-xl font-semibold">
+            {selected.name}
+          </h2>
+
+          <p className="text-gray-400">
+            {selected.email}
+          </p>
+
+          <p className={urgencyColor(selected.urgency)}>
+            {selected.urgency}
+          </p>
+
+          {selected.next_action &&(
+
+            <div className="bg-blue-900/20 border border-blue-500/20 p-4 rounded-xl">
+
+              Next action: {selected.next_action}
+
+            </div>
+
+          )}
+
+          <button
+            onClick={()=>deleteLead(selected.id)}
+            className="text-red-400 underline text-sm"
+          >
+            Delete Lead
+          </button>
+
+        </div>
+
+      )}
+
     </main>
+
   )
 }
