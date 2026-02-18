@@ -6,9 +6,9 @@ import { useEffect, useState } from "react"
 export default function Dashboard() {
 
   const [leads, setLeads] = useState<any[]>([])
+  const [expanded, setExpanded] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
-  const [editingId, setEditingId] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
 
   async function loadLeads() {
@@ -17,6 +17,7 @@ export default function Dashboard() {
       .from("leads")
       .select("*")
       .order("created_at", { ascending:false })
+      .limit(20) // 👈 viktig for performance
 
     setLeads(data || [])
   }
@@ -63,13 +64,12 @@ export default function Dashboard() {
       .select()
       .single()
 
-    setName("")
-    setEmail("")
-
     if (data) {
       await generateAI(data.id, data)
     }
 
+    setName("")
+    setEmail("")
     setGenerating(false)
   }
 
@@ -78,28 +78,6 @@ export default function Dashboard() {
     await supabase.from("leads").delete().eq("id", id)
 
     loadLeads()
-  }
-
-  async function updateLead(id:string) {
-
-    const lead = leads.find(l=>l.id===id)
-
-    await supabase.from("leads").update({
-      name: lead.name,
-      email: lead.email
-    }).eq("id", id)
-
-    setEditingId(null)
-    loadLeads()
-  }
-
-  function changeField(id:string, field:string, value:string){
-
-    setLeads(prev =>
-      prev.map(l =>
-        l.id === id ? { ...l, [field]: value } : l
-      )
-    )
   }
 
   useEffect(()=>{
@@ -113,6 +91,8 @@ export default function Dashboard() {
       <h1 className="text-3xl font-bold mb-6">
         Dashboard
       </h1>
+
+      {/* ADD */}
 
       <div className="bg-neutral-900 p-6 rounded-xl mb-10">
 
@@ -143,57 +123,50 @@ export default function Dashboard() {
 
       </div>
 
-      <div className="space-y-6">
+      {/* LEADS */}
 
-        {leads.map(l=>(
-          <div key={l.id} className="bg-neutral-900 p-5 rounded-xl">
+      <div className="space-y-4">
 
-            {editingId === l.id ? (
+        {leads.map(l=>{
 
-              <div className="space-y-3">
+          const isOpen = expanded === l.id
 
-                <input
-                  className="bg-black border p-2 w-full"
-                  value={l.name}
-                  onChange={(e)=>changeField(l.id,"name",e.target.value)}
-                />
+          return (
 
-                <input
-                  className="bg-black border p-2 w-full"
-                  value={l.email}
-                  onChange={(e)=>changeField(l.id,"email",e.target.value)}
-                />
+            <div
+              key={l.id}
+              className="bg-neutral-900 p-5 rounded-xl cursor-pointer"
+              onClick={()=>setExpanded(isOpen ? null : l.id)}
+            >
 
-                <button
-                  onClick={()=>updateLead(l.id)}
-                  className="bg-green-500 px-3 py-1"
-                >
-                  Save
-                </button>
-
-              </div>
-
-            ) : (
-
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
 
                 <div>
+
                   <p className="font-semibold">{l.name}</p>
-                  <p className="text-gray-400">{l.email}</p>
+
+                  <p className="text-gray-400 text-sm">
+                    {l.email}
+                  </p>
+
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-3 items-center">
+
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    l.last_followup
+                      ? "bg-green-600"
+                      : "bg-yellow-600"
+                  }`}>
+                    {l.last_followup ? "Followed-up" : "New"}
+                  </span>
 
                   <button
-                    onClick={()=>setEditingId(l.id)}
-                    className="text-sm underline"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={()=>deleteLead(l.id)}
-                    className="text-sm text-red-400"
+                    onClick={(e)=>{
+                      e.stopPropagation()
+                      deleteLead(l.id)
+                    }}
+                    className="text-red-400 text-sm"
                   >
                     Delete
                   </button>
@@ -202,18 +175,21 @@ export default function Dashboard() {
 
               </div>
 
-            )}
+              {/* EXPANDED */}
 
-            {l.ai_followup && (
+              {isOpen && l.ai_followup && (
 
-              <pre className="bg-black p-4 rounded mt-4 whitespace-pre-wrap animate-pulse">
-                {l.ai_followup}
-              </pre>
+                <pre className="bg-black p-4 rounded mt-4 whitespace-pre-wrap">
+                  {l.ai_followup}
+                </pre>
 
-            )}
+              )}
 
-          </div>
-        ))}
+            </div>
+
+          )
+
+        })}
 
       </div>
 
