@@ -6,7 +6,7 @@ import { useEffect,useState } from "react"
 export default function Dashboard(){
 
   const [leads,setLeads]=useState<any[]>([])
-  const [mission,setMission]=useState<any>({
+  const [mission,setMission]=useState({
     urgent:0,
     high:0,
     warming:0
@@ -23,7 +23,6 @@ export default function Dashboard(){
 
     setLeads(list)
 
-    // AI mission summary
     const urgent=list.filter(l=>l.urgency==="URGENT").length
     const high=list.filter(l=>l.urgency==="HIGH").length
     const warming=list.filter(l=>l.urgency==="MEDIUM").length
@@ -37,13 +36,17 @@ export default function Dashboard(){
 
     const channel = supabase
       .channel('realtime')
-      .on('postgres_changes',
+      .on(
+        'postgres_changes',
         {event:'*',schema:'public',table:'leads'},
         ()=>loadLeads()
       )
       .subscribe()
 
-    return ()=>supabase.removeChannel(channel)
+    // IMPORTANT: cleanup must NOT be async
+    return () => {
+      void supabase.removeChannel(channel)
+    }
 
   },[])
 
