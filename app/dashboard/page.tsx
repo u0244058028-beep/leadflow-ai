@@ -6,37 +6,8 @@ import { useEffect, useState } from "react"
 export default function Dashboard() {
 
   const [leads, setLeads] = useState<any[]>([])
-  const [expanded, setExpanded] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
-  const [generating, setGenerating] = useState(false)
-
-  async function autoAI(leadsList:any[]) {
-
-    for (const lead of leadsList) {
-
-      if (!lead.ai_followup) {
-
-        const res = await fetch("/api/ai", {
-          method:"POST",
-          headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify({
-            message: `Write a friendly follow-up email to ${lead.name} at ${lead.email}.`
-          })
-        })
-
-        const data = await res.json()
-
-        await supabase
-          .from("leads")
-          .update({
-            ai_followup: data.reply,
-            last_followup: new Date()
-          })
-          .eq("id", lead.id)
-      }
-    }
-  }
 
   async function loadLeads() {
 
@@ -44,136 +15,134 @@ export default function Dashboard() {
       .from("leads")
       .select("*")
       .order("created_at", { ascending:false })
-      .limit(20)
 
     setLeads(data || [])
-
-    if (data) {
-      autoAI(data) // 👈 AUTO SYSTEM
-    }
   }
 
   async function addLead() {
-
-    setGenerating(true)
 
     const { data:userData } = await supabase.auth.getUser()
     const user = userData.user
 
     if (!user) return
 
-    await supabase
-      .from("leads")
-      .insert({
-        user_id: user.id,
-        name,
-        email
-      })
+    await supabase.from("leads").insert({
+      user_id: user.id,
+      name,
+      email,
+      status:"new"
+    })
 
     setName("")
     setEmail("")
-    setGenerating(false)
-
-    loadLeads()
-  }
-
-  async function deleteLead(id:string) {
-
-    await supabase.from("leads").delete().eq("id", id)
-
     loadLeads()
   }
 
   useEffect(()=>{
+
     loadLeads()
+
+    const interval = setInterval(loadLeads, 5000)
+
+    return ()=>clearInterval(interval)
+
   },[])
+
+  function statusColor(status:string){
+
+    if(status==="thinking") return "bg-yellow-500"
+    if(status==="followed_up") return "bg-green-500"
+
+    return "bg-blue-500"
+  }
 
   return (
 
-    <main className="max-w-4xl mx-auto">
+    <main className="max-w-5xl mx-auto py-10">
 
-      <h1 className="text-3xl font-bold mb-6">
-        Dashboard
+      <h1 className="text-4xl font-bold mb-10">
+        Leadflow AI Dashboard
       </h1>
 
-      <div className="bg-neutral-900 p-6 rounded-xl mb-10">
+      {/* ADD CARD */}
+
+      <div className="bg-neutral-900 p-6 rounded-2xl mb-12 shadow-lg">
 
         <div className="flex gap-3">
 
           <input
-            className="bg-black border p-2 flex-1"
-            placeholder="Name"
+            className="bg-black border p-3 rounded-lg flex-1"
+            placeholder="Lead name"
             value={name}
             onChange={(e)=>setName(e.target.value)}
           />
 
           <input
-            className="bg-black border p-2 flex-1"
-            placeholder="Email"
+            className="bg-black border p-3 rounded-lg flex-1"
+            placeholder="Lead email"
             value={email}
             onChange={(e)=>setEmail(e.target.value)}
           />
 
           <button
             onClick={addLead}
-            className="bg-blue-500 px-4 py-2 rounded"
+            className="bg-blue-600 px-6 rounded-xl"
           >
-            {generating ? "Adding..." : "Add Lead"}
+            Add
           </button>
 
         </div>
 
       </div>
 
-      <div className="space-y-4">
+      {/* LEADS GRID */}
 
-        {leads.map(l=>{
+      <div className="grid gap-6">
 
-          const isOpen = expanded === l.id
+        {leads.map(l=>(
 
-          return (
+          <div
+            key={l.id}
+            className="bg-neutral-900 p-6 rounded-2xl shadow-lg"
+          >
 
-            <div
-              key={l.id}
-              className="bg-neutral-900 p-5 rounded-xl cursor-pointer"
-              onClick={()=>setExpanded(isOpen ? null : l.id)}
-            >
+            <div className="flex justify-between items-center">
 
-              <div className="flex justify-between">
+              <div>
 
-                <div>
-                  <p className="font-semibold">{l.name}</p>
-                  <p className="text-gray-400 text-sm">{l.email}</p>
-                </div>
+                <p className="text-lg font-semibold">
+                  {l.name}
+                </p>
 
-                <button
-                  onClick={(e)=>{
-                    e.stopPropagation()
-                    deleteLead(l.id)
-                  }}
-                  className="text-red-400 text-sm"
-                >
-                  Delete
-                </button>
+                <p className="text-gray-400 text-sm">
+                  {l.email}
+                </p>
 
               </div>
 
-              {isOpen && l.ai_followup && (
-
-                <pre className="bg-black p-4 rounded mt-4 whitespace-pre-wrap">
-                  {l.ai_followup}
-                </pre>
-
-              )}
+              <span
+                className={`text-xs px-3 py-1 rounded-full ${statusColor(l.status)}`}
+              >
+                {l.status}
+              </span>
 
             </div>
 
-          )
+            {l.ai_followup && (
 
-        })}
+              <pre className="bg-black p-4 rounded-xl mt-5 whitespace-pre-wrap">
+                {l.ai_followup}
+              </pre>
+
+            )}
+
+          </div>
+
+        ))}
 
       </div>
 
     </main>
+
   )
 }
