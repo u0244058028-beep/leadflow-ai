@@ -112,13 +112,17 @@ export default function Dashboard(){
 
     const channel = supabase
       .channel('realtime')
-      .on('postgres_changes',
+      .on(
+        'postgres_changes',
         {event:'*',schema:'public',table:'leads'},
         ()=>loadLeads()
       )
       .subscribe()
 
-    return ()=>supabase.removeChannel(channel)
+    // IMPORTANT: cleanup must be sync (NOT async)
+    return ()=>{
+      supabase.removeChannel(channel)
+    }
 
   },[])
 
@@ -239,6 +243,6 @@ export default function Dashboard(){
       </div>
 
     </main>
+
   )
 }
- 
