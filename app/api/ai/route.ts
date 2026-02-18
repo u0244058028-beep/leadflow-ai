@@ -11,15 +11,15 @@ export async function POST(req:Request){
     messages:[
       {
         role:"system",
-        content:`You are an elite autonomous sales assistant.
-Generate:
-1) Friendly follow-up email
-2) Short lead summary
-3) Recommended next action`
+        content:`You are an elite autonomous sales AI.
+Return:
+FOLLOWUP EMAIL
+SCORE (0-100)
+NEXT ACTION`
       },
       {
         role:"user",
-        content:`Lead name: ${name}, email: ${email}`
+        content:`Lead: ${name}, ${email}`
       }
     ]
   })
