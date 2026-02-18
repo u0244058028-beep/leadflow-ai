@@ -1,8 +1,5 @@
 {
   "crons": [
-    {
-      "path": "/api/auto",
-      "schedule": "*/5 * * * *"
-    }
+    
   ]
 }
