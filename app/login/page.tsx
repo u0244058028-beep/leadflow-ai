@@ -1,42 +1,30 @@
 'use client'
 
 import { supabase } from "@/lib/supabase"
-import { useState } from "react"
 
 export default function LoginPage() {
 
-  const [email, setEmail] = useState("")
+  async function devLogin() {
 
-  async function login() {
-
-    const redirectUrl = "https://leadflow-ai-ivory.vercel.app/auth"
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: redirectUrl
-      }
+    const { error } = await supabase.auth.signInWithPassword({
+      email: "test@test.com",
+      password: "password123"
     })
 
     if (error) {
       alert(error.message)
     } else {
-      alert("Check your email for login link")
+      window.location.href = "/test"
     }
   }
 
   return (
     <main>
-      <h1>Login</h1>
 
-      <input
-        placeholder="email"
-        value={email}
-        onChange={(e)=>setEmail(e.target.value)}
-      />
+      <h1>Dev Login</h1>
 
-      <button onClick={login}>
-        Login
+      <button onClick={devLogin}>
+        Login as Test User
       </button>
 
     </main>
