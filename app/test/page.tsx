@@ -9,9 +9,19 @@ export default function TestPage() {
 
   async function testInsert() {
 
-    const { data, error } = await supabase
+    const { data: userData } = await supabase.auth.getUser()
+
+    const user = userData.user
+
+    if (!user) {
+      setResult("Not logged in")
+      return
+    }
+
+    const { error } = await supabase
       .from("leads")
       .insert({
+        user_id: user.id,
         name: "Test Lead",
         email: "test@test.com"
       })
@@ -25,11 +35,13 @@ export default function TestPage() {
 
   return (
     <main>
+
       <button onClick={testInsert}>
         Test Supabase Insert
       </button>
 
       <pre>{result}</pre>
+
     </main>
   )
 }
