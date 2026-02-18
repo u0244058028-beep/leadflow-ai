@@ -8,8 +8,8 @@ export default function Dashboard() {
   const [leads, setLeads] = useState<any[]>([])
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [loadingAI, setLoadingAI] = useState<string | null>(null)
-  const [aiReplies, setAiReplies] = useState<any>({})
 
   async function loadLeads() {
 
@@ -39,30 +39,61 @@ export default function Dashboard() {
     loadLeads()
   }
 
+  async function deleteLead(id:string) {
+
+    await supabase.from("leads").delete().eq("id", id)
+
+    loadLeads()
+  }
+
+  async function updateLead(id:string) {
+
+    const lead = leads.find(l=>l.id===id)
+
+    await supabase.from("leads").update({
+      name: lead.name,
+      email: lead.email
+    }).eq("id", id)
+
+    setEditingId(null)
+    loadLeads()
+  }
+
   async function generateAI(id:string) {
 
     setLoadingAI(id)
+
+    const lead = leads.find(l=>l.id===id)
 
     const res = await fetch("/api/ai", {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({
-        message: "Write a friendly follow-up email to a new lead."
+        message: `Write a friendly follow-up email to ${lead.name} at ${lead.email}.`
       })
     })
 
     const data = await res.json()
 
-    setAiReplies((prev:any)=>({
-      ...prev,
-      [id]: data.reply
-    }))
+    await supabase
+      .from("leads")
+      .update({
+        ai_followup: data.reply,
+        last_followup: new Date()
+      })
+      .eq("id", id)
 
     setLoadingAI(null)
+    loadLeads()
   }
 
-  function copy(text:string){
-    navigator.clipboard.writeText(text)
+  function changeField(id:string, field:string, value:string){
+
+    setLeads(prev =>
+      prev.map(l =>
+        l.id === id ? { ...l, [field]: value } : l
+      )
+    )
   }
 
   useEffect(()=>{
@@ -77,11 +108,9 @@ export default function Dashboard() {
         Dashboard
       </h1>
 
-      {/* ADD LEAD */}
+      {/* ADD */}
 
       <div className="bg-neutral-900 p-6 rounded-xl mb-10">
-
-        <h2 className="mb-4">Add Lead</h2>
 
         <div className="flex gap-3">
 
@@ -117,38 +146,74 @@ export default function Dashboard() {
         {leads.map(l=>(
           <div key={l.id} className="bg-neutral-900 p-5 rounded-xl">
 
-            <div className="flex justify-between items-center">
+            {editingId === l.id ? (
 
-              <div>
-                <p className="font-semibold">{l.name}</p>
-                <p className="text-gray-400 text-sm">{l.email}</p>
-              </div>
+              <div className="space-y-3">
 
-              <button
-                onClick={()=>generateAI(l.id)}
-                className="bg-purple-500 px-3 py-2 rounded"
-              >
-                {loadingAI === l.id ? "Generating..." : "AI Follow-up"}
-              </button>
+                <input
+                  className="bg-black border p-2 w-full"
+                  value={l.name}
+                  onChange={(e)=>changeField(l.id,"name",e.target.value)}
+                />
 
-            </div>
-
-            {aiReplies[l.id] && (
-
-              <div className="mt-4">
-
-                <pre className="bg-black p-4 rounded whitespace-pre-wrap">
-                  {aiReplies[l.id]}
-                </pre>
+                <input
+                  className="bg-black border p-2 w-full"
+                  value={l.email}
+                  onChange={(e)=>changeField(l.id,"email",e.target.value)}
+                />
 
                 <button
-                  onClick={()=>copy(aiReplies[l.id])}
-                  className="mt-2 text-sm underline"
+                  onClick={()=>updateLead(l.id)}
+                  className="bg-green-500 px-3 py-1"
                 >
-                  Copy
+                  Save
                 </button>
 
               </div>
+
+            ) : (
+
+              <div className="flex justify-between">
+
+                <div>
+                  <p className="font-semibold">{l.name}</p>
+                  <p className="text-gray-400">{l.email}</p>
+                </div>
+
+                <div className="flex gap-2">
+
+                  <button
+                    onClick={()=>setEditingId(l.id)}
+                    className="text-sm underline"
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={()=>deleteLead(l.id)}
+                    className="text-sm text-red-400"
+                  >
+                    Delete
+                  </button>
+
+                  <button
+                    onClick={()=>generateAI(l.id)}
+                    className="bg-purple-500 px-3 py-1 rounded"
+                  >
+                    {loadingAI === l.id ? "Generating..." : "AI"}
+                  </button>
+
+                </div>
+
+              </div>
+
+            )}
+
+            {l.ai_followup && (
+
+              <pre className="bg-black p-4 rounded mt-4 whitespace-pre-wrap">
+                {l.ai_followup}
+              </pre>
 
             )}
 
