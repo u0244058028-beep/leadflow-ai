@@ -6,14 +6,26 @@ import { useEffect,useState } from "react"
 export default function Dashboard(){
 
   const [leads,setLeads]=useState<any[]>([])
+  const [activity,setActivity]=useState<string[]>([])
   const [name,setName]=useState("")
   const [email,setEmail]=useState("")
-  const [activity,setActivity]=useState<string[]>([])
   const [brainRunning,setBrainRunning]=useState(false)
 
   function addActivity(msg:string){
-
     setActivity(prev=>[msg,...prev.slice(0,5)])
+  }
+
+  function parseAI(text:string){
+
+    const scoreMatch = text.match(/(\d+)/)
+    const score = scoreMatch ? parseInt(scoreMatch[0]) : 50
+
+    const nextActionMatch = text.split("NEXT ACTION")[1]
+
+    return {
+      score,
+      nextAction: nextActionMatch || "Follow up soon"
+    }
   }
 
   async function aiBrain(list:any[]){
@@ -21,13 +33,12 @@ export default function Dashboard(){
     if(brainRunning) return
 
     setBrainRunning(true)
-    addActivity("AI scanning leads...")
 
     for(const lead of list){
 
       if(lead.status==="new"){
 
-        addActivity(`Analyzing ${lead.name}...`)
+        addActivity(`AI analyzing ${lead.name}`)
 
         await supabase.from("leads")
           .update({status:"thinking"})
@@ -44,14 +55,18 @@ export default function Dashboard(){
 
         const data = await res.json()
 
+        const parsed = parseAI(data.reply)
+
         await supabase.from("leads")
           .update({
             ai_followup:data.reply,
+            score:parsed.score,
+            next_action:parsed.nextAction,
             status:"ready"
           })
           .eq("id",lead.id)
 
-        addActivity(`AI generated follow-up for ${lead.name}`)
+        addActivity(`Lead upgraded: ${lead.name}`)
       }
     }
 
@@ -88,7 +103,7 @@ export default function Dashboard(){
 
     setName("")
     setEmail("")
-    addActivity("New lead added — AI starting...")
+    addActivity("New lead detected — AI engaged")
   }
 
   useEffect(()=>{
@@ -107,12 +122,12 @@ export default function Dashboard(){
 
   },[])
 
-  function statusStyle(status:string){
+  function scoreColor(score:number){
 
-    if(status==="thinking") return "bg-yellow-500"
-    if(status==="ready") return "bg-green-500"
+    if(score>70) return "text-green-400"
+    if(score>40) return "text-yellow-400"
 
-    return "bg-blue-500"
+    return "text-red-400"
   }
 
   return(
@@ -123,23 +138,9 @@ export default function Dashboard(){
         Leadflow AI
       </h1>
 
-      {/* ONBOARDING */}
+      {/* ADD */}
 
-      {leads.length===0 &&(
-
-        <div className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 p-10 rounded-3xl text-center">
-
-          <p className="text-xl">
-            Add your first lead and watch AI work automatically 🤖
-          </p>
-
-        </div>
-
-      )}
-
-      {/* ADD CARD */}
-
-      <div className="bg-neutral-900 p-8 rounded-3xl shadow-xl">
+      <div className="bg-neutral-900 p-8 rounded-3xl">
 
         <div className="flex gap-4">
 
@@ -159,7 +160,7 @@ export default function Dashboard(){
 
           <button
             onClick={addLead}
-            className="bg-blue-600 px-8 rounded-xl font-semibold hover:bg-blue-500 transition"
+            className="bg-blue-600 px-8 rounded-xl"
           >
             Add
           </button>
@@ -168,7 +169,7 @@ export default function Dashboard(){
 
       </div>
 
-      {/* ACTIVITY FEED */}
+      {/* ACTIVITY */}
 
       <div className="bg-neutral-900 p-6 rounded-3xl">
 
@@ -190,32 +191,42 @@ export default function Dashboard(){
 
         {leads.map(l=>(
 
-          <div key={l.id}
-            className="bg-neutral-900 p-8 rounded-3xl shadow-lg">
+          <div key={l.id} className="bg-neutral-900 p-8 rounded-3xl">
 
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between">
 
               <div>
 
-                <p className="text-lg font-semibold">
-                  {l.name}
+                <p className="font-semibold">{l.name}</p>
+                <p className="text-gray-400">{l.email}</p>
+
+              </div>
+
+              <div className="text-right">
+
+                <p className={`${scoreColor(l.score||0)} font-bold`}>
+                  {l.score || 0}
                 </p>
 
-                <p className="text-gray-400 text-sm">
-                  {l.email}
+                <p className="text-xs text-gray-400">
+                  Lead Score
                 </p>
 
               </div>
 
-              <span className={`px-4 py-1 rounded-full text-xs ${statusStyle(l.status)}`}>
-                {l.status}
-              </span>
-
             </div>
+
+            {l.next_action &&(
+
+              <p className="mt-4 text-blue-400 text-sm">
+                Next action: {l.next_action}
+              </p>
+
+            )}
 
             {l.ai_followup &&(
 
-              <pre className="bg-black p-6 rounded-2xl mt-6 whitespace-pre-wrap text-sm">
+              <pre className="bg-black p-6 rounded-xl mt-6 whitespace-pre-wrap text-sm">
                 {l.ai_followup}
               </pre>
 
