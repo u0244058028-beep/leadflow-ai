@@ -11,38 +11,46 @@ export default function Dashboard() {
   const [email, setEmail] = useState("")
   const [generating, setGenerating] = useState(false)
 
+  async function autoAI(leadsList:any[]) {
+
+    for (const lead of leadsList) {
+
+      if (!lead.ai_followup) {
+
+        const res = await fetch("/api/ai", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({
+            message: `Write a friendly follow-up email to ${lead.name} at ${lead.email}.`
+          })
+        })
+
+        const data = await res.json()
+
+        await supabase
+          .from("leads")
+          .update({
+            ai_followup: data.reply,
+            last_followup: new Date()
+          })
+          .eq("id", lead.id)
+      }
+    }
+  }
+
   async function loadLeads() {
 
     const { data } = await supabase
       .from("leads")
       .select("*")
       .order("created_at", { ascending:false })
-      .limit(20) // 👈 viktig for performance
+      .limit(20)
 
     setLeads(data || [])
-  }
 
-  async function generateAI(id:string, lead:any){
-
-    const res = await fetch("/api/ai", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        message: `Write a friendly follow-up email to ${lead.name} at ${lead.email}.`
-      })
-    })
-
-    const data = await res.json()
-
-    await supabase
-      .from("leads")
-      .update({
-        ai_followup: data.reply,
-        last_followup: new Date()
-      })
-      .eq("id", id)
-
-    loadLeads()
+    if (data) {
+      autoAI(data) // 👈 AUTO SYSTEM
+    }
   }
 
   async function addLead() {
@@ -54,23 +62,19 @@ export default function Dashboard() {
 
     if (!user) return
 
-    const { data } = await supabase
+    await supabase
       .from("leads")
       .insert({
         user_id: user.id,
         name,
         email
       })
-      .select()
-      .single()
-
-    if (data) {
-      await generateAI(data.id, data)
-    }
 
     setName("")
     setEmail("")
     setGenerating(false)
+
+    loadLeads()
   }
 
   async function deleteLead(id:string) {
@@ -91,8 +95,6 @@ export default function Dashboard() {
       <h1 className="text-3xl font-bold mb-6">
         Dashboard
       </h1>
-
-      {/* ADD */}
 
       <div className="bg-neutral-900 p-6 rounded-xl mb-10">
 
@@ -116,14 +118,12 @@ export default function Dashboard() {
             onClick={addLead}
             className="bg-blue-500 px-4 py-2 rounded"
           >
-            {generating ? "AI generating..." : "Add Lead"}
+            {generating ? "Adding..." : "Add Lead"}
           </button>
 
         </div>
 
       </div>
-
-      {/* LEADS */}
 
       <div className="space-y-4">
 
@@ -139,43 +139,24 @@ export default function Dashboard() {
               onClick={()=>setExpanded(isOpen ? null : l.id)}
             >
 
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between">
 
                 <div>
-
                   <p className="font-semibold">{l.name}</p>
-
-                  <p className="text-gray-400 text-sm">
-                    {l.email}
-                  </p>
-
+                  <p className="text-gray-400 text-sm">{l.email}</p>
                 </div>
 
-                <div className="flex gap-3 items-center">
-
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    l.last_followup
-                      ? "bg-green-600"
-                      : "bg-yellow-600"
-                  }`}>
-                    {l.last_followup ? "Followed-up" : "New"}
-                  </span>
-
-                  <button
-                    onClick={(e)=>{
-                      e.stopPropagation()
-                      deleteLead(l.id)
-                    }}
-                    className="text-red-400 text-sm"
-                  >
-                    Delete
-                  </button>
-
-                </div>
+                <button
+                  onClick={(e)=>{
+                    e.stopPropagation()
+                    deleteLead(l.id)
+                  }}
+                  className="text-red-400 text-sm"
+                >
+                  Delete
+                </button>
 
               </div>
-
-              {/* EXPANDED */}
 
               {isOpen && l.ai_followup && (
 
