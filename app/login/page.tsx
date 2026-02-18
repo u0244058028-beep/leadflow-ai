@@ -14,19 +14,15 @@ export default function LoginPage() {
     if (error) {
       alert(error.message)
     } else {
-      window.location.href = "/test"
+      window.location.href = "/dashboard"
     }
   }
 
   return (
-    <main>
-
-      <h1>Dev Login</h1>
-
+    <main className="p-10">
       <button onClick={devLogin}>
         Login as Test User
       </button>
-
     </main>
   )
 }
