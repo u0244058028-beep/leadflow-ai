@@ -1,15 +1,13 @@
 'use client'
 
 import { supabase } from "@/lib/supabase"
-import { useEffect, useState } from "react"
+import { useEffect,useState } from "react"
 
-export default function Dashboard() {
+export default function Dashboard(){
 
   const [leads,setLeads]=useState<any[]>([])
   const [rawInput,setRawInput]=useState("")
-  const [loading,setLoading]=useState(false)
-
-  // LOAD LEADS
+  const [editing,setEditing]=useState<string|null>(null)
 
   async function loadLeads(){
 
@@ -21,23 +19,21 @@ export default function Dashboard() {
     setLeads(data||[])
   }
 
-  // SMART AI CAPTURE
+  // SMART CAPTURE
 
   async function smartCapture(){
 
     if(!rawInput.trim()) return
 
-    setLoading(true)
-
     const res = await fetch("/api/capture",{
       method:"POST",
       headers:{ "Content-Type":"application/json"},
-      body:JSON.stringify({ input:rawInput })
+      body:JSON.stringify({input:rawInput})
     })
 
     const parsed = await res.json()
 
-    const { data:userData } = await supabase.auth.getUser()
+    const {data:userData}=await supabase.auth.getUser()
     const user=userData.user
 
     if(!user) return
@@ -51,10 +47,12 @@ export default function Dashboard() {
     })
 
     setRawInput("")
-    setLoading(false)
   }
 
-  // REALTIME UPDATE
+  async function deleteLead(id:string){
+
+    await supabase.from("leads").delete().eq("id",id)
+  }
 
   useEffect(()=>{
 
@@ -73,11 +71,9 @@ export default function Dashboard() {
 
   },[])
 
-  // AI MISSION
-
   const urgent = leads.filter(l=>l.urgency==="URGENT")
 
-  function urgencyStyle(u:string){
+  function urgencyColor(u:string){
 
     if(u==="URGENT") return "text-red-400"
     if(u==="HIGH") return "text-yellow-400"
@@ -85,9 +81,9 @@ export default function Dashboard() {
     return "text-gray-400"
   }
 
-  return (
+  return(
 
-    <main className="max-w-5xl mx-auto py-14 px-4 space-y-12">
+    <main className="max-w-6xl mx-auto py-14 px-4 space-y-12">
 
       <h1 className="text-5xl font-bold">
         Leadflow AI
@@ -105,7 +101,7 @@ export default function Dashboard() {
 
       </section>
 
-      {/* INTELLIGENT CAPTURE */}
+      {/* QUICK CAPTURE */}
 
       <section className="bg-neutral-900 p-8 rounded-3xl">
 
@@ -115,7 +111,7 @@ export default function Dashboard() {
 
         <textarea
           className="bg-black border p-4 rounded-xl w-full"
-          placeholder="Paste anything about your lead... email, text, notes, website..."
+          placeholder="Paste anything about your lead..."
           value={rawInput}
           onChange={(e)=>setRawInput(e.target.value)}
         />
@@ -124,33 +120,29 @@ export default function Dashboard() {
           onClick={smartCapture}
           className="bg-blue-600 px-8 py-3 rounded-xl mt-4"
         >
-          {loading ? "Analyzing..." : "Add with AI"}
+          Add with AI
         </button>
 
       </section>
 
-      {/* PRIORITY LEADS */}
+      {/* NEEDS ATTENTION */}
 
       {urgent.length>0 &&(
 
         <section>
 
-          <h2 className="mb-4 text-xl font-semibold">
+          <h2 className="text-xl font-semibold mb-4">
             🔥 Needs Attention
           </h2>
 
-          <div className="space-y-4">
+          <div className="grid gap-6">
 
             {urgent.map(l=>(
 
-              <div
-                key={l.id}
-                className="bg-neutral-900 p-6 rounded-2xl"
-              >
+              <div key={l.id}
+                className="bg-neutral-900 p-6 rounded-2xl">
 
-                <p className="font-semibold">
-                  {l.name}
-                </p>
+                <p className="font-semibold">{l.name}</p>
 
                 <p className="text-sm text-gray-400">
                   {l.next_action}
@@ -166,38 +158,66 @@ export default function Dashboard() {
 
       )}
 
-      {/* ALL LEADS */}
+      {/* LEAD WORKSPACE */}
 
       <section>
 
-        <h2 className="mb-4 text-xl font-semibold">
-          All Leads
+        <h2 className="text-xl font-semibold mb-4">
+          📋 Lead Workspace
         </h2>
 
-        <div className="space-y-4">
+        <div className="grid gap-6">
 
           {leads.map(l=>(
 
-            <div
-              key={l.id}
-              className="bg-neutral-900 p-6 rounded-2xl flex justify-between"
-            >
+            <div key={l.id}
+              className="bg-neutral-900 p-6 rounded-2xl space-y-4">
 
-              <div>
+              <div className="flex justify-between">
 
-                <p className="font-semibold">
-                  {l.name}
-                </p>
+                <div>
 
-                <p className="text-gray-400 text-sm">
-                  {l.email}
+                  <p className="font-semibold">
+                    {l.name}
+                  </p>
+
+                  <p className="text-sm text-gray-400">
+                    {l.email}
+                  </p>
+
+                </div>
+
+                <p className={urgencyColor(l.urgency)}>
+                  {l.urgency}
                 </p>
 
               </div>
 
-              <p className={urgencyStyle(l.urgency)}>
-                {l.urgency}
-              </p>
+              {l.next_action &&(
+
+                <div className="bg-blue-900/20 border border-blue-500/20 p-3 rounded-xl text-sm">
+
+                  Next action: {l.next_action}
+
+                </div>
+
+              )}
+
+              <div className="flex gap-4">
+
+                <button
+                  onClick={()=>setEditing(l.id)}
+                  className="text-sm underline">
+                  Edit
+                </button>
+
+                <button
+                  onClick={()=>deleteLead(l.id)}
+                  className="text-sm text-red-400 underline">
+                  Delete
+                </button>
+
+              </div>
 
             </div>
 
@@ -208,6 +228,5 @@ export default function Dashboard() {
       </section>
 
     </main>
-
   )
 }
