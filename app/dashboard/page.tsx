@@ -1,71 +1,69 @@
 'use client'
 
 import { supabase } from "@/lib/supabase"
-import { useEffect, useState } from "react"
+import { useEffect,useState } from "react"
 
-export default function Dashboard() {
+export default function Dashboard(){
 
-  const [leads, setLeads] = useState<any[]>([])
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [runningBrain, setRunningBrain] = useState(false)
+  const [leads,setLeads]=useState<any[]>([])
+  const [name,setName]=useState("")
+  const [email,setEmail]=useState("")
+  const [brainRunning,setBrainRunning]=useState(false)
 
-  async function runBrain(leadsList:any[]) {
+  async function aiBrain(list:any[]){
 
-    if(runningBrain) return
+    if(brainRunning) return
+    setBrainRunning(true)
 
-    setRunningBrain(true)
+    for(const lead of list){
 
-    for (const lead of leadsList) {
+      if(lead.status==="new"){
 
-      if (lead.status === "new") {
+        await supabase.from("leads")
+          .update({status:"thinking"})
+          .eq("id",lead.id)
 
-        await supabase
-          .from("leads")
-          .update({ status:"thinking" })
-          .eq("id", lead.id)
-
-        const res = await fetch("/api/ai", {
+        const res = await fetch("/api/ai",{
           method:"POST",
-          headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify({
-            message:`Write a short friendly follow-up email to ${lead.name}.`
+          headers:{ "Content-Type":"application/json"},
+          body:JSON.stringify({
+            name:lead.name,
+            email:lead.email
           })
         })
 
         const data = await res.json()
 
-        await supabase
-          .from("leads")
+        await supabase.from("leads")
           .update({
             ai_followup:data.reply,
-            status:"followed_up"
+            status:"ready"
           })
-          .eq("id", lead.id)
+          .eq("id",lead.id)
       }
     }
 
-    setRunningBrain(false)
+    setBrainRunning(false)
   }
 
-  async function loadLeads() {
+  async function loadLeads(){
 
-    const { data } = await supabase
+    const {data}=await supabase
       .from("leads")
       .select("*")
       .order("created_at",{ascending:false})
 
-    setLeads(data || [])
+    setLeads(data||[])
 
     if(data){
-      runBrain(data)
+      aiBrain(data)
     }
   }
 
   async function addLead(){
 
-    const { data:userData } = await supabase.auth.getUser()
-    const user = userData.user
+    const {data:userData}=await supabase.auth.getUser()
+    const user=userData.user
 
     if(!user) return
 
@@ -78,49 +76,55 @@ export default function Dashboard() {
 
     setName("")
     setEmail("")
-
-    loadLeads()
   }
 
   useEffect(()=>{
 
     loadLeads()
 
-    const interval = setInterval(loadLeads,5000)
+    const channel = supabase
+      .channel('realtime')
+      .on('postgres_changes',
+        {event:'*',schema:'public',table:'leads'},
+        ()=>loadLeads()
+      )
+      .subscribe()
 
-    return ()=>clearInterval(interval)
+    return ()=>supabase.removeChannel(channel)
 
   },[])
 
-  function statusColor(status:string){
+  function statusStyle(status:string){
 
     if(status==="thinking") return "bg-yellow-500"
-    if(status==="followed_up") return "bg-green-500"
+    if(status==="ready") return "bg-green-500"
 
     return "bg-blue-500"
   }
 
-  return (
+  return(
 
-    <main className="max-w-5xl mx-auto py-10">
+    <main className="max-w-6xl mx-auto py-12 px-4">
 
-      <h1 className="text-4xl font-bold mb-10">
-        Leadflow AI Dashboard
+      <h1 className="text-5xl font-bold mb-12">
+        Leadflow AI
       </h1>
 
-      <div className="bg-neutral-900 p-6 rounded-2xl mb-12">
+      {/* ADD CARD */}
 
-        <div className="flex gap-3">
+      <div className="bg-gradient-to-br from-neutral-900 to-black p-8 rounded-3xl mb-14 shadow-xl">
+
+        <div className="flex gap-4">
 
           <input
-            className="bg-black border p-3 rounded-lg flex-1"
+            className="bg-black border p-4 rounded-xl flex-1"
             placeholder="Lead name"
             value={name}
             onChange={(e)=>setName(e.target.value)}
           />
 
           <input
-            className="bg-black border p-3 rounded-lg flex-1"
+            className="bg-black border p-4 rounded-xl flex-1"
             placeholder="Lead email"
             value={email}
             onChange={(e)=>setEmail(e.target.value)}
@@ -128,7 +132,7 @@ export default function Dashboard() {
 
           <button
             onClick={addLead}
-            className="bg-blue-600 px-6 rounded-xl"
+            className="bg-blue-600 px-8 rounded-xl font-semibold hover:bg-blue-500 transition"
           >
             Add
           </button>
@@ -137,22 +141,44 @@ export default function Dashboard() {
 
       </div>
 
-      <div className="grid gap-6">
+      {/* EMPTY STATE */}
+
+      {leads.length===0 && (
+
+        <div className="text-center opacity-80">
+
+          <p className="text-xl">
+            Add your first lead and watch AI work automatically 🤖
+          </p>
+
+        </div>
+
+      )}
+
+      {/* LEADS */}
+
+      <div className="grid gap-8">
 
         {leads.map(l=>(
 
-          <div key={l.id} className="bg-neutral-900 p-6 rounded-2xl">
+          <div key={l.id}
+            className="bg-neutral-900 p-8 rounded-3xl shadow-lg hover:shadow-xl transition">
 
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
 
               <div>
 
-                <p className="font-semibold">{l.name}</p>
-                <p className="text-gray-400">{l.email}</p>
+                <p className="text-lg font-semibold">
+                  {l.name}
+                </p>
+
+                <p className="text-gray-400 text-sm">
+                  {l.email}
+                </p>
 
               </div>
 
-              <span className={`px-3 py-1 rounded-full text-xs ${statusColor(l.status)}`}>
+              <span className={`px-4 py-1 rounded-full text-xs ${statusStyle(l.status)}`}>
                 {l.status}
               </span>
 
@@ -160,7 +186,7 @@ export default function Dashboard() {
 
             {l.ai_followup && (
 
-              <pre className="bg-black p-4 rounded-xl mt-5 whitespace-pre-wrap">
+              <pre className="bg-black p-6 rounded-2xl mt-6 whitespace-pre-wrap text-sm">
                 {l.ai_followup}
               </pre>
 
