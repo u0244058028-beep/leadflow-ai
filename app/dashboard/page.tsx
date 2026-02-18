@@ -9,7 +9,7 @@ export default function Dashboard() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [loadingAI, setLoadingAI] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
 
   async function loadLeads() {
 
@@ -21,49 +21,7 @@ export default function Dashboard() {
     setLeads(data || [])
   }
 
-  async function addLead() {
-
-    const { data:userData } = await supabase.auth.getUser()
-    const user = userData.user
-
-    if (!user) return
-
-    await supabase.from("leads").insert({
-      user_id: user.id,
-      name,
-      email
-    })
-
-    setName("")
-    setEmail("")
-    loadLeads()
-  }
-
-  async function deleteLead(id:string) {
-
-    await supabase.from("leads").delete().eq("id", id)
-
-    loadLeads()
-  }
-
-  async function updateLead(id:string) {
-
-    const lead = leads.find(l=>l.id===id)
-
-    await supabase.from("leads").update({
-      name: lead.name,
-      email: lead.email
-    }).eq("id", id)
-
-    setEditingId(null)
-    loadLeads()
-  }
-
-  async function generateAI(id:string) {
-
-    setLoadingAI(id)
-
-    const lead = leads.find(l=>l.id===id)
+  async function generateAI(id:string, lead:any){
 
     const res = await fetch("/api/ai", {
       method:"POST",
@@ -83,7 +41,55 @@ export default function Dashboard() {
       })
       .eq("id", id)
 
-    setLoadingAI(null)
+    loadLeads()
+  }
+
+  async function addLead() {
+
+    setGenerating(true)
+
+    const { data:userData } = await supabase.auth.getUser()
+    const user = userData.user
+
+    if (!user) return
+
+    const { data } = await supabase
+      .from("leads")
+      .insert({
+        user_id: user.id,
+        name,
+        email
+      })
+      .select()
+      .single()
+
+    setName("")
+    setEmail("")
+
+    if (data) {
+      await generateAI(data.id, data)
+    }
+
+    setGenerating(false)
+  }
+
+  async function deleteLead(id:string) {
+
+    await supabase.from("leads").delete().eq("id", id)
+
+    loadLeads()
+  }
+
+  async function updateLead(id:string) {
+
+    const lead = leads.find(l=>l.id===id)
+
+    await supabase.from("leads").update({
+      name: lead.name,
+      email: lead.email
+    }).eq("id", id)
+
+    setEditingId(null)
     loadLeads()
   }
 
@@ -108,8 +114,6 @@ export default function Dashboard() {
         Dashboard
       </h1>
 
-      {/* ADD */}
-
       <div className="bg-neutral-900 p-6 rounded-xl mb-10">
 
         <div className="flex gap-3">
@@ -132,14 +136,12 @@ export default function Dashboard() {
             onClick={addLead}
             className="bg-blue-500 px-4 py-2 rounded"
           >
-            Add
+            {generating ? "AI generating..." : "Add Lead"}
           </button>
 
         </div>
 
       </div>
-
-      {/* LEADS */}
 
       <div className="space-y-6">
 
@@ -196,13 +198,6 @@ export default function Dashboard() {
                     Delete
                   </button>
 
-                  <button
-                    onClick={()=>generateAI(l.id)}
-                    className="bg-purple-500 px-3 py-1 rounded"
-                  >
-                    {loadingAI === l.id ? "Generating..." : "AI"}
-                  </button>
-
                 </div>
 
               </div>
@@ -211,7 +206,7 @@ export default function Dashboard() {
 
             {l.ai_followup && (
 
-              <pre className="bg-black p-4 rounded mt-4 whitespace-pre-wrap">
+              <pre className="bg-black p-4 rounded mt-4 whitespace-pre-wrap animate-pulse">
                 {l.ai_followup}
               </pre>
 
