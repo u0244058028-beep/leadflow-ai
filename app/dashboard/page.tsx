@@ -8,26 +8,69 @@ export default function Dashboard() {
   const [leads, setLeads] = useState<any[]>([])
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const [runningBrain, setRunningBrain] = useState(false)
+
+  async function runBrain(leadsList:any[]) {
+
+    if(runningBrain) return
+
+    setRunningBrain(true)
+
+    for (const lead of leadsList) {
+
+      if (lead.status === "new") {
+
+        await supabase
+          .from("leads")
+          .update({ status:"thinking" })
+          .eq("id", lead.id)
+
+        const res = await fetch("/api/ai", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({
+            message:`Write a short friendly follow-up email to ${lead.name}.`
+          })
+        })
+
+        const data = await res.json()
+
+        await supabase
+          .from("leads")
+          .update({
+            ai_followup:data.reply,
+            status:"followed_up"
+          })
+          .eq("id", lead.id)
+      }
+    }
+
+    setRunningBrain(false)
+  }
 
   async function loadLeads() {
 
     const { data } = await supabase
       .from("leads")
       .select("*")
-      .order("created_at", { ascending:false })
+      .order("created_at",{ascending:false})
 
     setLeads(data || [])
+
+    if(data){
+      runBrain(data)
+    }
   }
 
-  async function addLead() {
+  async function addLead(){
 
     const { data:userData } = await supabase.auth.getUser()
     const user = userData.user
 
-    if (!user) return
+    if(!user) return
 
     await supabase.from("leads").insert({
-      user_id: user.id,
+      user_id:user.id,
       name,
       email,
       status:"new"
@@ -35,6 +78,7 @@ export default function Dashboard() {
 
     setName("")
     setEmail("")
+
     loadLeads()
   }
 
@@ -42,7 +86,7 @@ export default function Dashboard() {
 
     loadLeads()
 
-    const interval = setInterval(loadLeads, 5000)
+    const interval = setInterval(loadLeads,5000)
 
     return ()=>clearInterval(interval)
 
@@ -64,9 +108,7 @@ export default function Dashboard() {
         Leadflow AI Dashboard
       </h1>
 
-      {/* ADD CARD */}
-
-      <div className="bg-neutral-900 p-6 rounded-2xl mb-12 shadow-lg">
+      <div className="bg-neutral-900 p-6 rounded-2xl mb-12">
 
         <div className="flex gap-3">
 
@@ -95,34 +137,22 @@ export default function Dashboard() {
 
       </div>
 
-      {/* LEADS GRID */}
-
       <div className="grid gap-6">
 
         {leads.map(l=>(
 
-          <div
-            key={l.id}
-            className="bg-neutral-900 p-6 rounded-2xl shadow-lg"
-          >
+          <div key={l.id} className="bg-neutral-900 p-6 rounded-2xl">
 
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between">
 
               <div>
 
-                <p className="text-lg font-semibold">
-                  {l.name}
-                </p>
-
-                <p className="text-gray-400 text-sm">
-                  {l.email}
-                </p>
+                <p className="font-semibold">{l.name}</p>
+                <p className="text-gray-400">{l.email}</p>
 
               </div>
 
-              <span
-                className={`text-xs px-3 py-1 rounded-full ${statusColor(l.status)}`}
-              >
+              <span className={`px-3 py-1 rounded-full text-xs ${statusColor(l.status)}`}>
                 {l.status}
               </span>
 
@@ -143,6 +173,5 @@ export default function Dashboard() {
       </div>
 
     </main>
-
   )
 }
