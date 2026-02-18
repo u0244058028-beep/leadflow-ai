@@ -6,11 +6,6 @@ import { useEffect,useState } from "react"
 export default function Dashboard(){
 
   const [leads,setLeads]=useState<any[]>([])
-  const [mission,setMission]=useState({
-    urgent:0,
-    high:0,
-    warming:0
-  })
 
   async function loadLeads(){
 
@@ -19,15 +14,7 @@ export default function Dashboard(){
       .select("*")
       .order("created_at",{ascending:false})
 
-    const list=data||[]
-
-    setLeads(list)
-
-    const urgent=list.filter(l=>l.urgency==="URGENT").length
-    const high=list.filter(l=>l.urgency==="HIGH").length
-    const warming=list.filter(l=>l.urgency==="MEDIUM").length
-
-    setMission({urgent,high,warming})
+    setLeads(data||[])
   }
 
   useEffect(()=>{
@@ -43,25 +30,23 @@ export default function Dashboard(){
       )
       .subscribe()
 
-    // IMPORTANT: cleanup must NOT be async
-    return () => {
-      void supabase.removeChannel(channel)
-    }
+    return ()=>{ void supabase.removeChannel(channel) }
 
   },[])
 
-  function urgencyColor(u:string){
+  const urgent = leads.filter(l=>l.urgency==="URGENT")
+
+  function urgencyStyle(u:string){
 
     if(u==="URGENT") return "text-red-400"
     if(u==="HIGH") return "text-yellow-400"
-    if(u==="MEDIUM") return "text-blue-400"
 
     return "text-gray-400"
   }
 
   return(
 
-    <main className="max-w-5xl mx-auto py-14 space-y-10">
+    <main className="max-w-5xl mx-auto py-14 space-y-12">
 
       <h1 className="text-5xl font-bold">
         Leadflow AI
@@ -69,61 +54,82 @@ export default function Dashboard(){
 
       {/* AI MISSION */}
 
-      <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 p-8 rounded-3xl">
+      <section className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 p-8 rounded-3xl">
 
-        <p className="text-lg font-semibold mb-4">
-          🤖 Today's AI Mission
+        <p className="text-lg font-semibold mb-3">
+          🤖 AI Mission
         </p>
 
-        <p>{mission.urgent} urgent opportunities</p>
-        <p>{mission.high} high priority leads</p>
-        <p>{mission.warming} warming leads</p>
+        <p>{urgent.length} leads need attention</p>
 
-      </div>
+      </section>
 
-      {/* LEADS */}
+      {/* PRIORITY LEADS */}
 
-      <div className="space-y-6">
+      {urgent.length>0 &&(
 
-        {leads.map(l=>(
+        <section>
 
-          <div key={l.id} className="bg-neutral-900 p-6 rounded-3xl">
+          <h2 className="mb-4 text-xl font-semibold">
+            🔥 Needs Attention
+          </h2>
 
-            <div className="flex justify-between">
+          <div className="space-y-4">
 
-              <div>
+            {urgent.map(l=>(
 
-                <p className="font-semibold">
-                  {l.name}
-                </p>
+              <div key={l.id}
+                className="bg-neutral-900 p-6 rounded-2xl">
 
-                <p className="text-gray-400 text-sm">
-                  {l.email}
+                <p className="font-semibold">{l.name}</p>
+
+                <p className="text-sm text-gray-400">
+                  {l.next_action}
                 </p>
 
               </div>
 
-              <p className={`font-bold ${urgencyColor(l.urgency)}`}>
+            ))}
+
+          </div>
+
+        </section>
+
+      )}
+
+      {/* ALL LEADS */}
+
+      <section>
+
+        <h2 className="mb-4 text-xl font-semibold">
+          All Leads
+        </h2>
+
+        <div className="space-y-4">
+
+          {leads.map(l=>(
+
+            <div key={l.id}
+              className="bg-neutral-900 p-6 rounded-2xl flex justify-between">
+
+              <div>
+
+                <p className="font-semibold">{l.name}</p>
+                <p className="text-gray-400 text-sm">{l.email}</p>
+
+              </div>
+
+              <p className={urgencyStyle(l.urgency)}>
                 {l.urgency}
               </p>
 
             </div>
 
-            {l.next_action &&(
+          ))}
 
-              <div className="bg-blue-900/20 border border-blue-500/20 p-4 rounded-xl mt-4">
+        </div>
 
-                Next action: {l.next_action}
-
-              </div>
-
-            )}
-
-          </div>
-
-        ))}
-
-      </div>
+      </section>
 
     </main>
   )
