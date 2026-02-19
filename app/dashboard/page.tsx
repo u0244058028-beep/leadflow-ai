@@ -4,124 +4,151 @@ import { useEffect, useState } from "react"
 import { createClient } from "@supabase/supabase-js"
 import AIOnboarding from "../components/AIOnboarding"
 import AIMission from "../components/AIMission"
+import LeadDetailPanel from "../components/LeadDetailPanel"
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+ process.env.NEXT_PUBLIC_SUPABASE_URL!,
+ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
 export default function Dashboard(){
 
-  const [user,setUser] = useState<any>(null)
-  const [profile,setProfile] = useState<any>(null)
-  const [leads,setLeads] = useState<any[]>([])
-  const [input,setInput] = useState("")
-  const [working,setWorking] = useState(false)
+ const [user,setUser] = useState<any>(null)
+ const [profile,setProfile] = useState<any>(null)
+ const [leads,setLeads] = useState<any[]>([])
+ const [selectedLead,setSelectedLead] = useState<any>(null)
+ const [input,setInput] = useState("")
+ const [working,setWorking] = useState(false)
 
-  useEffect(()=>{
+ useEffect(()=>{
+   init()
+ },[])
 
-    async function load(){
+ async function init(){
 
-      const { data } = await supabase.auth.getUser()
-      if(!data.user) return
+   const { data } = await supabase.auth.getUser()
+   if(!data.user) return
 
-      setUser(data.user)
+   setUser(data.user)
 
-      const { data:profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id",data.user.id)
-        .single()
+   const { data:profileData } = await supabase
+     .from("profiles")
+     .select("*")
+     .eq("id",data.user.id)
+     .single()
 
-      setProfile(profileData)
+   setProfile(profileData)
 
-      if(profileData?.onboarded){
-        loadLeads()
-      }
+   if(profileData?.onboarded){
+     loadLeads()
+   }
+ }
 
-    }
+ async function loadLeads(){
 
-    load()
+   const { data } = await supabase
+     .from("leads")
+     .select("*")
+     .order("created_at",{ascending:false})
 
-  },[])
+   setLeads(data || [])
+ }
 
-  async function loadLeads(){
+ async function addLead(){
 
-    const { data } = await supabase
-      .from("leads")
-      .select("*")
-      .order("created_at",{ascending:false})
+   if(!input) return
 
-    setLeads(data || [])
-  }
+   setWorking(true)
 
-  async function addLead(){
+   const res = await fetch("/api/ai",{
+     method:"POST",
+     headers:{ "Content-Type":"application/json" },
+     body:JSON.stringify({ text:input })
+   })
 
-    if(!input) return
+   const data = await res.json()
 
-    setWorking(true)
+   await supabase.from("leads").insert({
+     user_id:user.id,
+     name:data.name,
+     email:data.email,
+     ai_summary:data.summary,
+     score:data.score,
+     urgency:data.urgency,
+     next_action:data.next_action,
+     status:"new",
+     raw_text:input
+   })
 
-    const res = await fetch("/api/ai",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({ text:input })
-    })
+   setInput("")
+   setWorking(false)
+   loadLeads()
+ }
 
-    const data = await res.json()
+ if(!user) return null
 
-    await supabase.from("leads").insert({
-      user_id:user.id,
-      name:data.name,
-      email:data.email,
-      ai_summary:data.summary,
-      score:data.score,
-      urgency:data.urgency,
-      next_action:data.next_action,
-      raw_text:input
-    })
+ if(!profile?.onboarded){
+   return <AIOnboarding userId={user.id} />
+ }
 
-    setInput("")
-    setWorking(false)
-    loadLeads()
-  }
+ return(
 
-  if(!user) return null
+   <div className="p-6 space-y-6">
 
-  if(!profile?.onboarded){
-    return <AIOnboarding userId={user.id} />
-  }
+     <h1 className="text-3xl font-bold">
+       Leadflow AI
+     </h1>
 
-  return(
+     <AIMission leads={leads} />
 
-    <div className="p-6 space-y-6">
+     <div className="bg-zinc-900 p-6 rounded space-y-4">
 
-      <h1 className="text-3xl font-bold">
-        Leadflow AI
-      </h1>
+       <h3>Intelligent Lead Capture</h3>
 
-      <AIMission leads={leads} />
+       <textarea
+         className="w-full bg-black border rounded p-3"
+         value={input}
+         onChange={(e)=>setInput(e.target.value)}
+         placeholder="Paste anything about your lead..."
+       />
 
-      <div className="bg-zinc-900 p-6 rounded space-y-4">
+       <button
+         onClick={addLead}
+         className="bg-blue-600 px-4 py-2 rounded"
+       >
+         {working ? "AI analyzing..." : "Add with AI"}
+       </button>
 
-        <h3>Intelligent Lead Capture</h3>
+     </div>
 
-        <textarea
-          className="w-full bg-black border rounded p-3"
-          value={input}
-          onChange={(e)=>setInput(e.target.value)}
-          placeholder="Paste anything about your lead..."
-        />
+     <div className="bg-zinc-900 p-6 rounded space-y-2">
 
-        <button
-          onClick={addLead}
-          className="bg-blue-600 px-4 py-2 rounded"
-        >
-          {working ? "AI analyzing..." : "Add with AI"}
-        </button>
+       <h3>Leads</h3>
 
-      </div>
+       {leads.map(l=>(
+         <div
+           key={l.id}
+           onClick={()=>setSelectedLead(l)}
+           className="bg-black/40 p-3 rounded cursor-pointer hover:bg-black/60"
+         >
+           <div className="font-semibold">{l.name}</div>
+           <div className="text-sm opacity-70">
+             Score {l.score} • {l.urgency}
+           </div>
+         </div>
+       ))}
 
-    </div>
+     </div>
 
-  )
+     {selectedLead && (
+       <LeadDetailPanel
+         lead={selectedLead}
+         onClose={()=>setSelectedLead(null)}
+         refresh={loadLeads}
+       />
+     )}
+
+   </div>
+
+ )
 }
