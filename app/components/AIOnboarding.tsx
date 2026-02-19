@@ -13,136 +13,92 @@ type Message = {
   content: string
 }
 
-export default function AIOnboarding() {
+export default function AIOnboarding({ userId }: { userId: string }) {
 
+  const questions = [
+    "👋 Hi — I'm your AI employee. What type of business do you run?",
+    "What is your main goal with leads?",
+    "Who is your ideal customer?"
+  ]
+
+  const [step, setStep] = useState(0)
   const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "ai",
-      content:
-        "👋 Hi — I'm your AI employee.\nLet's set up your lead machine.\nWhat type of business do you run?"
-    }
+    { role: "ai", content: questions[0] }
   ])
-
   const [input, setInput] = useState("")
-  const [step, setStep] = useState(1)
-  const [loading, setLoading] = useState(false)
+  const [answers, setAnswers] = useState<string[]>([])
 
-  async function finishOnboarding() {
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    await supabase
-      .from("profiles")
-      .update({ onboarded: true })
-      .eq("id", user.id)
-
-    window.dispatchEvent(new Event("onboarding-complete"))
-  }
-
-  async function handleSend() {
+  async function send() {
 
     if (!input) return
 
-    const userMessage: Message = { role: "user", content: input }
+    const newAnswers = [...answers, input]
+    setAnswers(newAnswers)
 
-    const updatedMessages: Message[] = [...messages, userMessage]
+    const updatedMessages: Message[] = [
+      ...messages,
+      { role: "user", content: input }
+    ]
 
     setMessages(updatedMessages)
     setInput("")
-    setLoading(true)
 
-    let aiResponse = ""
+    const nextStep = step + 1
 
-    if (step === 1) {
-      aiResponse =
-        "Nice. What is your main goal?\nGenerate leads, close deals, or automate follow-ups?"
-      setStep(2)
+    if (nextStep < questions.length) {
+
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          { role: "ai", content: questions[nextStep] }
+        ])
+      }, 400)
+
+      setStep(nextStep)
+
+    } else {
+
+      // SAVE PROFILE
+      await supabase
+        .from("profiles")
+        .upsert({
+          id: userId,
+          business_type: newAnswers[0],
+          goal: newAnswers[1],
+          ideal_customer: newAnswers[2],
+          onboarded: true
+        })
+
+      window.location.reload()
     }
-    else if (step === 2) {
-      aiResponse =
-        "Got it. Who is your ideal customer?"
-      setStep(3)
-    }
-    else if (step === 3) {
-      aiResponse =
-        "Perfect. Your AI lead machine is ready 🚀"
-      setStep(4)
-
-      await finishOnboarding()
-    }
-
-    const aiMessage: Message = { role: "ai", content: aiResponse }
-
-    setMessages(prev => [...prev, aiMessage])
-    setLoading(false)
   }
 
   return (
-    <div style={{
-      background: "#111",
-      padding: 20,
-      borderRadius: 20,
-      maxWidth: 600,
-      marginTop: 20
-    }}>
+    <div className="p-6 bg-zinc-900 rounded-xl space-y-4">
 
-      <h3>🤖 AI Onboarding</h3>
+      <h2 className="text-xl font-semibold">🤖 AI Onboarding</h2>
 
-      <div style={{ marginTop: 20 }}>
-
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              marginBottom: 10,
-              padding: 12,
-              borderRadius: 12,
-              background:
-                msg.role === "ai"
-                  ? "#312e81"
-                  : "#1f2937"
-            }}
-          >
-            {msg.content}
+      <div className="space-y-3">
+        {messages.map((m, i) => (
+          <div key={i} className={m.role === "ai" ? "bg-indigo-900 p-3 rounded" : "bg-zinc-800 p-3 rounded"}>
+            {m.content}
           </div>
         ))}
-
       </div>
 
-      {step < 4 && (
-        <>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your answer..."
-            style={{
-              width: "100%",
-              marginTop: 15,
-              height: 70,
-              background: "#000",
-              color: "#fff",
-              border: "1px solid #333",
-              borderRadius: 10,
-              padding: 10
-            }}
-          />
+      <textarea
+        className="w-full bg-black border rounded p-3"
+        value={input}
+        onChange={(e)=>setInput(e.target.value)}
+        placeholder="Type your answer..."
+      />
 
-          <button
-            onClick={handleSend}
-            style={{
-              marginTop: 10,
-              padding: "10px 20px",
-              background: "#2563eb",
-              border: "none",
-              borderRadius: 10,
-              color: "#fff"
-            }}
-          >
-            {loading ? "Thinking..." : "Send"}
-          </button>
-        </>
-      )}
+      <button
+        onClick={send}
+        className="bg-blue-600 px-4 py-2 rounded"
+      >
+        Send
+      </button>
 
     </div>
   )
