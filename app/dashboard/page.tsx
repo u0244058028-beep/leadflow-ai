@@ -1,173 +1,185 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { supabase } from "../lib/supabase"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase"
 
 type Lead = {
   id:string
   name:string
   email:string
-  company:string
-  notes:string
   status:string
   score:number
-  created_at:string
+  user_id:string
 }
 
-const statuses = ["new","contacted","qualified","closed"]
+export default function DashboardPage(){
 
-export default function Dashboard(){
+  const router = useRouter()
 
+  const [user,setUser] = useState<any>(null)
   const [leads,setLeads] = useState<Lead[]>([])
-  const [selected,setSelected] = useState<Lead | null>(null)
-  const [message,setMessage] = useState("")
 
-  const [newLead,setNewLead] = useState({
-    name:"",
-    email:"",
-    company:"",
-    notes:""
-  })
+  const [name,setName] = useState("")
+  const [email,setEmail] = useState("")
 
-  async function loadLeads(){
-    const { data } = await supabase
-      .from("leads")
-      .select("*")
-      .order("created_at",{ascending:false})
-
-    if(data) setLeads(data)
-  }
+  // ===============================
+  // AUTH CHECK
+  // ===============================
 
   useEffect(()=>{
-    loadLeads()
+
+    async function init(){
+
+      const { data:{user} } = await supabase.auth.getUser()
+
+      if(!user){
+        router.push("/login")
+        return
+      }
+
+      setUser(user)
+
+      loadLeads(user.id)
+    }
+
+    init()
+
   },[])
 
-  function calculateScore(lead:any){
-    let score = 0
-    if(lead.email) score += 20
-    if(lead.company) score += 20
-    if(lead.notes) score += 20
-    if(lead.status === "contacted") score += 10
-    if(lead.status === "qualified") score += 20
-    if(lead.status === "closed") score += 30
-    return Math.min(score,100)
+  // ===============================
+  // LOAD LEADS
+  // ===============================
+
+  async function loadLeads(userId:string){
+
+    const { data,error } = await supabase
+      .from("leads")
+      .select("*")
+      .eq("user_id",userId)
+      .order("created_at",{ascending:false})
+
+    if(!error && data){
+      setLeads(data)
+    }
+
   }
+
+  // ===============================
+  // SCORE CALCULATION (AI-LITE)
+  // ===============================
+
+  function calculateScore(){
+
+    let score = 0
+
+    if(email.includes("@")) score+=20
+    if(name.length>2) score+=10
+
+    return score
+  }
+
+  // ===============================
+  // ADD LEAD
+  // ===============================
 
   async function addLead(){
 
-    const score = calculateScore(newLead)
+    if(!name || !email) return
 
-    const { data } = await supabase
+    const score = calculateScore()
+
+    const { data,error } = await supabase
       .from("leads")
       .insert({
-        ...newLead,
+        name,
+        email,
         status:"new",
-        score
+        score,
+        user_id:user.id
       })
       .select()
 
+    if(error){
+      console.log("Insert error:",error)
+      return
+    }
+
     if(data){
       setLeads([data[0],...leads])
-      setNewLead({name:"",email:"",company:"",notes:""})
+      setName("")
+      setEmail("")
     }
   }
 
-  async function updateStatus(id:string,status:string){
+  // ===============================
+  // LOGOUT
+  // ===============================
 
-    const lead = leads.find(l=>l.id===id)
-    if(!lead) return
+  async function logout(){
 
-    const score = calculateScore({...lead,status})
+    await supabase.auth.signOut()
 
-    await supabase
-      .from("leads")
-      .update({status,score})
-      .eq("id",id)
-
-    if(status==="closed"){
-      setMessage("🎉 Deal closed! Momentum unlocked.")
-      setTimeout(()=>setMessage(""),3000)
-    }
-
-    loadLeads()
+    router.push("/login")
   }
 
-  async function deleteLead(id:string){
+  // ===============================
+  // STATS
+  // ===============================
 
-    await supabase
-      .from("leads")
-      .delete()
-      .eq("id",id)
+  const hotLeads = leads.filter(l=>l.score>=30).length
+  const dealsClosed = leads.filter(l=>l.status==="closed").length
 
-    setLeads(leads.filter(l=>l.id!==id))
-    setSelected(null)
-  }
-
-  const closedDeals = leads.filter(l=>l.status==="closed").length
-  const hotLeads = leads.filter(l=>l.score>=70)
+  // ===============================
+  // UI
+  // ===============================
 
   return(
 
-    <div className="p-6 bg-black text-white min-h-screen">
+    <div className="min-h-screen bg-black text-white p-6">
 
-      {/* DOPAMINE BAR */}
-
-      <div className="bg-zinc-900 p-4 rounded mb-6">
-
-        <div className="flex justify-between">
-
-          <div>🏆 Deals Closed: {closedDeals}</div>
-          <div>🔥 Hot Leads: {hotLeads.length}</div>
-
-        </div>
-
-        {message && (
-          <div className="mt-2 text-green-400">
-            {message}
-          </div>
-        )}
-
+      {/* HEADER */}
+      <div className="flex justify-between mb-6">
+        <h1 className="text-xl font-bold">Leadflow AI</h1>
+        <button onClick={logout}>Logout</button>
       </div>
 
-      {/* AI INSIGHTS */}
+      {/* ADDICTIVE STATS */}
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 rounded-xl mb-4">
+        🏆 Deals Closed: {dealsClosed} 🔥 Hot Leads: {hotLeads}
+      </div>
 
-      <div className="bg-zinc-900 p-4 rounded mb-6">
-
-        <h2 className="font-bold mb-2">
-          🤖 AI Suggestions
-        </h2>
-
-        {hotLeads.length>0 && (
-          <div>🔥 Focus on high score leads today.</div>
-        )}
-
-        {closedDeals===0 && (
-          <div>🚀 Close your first deal to unlock momentum.</div>
-        )}
-
+      {/* AI SUGGESTIONS */}
+      <div className="bg-gray-900 p-4 rounded-xl mb-6">
+        🤖 AI Suggestions
+        <p className="text-sm mt-2">
+          {leads.length===0
+            ? "🚀 Add your first lead to start momentum."
+            : "🔥 Follow up with hot leads today."
+          }
+        </p>
       </div>
 
       {/* ADD LEAD */}
-
-      <div className="bg-zinc-900 p-4 rounded mb-6">
+      <div className="bg-gray-900 p-4 rounded-xl mb-6">
 
         <input
           placeholder="Name"
-          value={newLead.name}
-          onChange={e=>setNewLead({...newLead,name:e.target.value})}
-          className="bg-zinc-800 p-2 mr-2"
+          className="w-full mb-2 p-2 text-black"
+          value={name}
+          onChange={(e)=>setName(e.target.value)}
         />
 
         <input
           placeholder="Email"
-          value={newLead.email}
-          onChange={e=>setNewLead({...newLead,email:e.target.value})}
-          className="bg-zinc-800 p-2 mr-2"
+          className="w-full mb-2 p-2 text-black"
+          value={email}
+          onChange={(e)=>setEmail(e.target.value)}
         />
 
         <button
           onClick={addLead}
-          className="bg-blue-600 px-4 py-2"
+          className="bg-blue-600 px-4 py-2 rounded"
         >
           Add
         </button>
@@ -175,48 +187,37 @@ export default function Dashboard(){
       </div>
 
       {/* PIPELINE */}
+      <div className="grid grid-cols-2 gap-4">
 
-      <div className="grid grid-cols-4 gap-4">
+        {["new","contacted","qualified","closed"].map(status=>{
 
-        {statuses.map(status=>(
+          const filtered = leads.filter(l=>l.status===status)
 
-          <div key={status} className="bg-zinc-900 p-3 rounded">
+          return(
 
-            <h3 className="capitalize font-bold mb-3">
-              {status}
-            </h3>
+            <div key={status} className="bg-gray-900 p-4 rounded-xl">
 
-            {leads.filter(l=>l.status===status).map(l=>(
+              <h2 className="mb-3 capitalize">{status}</h2>
 
-              <div
-                key={l.id}
-                onClick={()=>setSelected(l)}
-                className={`p-2 mb-2 cursor-pointer rounded ${
-                  l.score>=70 ? "bg-green-800" : "bg-zinc-800"
-                }`}
-              >
-                {l.name}
+              {filtered.map(l=>(
 
-                <select
-                  value={l.status}
-                  onChange={(e)=>updateStatus(l.id,e.target.value)}
-                  className="block mt-1 bg-black text-xs"
-                >
-                  {statuses.map(s=>(
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
+                <div key={l.id} className="bg-black p-2 mb-2 rounded">
+                  <p>{l.name}</p>
+                  <p className="text-xs text-gray-400">{l.email}</p>
+                </div>
 
-              </div>
+              ))}
 
-            ))}
+            </div>
 
-          </div>
+          )
 
-        ))}
+        })}
 
       </div>
 
     </div>
+
   )
+
 }
