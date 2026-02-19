@@ -1,66 +1,114 @@
-'use client'
+"use client"
 
-import { supabase } from "@/lib/supabase"
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { createClient } from "@supabase/supabase-js"
 
-export default function Login(){
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
-  const router = useRouter()
+export default function Login() {
 
-  // Redirect hvis allerede logget inn
-  useEffect(()=>{
+  const [email,setEmail] = useState("")
+  const [loading,setLoading] = useState(false)
 
-    async function check(){
-
-      const {data}=await supabase.auth.getSession()
-
-      if(data.session){
-
-        router.push("/dashboard")
-
-      }
-
-    }
-
-    check()
-
-  },[])
-
-  async function signInWithGoogle(){
+  async function loginGoogle(){
 
     await supabase.auth.signInWithOAuth({
-
       provider:"google",
-
       options:{
         redirectTo:"https://leadflow-ai-ivory.vercel.app/dashboard"
       }
-
     })
 
   }
 
-  return(
+  async function loginEmail(){
 
-    <main className="flex items-center justify-center min-h-screen">
+    if(!email) return
 
-      <div className="bg-neutral-900 p-10 rounded-3xl text-center space-y-6">
+    setLoading(true)
 
-        <h1 className="text-3xl font-bold">
-          Login to Leadflow AI
-        </h1>
+    await supabase.auth.signInWithOtp({
+
+      email,
+      options:{
+        emailRedirectTo:"https://leadflow-ai-ivory.vercel.app/dashboard"
+      }
+
+    })
+
+    alert("Magic link sent to your email 🚀")
+
+    setLoading(false)
+  }
+
+  return (
+
+    <div style={{
+      minHeight:"100vh",
+      background:"#000",
+      color:"#fff",
+      display:"flex",
+      justifyContent:"center",
+      alignItems:"center"
+    }}>
+
+      <div style={{
+        width:400,
+        padding:30,
+        borderRadius:20,
+        background:"#111"
+      }}>
+
+        <h1>Leadflow AI</h1>
+
+        <button onClick={loginGoogle}
+        style={{
+          width:"100%",
+          padding:15,
+          marginTop:20,
+          background:"#fff",
+          color:"#000",
+          borderRadius:10
+        }}>
+          Continue with Google
+        </button>
+
+        <p style={{marginTop:20}}>Or continue with email</p>
+
+        <input
+          placeholder="Email"
+          value={email}
+          onChange={(e)=>setEmail(e.target.value)}
+          style={{
+            width:"100%",
+            padding:12,
+            marginTop:10,
+            background:"#000",
+            border:"1px solid #333",
+            color:"#fff"
+          }}
+        />
 
         <button
-          onClick={signInWithGoogle}
-          className="bg-white text-black px-8 py-3 rounded-xl font-semibold"
+          onClick={loginEmail}
+          disabled={loading}
+          style={{
+            width:"100%",
+            padding:15,
+            marginTop:15,
+            background:"#3b82f6",
+            borderRadius:10
+          }}
         >
-          Continue with Google
+          {loading ? "Sending..." : "Send Magic Link"}
         </button>
 
       </div>
 
-    </main>
+    </div>
 
   )
 
