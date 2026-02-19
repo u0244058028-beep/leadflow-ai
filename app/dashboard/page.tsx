@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@supabase/supabase-js"
+
 import AIOnboarding from "../components/AIOnboarding"
 import AIMission from "../components/AIMission"
 import LeadDetailPanel from "../components/LeadDetailPanel"
 import PipelineView from "../components/PipelineView"
+import AIDailyBriefing from "../components/AIDailyBriefing"
 
 const supabase = createClient(
  process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -106,6 +108,8 @@ export default function Dashboard(){
      <h1 className="text-3xl font-bold">
        Leadflow AI
      </h1>
+
+     <AIDailyBriefing leads={leads} />
 
      <AIMission leads={leads} />
 
