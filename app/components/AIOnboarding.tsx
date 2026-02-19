@@ -83,7 +83,7 @@ export default function AIOnboarding(){
           })
           .eq("id",user.id)
 
-        window.location.reload()
+
       }
 
     }catch(e){
