@@ -1,152 +1,72 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@supabase/supabase-js"
-
+import { supabase, SITE_URL } from "../lib/supabase"
 import AIOnboarding from "../components/AIOnboarding"
-import AIMission from "../components/AIMission"
-import LeadDetailPanel from "../components/LeadDetailPanel"
-import PipelineView from "../components/PipelineView"
-import AIDailyBriefing from "../components/AIDailyBriefing"
 
-const supabase = createClient(
- process.env.NEXT_PUBLIC_SUPABASE_URL!,
- process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+export default function Dashboard() {
+  const [user, setUser] = useState<any>(null)
+  const [onboardingComplete, setOnboardingComplete] = useState(false)
 
-export default function Dashboard(){
+  useEffect(() => {
+    checkUser()
+  }, [])
 
- const [user,setUser] = useState<any>(null)
- const [profile,setProfile] = useState<any>(null)
- const [leads,setLeads] = useState<any[]>([])
- const [selectedLead,setSelectedLead] = useState<any>(null)
- const [input,setInput] = useState("")
- const [working,setWorking] = useState(false)
+  async function checkUser() {
+    const { data } = await supabase.auth.getUser()
 
- useEffect(()=>{ init() },[])
+    if (!data.user) {
+      window.location.href = "/"
+      return
+    }
 
- async function init(){
+    setUser(data.user)
 
-   const { data } = await supabase.auth.getUser()
-   if(!data.user) return
+    // Check onboarding status (from metadata)
+    const completed = data.user.user_metadata?.onboarding_complete
+    setOnboardingComplete(!!completed)
+  }
 
-   setUser(data.user)
+  async function logout() {
+    await supabase.auth.signOut()
 
-   const { data:profileData } = await supabase
-     .from("profiles")
-     .select("*")
-     .eq("id",data.user.id)
-     .single()
+    window.location.href = SITE_URL!
+  }
 
-   setProfile(profileData)
+  if (!user) return null
 
-   if(profileData?.onboarded){
-     loadLeads()
-   }
- }
+  return (
+    <div className="p-6 text-white">
 
- async function loadLeads(){
+      <div className="flex justify-between mb-6">
+        <h1 className="text-xl font-bold">MyLeadAssistant</h1>
+        <button onClick={logout}>Logout</button>
+      </div>
 
-   const { data } = await supabase
-     .from("leads")
-     .select("*")
-     .order("created_at",{ascending:false})
+      {!onboardingComplete ? (
+        <AIOnboarding
+          onComplete={async () => {
+            await supabase.auth.updateUser({
+              data: { onboarding_complete: true }
+            })
+            setOnboardingComplete(true)
+          }}
+        />
+      ) : (
+        <>
+          <div className="bg-purple-600 p-4 rounded mb-4">
+            🤖 AI Daily Briefing
+          </div>
 
-   setLeads(data || [])
- }
+          <div className="bg-purple-600 p-4 rounded mb-4">
+            🔥 AI Mission System
+          </div>
 
- async function addLead(){
-
-   if(!input) return
-   setWorking(true)
-
-   const res = await fetch("/api/ai",{
-     method:"POST",
-     headers:{ "Content-Type":"application/json" },
-     body:JSON.stringify({ text:input })
-   })
-
-   const data = await res.json()
-
-   await supabase.from("leads").insert({
-     user_id:user.id,
-     name:data.name,
-     email:data.email,
-     ai_summary:data.summary,
-     score:data.score,
-     urgency:data.urgency,
-     next_action:data.next_action,
-     status:"new",
-     raw_text:input
-   })
-
-   setInput("")
-   setWorking(false)
-   loadLeads()
- }
-
- async function moveLead(lead:any,newStatus:string){
-
-   await supabase
-     .from("leads")
-     .update({ status:newStatus })
-     .eq("id",lead.id)
-
-   loadLeads()
- }
-
- if(!user) return null
-
- if(!profile?.onboarded){
-   return <AIOnboarding userId={user.id} />
- }
-
- return(
-
-   <div className="p-6 space-y-6">
-
-     <h1 className="text-3xl font-bold">
-       Leadflow AI
-     </h1>
-
-     <AIDailyBriefing leads={leads} />
-
-     <AIMission leads={leads} />
-
-     <div className="bg-zinc-900 p-6 rounded space-y-4">
-
-       <h3>Intelligent Lead Capture</h3>
-
-       <textarea
-         className="w-full bg-black border rounded p-3"
-         value={input}
-         onChange={(e)=>setInput(e.target.value)}
-         placeholder="Paste anything about your lead..."
-       />
-
-       <button
-         onClick={addLead}
-         className="bg-blue-600 px-4 py-2 rounded"
-       >
-         {working ? "AI analyzing..." : "Add with AI"}
-       </button>
-
-     </div>
-
-     <PipelineView
-       leads={leads}
-       onSelect={(lead)=>setSelectedLead(lead)}
-       onMove={moveLead}
-     />
-
-     {selectedLead && (
-       <LeadDetailPanel
-         lead={selectedLead}
-         onClose={()=>setSelectedLead(null)}
-         refresh={loadLeads}
-       />
-     )}
-
-   </div>
- )
+          <div className="bg-gray-800 p-4 rounded">
+            Enterprise Lead Pipeline
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
