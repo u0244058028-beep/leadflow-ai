@@ -1,35 +1,45 @@
-import { getOpenAI } from "@/lib/openai"
+import { NextResponse } from "next/server"
+import OpenAI from "openai"
 
-export async function POST(req:Request){
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!
+})
 
-  const { name,email } = await req.json()
+export async function POST(req: Request){
 
-  const openai = getOpenAI()
+  const { text } = await req.json()
 
   const completion = await openai.chat.completions.create({
+
     model:"gpt-4o-mini",
+
     messages:[
       {
         role:"system",
-        content:`You are an autonomous AI sales employee.
+        content:`
+Extract structured lead info.
 
-Return EXACTLY:
+Return STRICT JSON:
 
-SUMMARY:
-SCORE: (0-100)
-URGENCY: LOW/MEDIUM/HIGH/URGENT
-NEXT ACTION:
-FOLLOWUP MESSAGE:
+{
+  "name":"",
+  "email":"",
+  "summary":"",
+  "score":0,
+  "urgency":"HIGH | MEDIUM | LOW",
+  "next_action":""
+}
 `
       },
       {
         role:"user",
-        content:`Lead: ${name}, email: ${email}`
+        content:text
       }
     ]
+
   })
 
-  return Response.json({
-    reply:completion.choices[0].message.content
-  })
+  const content = completion.choices[0].message.content || "{}"
+
+  return NextResponse.json(JSON.parse(content))
 }
