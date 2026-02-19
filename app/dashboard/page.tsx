@@ -22,6 +22,7 @@ export default function DashboardPage(){
 
   const [name,setName] = useState("")
   const [email,setEmail] = useState("")
+  const [aiMessage,setAiMessage] = useState<string>("")
 
   // ===============================
   // AUTH CHECK
@@ -113,6 +114,26 @@ export default function DashboardPage(){
   }
 
   // ===============================
+  // AI FOLLOWUP SAFE MODE
+  // ===============================
+
+  async function generateFollowup(lead:Lead){
+
+    const res = await fetch("/api/ai-followup",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({
+        name:lead.name,
+        email:lead.email
+      })
+    })
+
+    const data = await res.json()
+
+    setAiMessage(data.message)
+  }
+
+  // ===============================
   // LOGOUT
   // ===============================
 
@@ -186,6 +207,14 @@ export default function DashboardPage(){
 
       </div>
 
+      {/* AI MESSAGE */}
+      {aiMessage && (
+        <div className="bg-purple-700 p-4 rounded-xl mb-6">
+          🤖 AI Followup:
+          <p className="mt-2">{aiMessage}</p>
+        </div>
+      )}
+
       {/* PIPELINE */}
       <div className="grid grid-cols-2 gap-4">
 
@@ -202,8 +231,17 @@ export default function DashboardPage(){
               {filtered.map(l=>(
 
                 <div key={l.id} className="bg-black p-2 mb-2 rounded">
+
                   <p>{l.name}</p>
                   <p className="text-xs text-gray-400">{l.email}</p>
+
+                  <button
+                    onClick={()=>generateFollowup(l)}
+                    className="text-xs mt-2 bg-purple-600 px-2 py-1 rounded"
+                  >
+                    🤖 AI Followup
+                  </button>
+
                 </div>
 
               ))}
