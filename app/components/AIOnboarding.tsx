@@ -29,7 +29,6 @@ export default function AIOnboarding(){
     const { data:{ user } } = await supabase.auth.getUser()
     setUser(user)
 
-    // start onboarding conversation
     setMessages([
       {
         role:"ai",
@@ -42,7 +41,7 @@ export default function AIOnboarding(){
 
     if(!input || loading) return
 
-    const updatedMessages = [
+    const updatedMessages: Message[] = [
       ...messages,
       { role:"user", content:input }
     ]
@@ -66,14 +65,14 @@ export default function AIOnboarding(){
 
       const data = await res.json()
 
-      const newMessages = [
+      const newMessages: Message[] = [
         ...updatedMessages,
         { role:"ai", content:data.reply }
       ]
 
       setMessages(newMessages)
 
-      // 🚀 finish onboarding after enough interaction
+      // 🚀 finish onboarding automatically
       if(newMessages.length >= 6){
 
         await supabase
