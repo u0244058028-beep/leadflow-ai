@@ -1,102 +1,80 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 type Message = {
   role: "user" | "ai"
   content: string
 }
 
-export default function AIOnboarding({ userId }: { userId: string }) {
+export default function AIOnboarding({ onComplete }: any) {
 
   const questions = [
-    "👋 Hi — I'm your AI employee. What type of business do you run?",
-    "What is your main goal with leads?",
-    "Who is your ideal customer?"
+    "What type of business do you run?",
+    "How do you get leads today?",
+    "What is your main goal? (ex: close deals)"
   ]
 
-  const [step, setStep] = useState(0)
   const [messages, setMessages] = useState<Message[]>([
-    { role: "ai", content: questions[0] }
+    {
+      role: "ai",
+      content: "👋 Hi — I'm your AI employee. Let's set up your lead machine. What type of business do you run?"
+    }
   ])
-  const [input, setInput] = useState("")
-  const [answers, setAnswers] = useState<string[]>([])
 
-  async function send() {
+  const [step, setStep] = useState(0)
+  const [input, setInput] = useState("")
+
+  function send() {
 
     if (!input) return
 
-    const newAnswers = [...answers, input]
-    setAnswers(newAnswers)
-
-    const updatedMessages: Message[] = [
+    const updated: Message[] = [
       ...messages,
       { role: "user", content: input }
     ]
 
-    setMessages(updatedMessages)
-    setInput("")
+    if (step < questions.length - 1) {
 
-    const nextStep = step + 1
+      updated.push({
+        role: "ai",
+        content: questions[step + 1]
+      })
 
-    if (nextStep < questions.length) {
-
-      setTimeout(() => {
-        setMessages(prev => [
-          ...prev,
-          { role: "ai", content: questions[nextStep] }
-        ])
-      }, 400)
-
-      setStep(nextStep)
+      setStep(step + 1)
+      setMessages(updated)
 
     } else {
 
-      // SAVE PROFILE
-      await supabase
-        .from("profiles")
-        .upsert({
-          id: userId,
-          business_type: newAnswers[0],
-          goal: newAnswers[1],
-          ideal_customer: newAnswers[2],
-          onboarded: true
-        })
+      updated.push({
+        role: "ai",
+        content: "✅ Setup complete. Your AI is ready."
+      })
 
-      window.location.reload()
+      setMessages(updated)
+      onComplete()
     }
+
+    setInput("")
   }
 
   return (
-    <div className="p-6 bg-zinc-900 rounded-xl space-y-4">
+    <div className="bg-gray-900 p-4 rounded">
 
-      <h2 className="text-xl font-semibold">🤖 AI Onboarding</h2>
+      {messages.map((m, i) => (
+        <div key={i} className="mb-2">
+          <b>{m.role === "ai" ? "AI:" : "You:"}</b> {m.content}
+        </div>
+      ))}
 
-      <div className="space-y-3">
-        {messages.map((m, i) => (
-          <div key={i} className={m.role === "ai" ? "bg-indigo-900 p-3 rounded" : "bg-zinc-800 p-3 rounded"}>
-            {m.content}
-          </div>
-        ))}
-      </div>
-
-      <textarea
-        className="w-full bg-black border rounded p-3"
+      <input
         value={input}
-        onChange={(e)=>setInput(e.target.value)}
+        onChange={(e) => setInput(e.target.value)}
+        className="w-full p-2 text-black"
         placeholder="Type your answer..."
       />
 
-      <button
-        onClick={send}
-        className="bg-blue-600 px-4 py-2 rounded"
-      >
+      <button onClick={send} className="mt-2 bg-blue-500 p-2 rounded">
         Send
       </button>
 
