@@ -5,100 +5,68 @@ import { createClient } from "@supabase/supabase-js"
 import AIOnboarding from "../components/AIOnboarding"
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+ process.env.NEXT_PUBLIC_SUPABASE_URL!,
+ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export default function Dashboard() {
+export default function Dashboard(){
 
-  const [loading,setLoading] = useState(true)
-  const [onboarded,setOnboarded] = useState(false)
-  const [user,setUser] = useState<any>(null)
+ const [loading,setLoading] = useState(true)
+ const [onboarded,setOnboarded] = useState(false)
 
-  useEffect(()=>{
-    checkUser()
-  },[])
+ useEffect(()=>{
 
-  async function checkUser(){
+   checkUser()
 
-    const { data:{ user } } = await supabase.auth.getUser()
+   function finish(){
+     setOnboarded(true)
+   }
 
-    if(!user){
-      window.location.href="/login"
-      return
-    }
+   window.addEventListener("onboarding-complete",finish)
 
-    setUser(user)
+   return ()=> window.removeEventListener("onboarding-complete",finish)
 
-    // check profile
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id",user.id)
-      .single()
+ },[])
 
-    if(!data){
-      // create profile
-      await supabase.from("profiles").insert({
-        id:user.id
-      })
-      setOnboarded(false)
-    } else {
-      setOnboarded(data.onboarded)
-    }
+ async function checkUser(){
 
-    setLoading(false)
-  }
+   const { data:{ user } } = await supabase.auth.getUser()
 
-  async function logout(){
-    await supabase.auth.signOut()
-    window.location.href="/login"
-  }
+   if(!user){
+     window.location.href="/login"
+     return
+   }
 
-  if(loading){
-    return <div style={{color:"#fff",background:"#000",minHeight:"100vh"}}>Loading...</div>
-  }
+   const { data } = await supabase
+     .from("profiles")
+     .select("*")
+     .eq("id",user.id)
+     .single()
 
-  if(!onboarded){
-    return (
-      <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:30}}>
-        <h1>Welcome to Leadflow AI</h1>
-        <AIOnboarding />
-      </div>
-    )
-  }
+   if(data?.onboarded){
+     setOnboarded(true)
+   }
 
-  return (
+   setLoading(false)
+ }
 
-    <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:30}}>
+ if(loading) return <div>Loading...</div>
 
-      <div style={{display:"flex",justifyContent:"space-between"}}>
-        <h1>Leadflow AI</h1>
-        <button onClick={logout}>Logout</button>
-      </div>
+ if(!onboarded){
+   return (
+     <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:30}}>
+       <h1>Welcome to Leadflow AI</h1>
+       <AIOnboarding />
+     </div>
+   )
+ }
 
-      <div style={{
-        marginTop:30,
-        padding:20,
-        borderRadius:20,
-        background:"linear-gradient(135deg,#1e1b4b,#312e81)"
-      }}>
-        🤖 AI Mission  
-        <p>AI is monitoring your leads automatically.</p>
-      </div>
+ return(
 
-      <div style={{
-        marginTop:30,
-        padding:20,
-        borderRadius:20,
-        background:"#111"
-      }}>
-        <h3>Intelligent Lead Capture</h3>
-        <p>Paste anything about your lead...</p>
-      </div>
+   <div style={{background:"#000",color:"#fff",minHeight:"100vh",padding:30}}>
+     <h1>Leadflow AI Dashboard</h1>
+     <p>AI is monitoring your leads automatically.</p>
+   </div>
 
-    </div>
-
-  )
-
+ )
 }
