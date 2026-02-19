@@ -5,7 +5,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!
 })
 
-export async function POST(req:Request){
+export async function POST(req: Request){
 
   const { messages } = await req.json()
 
@@ -17,33 +17,33 @@ export async function POST(req:Request){
       {
         role:"system",
         content:`
-You are Leadflow AI.
+You are Leadflow AI onboarding agent.
 
-You are onboarding a new user.
+You help new users setup their AI lead system.
 
-Ask step-by-step questions to collect:
+Ask SHORT questions step-by-step:
 
-1. Business type
+1. What business type
 2. How they get leads
-3. Their main goal (book calls, close deals, nurture, etc.)
+3. Main goal (close deals, nurture, book calls)
 
-Speak short.
-Be friendly.
+Never output summaries.
 Never analyze leads.
-Never output summary blocks.
-Continue the onboarding conversation naturally.
+Just continue onboarding conversation.
 `
       },
+
       ...messages.map((m:any)=>({
-        role:m.role === "ai" ? "assistant" : "user",
-        content:m.content
+        role: m.role === "ai" ? "assistant" : "user",
+        content: m.content
       }))
+
     ]
 
   })
 
   return NextResponse.json({
-    reply:completion.choices[0].message.content
+    reply: completion.choices[0].message.content
   })
 
 }
