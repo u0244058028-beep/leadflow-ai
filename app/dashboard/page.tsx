@@ -20,7 +20,7 @@ export default function Dashboard(){
 
   const [leads,setLeads] = useState<Lead[]>([])
   const [selected,setSelected] = useState<Lead | null>(null)
-  const [streak,setStreak] = useState(1)
+  const [message,setMessage] = useState("")
 
   const [newLead,setNewLead] = useState({
     name:"",
@@ -40,7 +40,6 @@ export default function Dashboard(){
 
   useEffect(()=>{
     loadLeads()
-    calculateStreak()
   },[])
 
   function calculateScore(lead:any){
@@ -55,6 +54,7 @@ export default function Dashboard(){
   }
 
   async function addLead(){
+
     const score = calculateScore(newLead)
 
     const { data } = await supabase
@@ -84,6 +84,11 @@ export default function Dashboard(){
       .update({status,score})
       .eq("id",id)
 
+    if(status==="closed"){
+      setMessage("🎉 Deal closed! Momentum unlocked.")
+      setTimeout(()=>setMessage(""),3000)
+    }
+
     loadLeads()
   }
 
@@ -98,83 +103,46 @@ export default function Dashboard(){
     setSelected(null)
   }
 
-  async function generateFollowup(){
-
-    if(!selected) return
-
-    const res = await fetch("/api/ai",{
-      method:"POST",
-      body:JSON.stringify(selected)
-    })
-
-    const data = await res.json()
-
-    alert(data.text)
-  }
-
-  function calculateStreak(){
-    setStreak(3) // placeholder logic for now
-  }
-
-  const today = new Date().toISOString().split("T")[0]
-
-  const todayCount = leads.filter(l =>
-    l.created_at?.startsWith(today)
-  ).length
-
-  const hot = leads.filter(l=>l.score>=70)
-  const cold = leads.filter(l=>l.score<30)
+  const closedDeals = leads.filter(l=>l.status==="closed").length
+  const hotLeads = leads.filter(l=>l.score>=70)
 
   return(
 
     <div className="p-6 bg-black text-white min-h-screen">
 
-      {/* DAILY PROGRESS */}
+      {/* DOPAMINE BAR */}
 
       <div className="bg-zinc-900 p-4 rounded mb-6">
 
-        <h2 className="text-lg font-bold mb-2">
-          🚀 Daily Progress
-        </h2>
+        <div className="flex justify-between">
 
-        <div className="flex gap-6 text-sm">
-          <div>Today’s Leads: {todayCount}</div>
-          <div>🔥 Streak: {streak} days</div>
+          <div>🏆 Deals Closed: {closedDeals}</div>
+          <div>🔥 Hot Leads: {hotLeads.length}</div>
+
         </div>
 
-        <div className="mt-3 bg-zinc-800 h-2 rounded">
-          <div
-            className="bg-blue-500 h-2 rounded"
-            style={{width:`${Math.min(todayCount*20,100)}%`}}
-          />
-        </div>
+        {message && (
+          <div className="mt-2 text-green-400">
+            {message}
+          </div>
+        )}
 
       </div>
 
-      {/* AI ALERTS */}
+      {/* AI INSIGHTS */}
 
       <div className="bg-zinc-900 p-4 rounded mb-6">
 
-        <h2 className="text-lg font-bold mb-2">
-          🤖 AI Alerts
+        <h2 className="font-bold mb-2">
+          🤖 AI Suggestions
         </h2>
 
-        {hot.length > 0 && (
-          <div className="text-green-400">
-            🔥 {hot.length} high score leads ready to close
-          </div>
+        {hotLeads.length>0 && (
+          <div>🔥 Focus on high score leads today.</div>
         )}
 
-        {cold.length > 2 && (
-          <div className="text-red-400">
-            🧊 Many cold leads — re-engage them
-          </div>
-        )}
-
-        {hot.length === 0 && cold.length < 3 && (
-          <div className="text-gray-400">
-            Everything looks healthy today.
-          </div>
+        {closedDeals===0 && (
+          <div>🚀 Close your first deal to unlock momentum.</div>
         )}
 
       </div>
@@ -183,32 +151,26 @@ export default function Dashboard(){
 
       <div className="bg-zinc-900 p-4 rounded mb-6">
 
-        <h2 className="font-bold mb-2">Add Lead</h2>
+        <input
+          placeholder="Name"
+          value={newLead.name}
+          onChange={e=>setNewLead({...newLead,name:e.target.value})}
+          className="bg-zinc-800 p-2 mr-2"
+        />
 
-        <div className="flex gap-2">
+        <input
+          placeholder="Email"
+          value={newLead.email}
+          onChange={e=>setNewLead({...newLead,email:e.target.value})}
+          className="bg-zinc-800 p-2 mr-2"
+        />
 
-          <input
-            placeholder="Name"
-            value={newLead.name}
-            onChange={e=>setNewLead({...newLead,name:e.target.value})}
-            className="bg-zinc-800 p-2 rounded"
-          />
-
-          <input
-            placeholder="Email"
-            value={newLead.email}
-            onChange={e=>setNewLead({...newLead,email:e.target.value})}
-            className="bg-zinc-800 p-2 rounded"
-          />
-
-          <button
-            onClick={addLead}
-            className="bg-blue-600 px-4 rounded"
-          >
-            Add
-          </button>
-
-        </div>
+        <button
+          onClick={addLead}
+          className="bg-blue-600 px-4 py-2"
+        >
+          Add
+        </button>
 
       </div>
 
@@ -220,81 +182,40 @@ export default function Dashboard(){
 
           <div key={status} className="bg-zinc-900 p-3 rounded">
 
-            <h3 className="font-bold capitalize mb-3">
+            <h3 className="capitalize font-bold mb-3">
               {status}
             </h3>
 
-            {leads
-              .filter(l=>l.status===status)
-              .map(l=>(
-                <div
-                  key={l.id}
-                  onClick={()=>setSelected(l)}
-                  className={`p-2 rounded mb-2 cursor-pointer ${
-                    l.score>=70
-                      ? "bg-green-800"
-                      : "bg-zinc-800"
-                  }`}
+            {leads.filter(l=>l.status===status).map(l=>(
+
+              <div
+                key={l.id}
+                onClick={()=>setSelected(l)}
+                className={`p-2 mb-2 cursor-pointer rounded ${
+                  l.score>=70 ? "bg-green-800" : "bg-zinc-800"
+                }`}
+              >
+                {l.name}
+
+                <select
+                  value={l.status}
+                  onChange={(e)=>updateStatus(l.id,e.target.value)}
+                  className="block mt-1 bg-black text-xs"
                 >
-                  <div>{l.name}</div>
-                  <div className="text-xs">
-                    Score {l.score}
-                  </div>
+                  {statuses.map(s=>(
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
 
-                  <select
-                    value={l.status}
-                    onChange={(e)=>updateStatus(l.id,e.target.value)}
-                    className="bg-black text-xs mt-1"
-                  >
-                    {statuses.map(s=>(
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+              </div>
 
-                </div>
-              ))
-            }
+            ))}
 
           </div>
 
         ))}
 
       </div>
-
-      {/* DETAIL PANEL */}
-
-      {selected && (
-
-        <div className="fixed bottom-0 right-0 bg-zinc-900 w-96 p-6 h-full border-l border-zinc-700">
-
-          <h2 className="text-xl font-bold mb-3">
-            {selected.name}
-          </h2>
-
-          <p>{selected.email}</p>
-          <p>{selected.company}</p>
-
-          <div className="mt-4">
-
-            <button
-              onClick={generateFollowup}
-              className="bg-green-600 px-4 py-2 rounded mr-2"
-            >
-              AI Follow-up
-            </button>
-
-            <button
-              onClick={()=>deleteLead(selected.id)}
-              className="bg-red-600 px-4 py-2 rounded"
-            >
-              Delete
-            </button>
-
-          </div>
-
-        </div>
-
-      )}
 
     </div>
   )
