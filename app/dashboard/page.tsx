@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js"
 import AIOnboarding from "../components/AIOnboarding"
 import AIMission from "../components/AIMission"
 import LeadDetailPanel from "../components/LeadDetailPanel"
+import PipelineView from "../components/PipelineView"
 
 const supabase = createClient(
  process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,9 +21,7 @@ export default function Dashboard(){
  const [input,setInput] = useState("")
  const [working,setWorking] = useState(false)
 
- useEffect(()=>{
-   init()
- },[])
+ useEffect(()=>{ init() },[])
 
  async function init(){
 
@@ -57,7 +56,6 @@ export default function Dashboard(){
  async function addLead(){
 
    if(!input) return
-
    setWorking(true)
 
    const res = await fetch("/api/ai",{
@@ -82,6 +80,16 @@ export default function Dashboard(){
 
    setInput("")
    setWorking(false)
+   loadLeads()
+ }
+
+ async function moveLead(lead:any,newStatus:string){
+
+   await supabase
+     .from("leads")
+     .update({ status:newStatus })
+     .eq("id",lead.id)
+
    loadLeads()
  }
 
@@ -121,24 +129,11 @@ export default function Dashboard(){
 
      </div>
 
-     <div className="bg-zinc-900 p-6 rounded space-y-2">
-
-       <h3>Leads</h3>
-
-       {leads.map(l=>(
-         <div
-           key={l.id}
-           onClick={()=>setSelectedLead(l)}
-           className="bg-black/40 p-3 rounded cursor-pointer hover:bg-black/60"
-         >
-           <div className="font-semibold">{l.name}</div>
-           <div className="text-sm opacity-70">
-             Score {l.score} • {l.urgency}
-           </div>
-         </div>
-       ))}
-
-     </div>
+     <PipelineView
+       leads={leads}
+       onSelect={(lead)=>setSelectedLead(lead)}
+       onMove={moveLead}
+     />
 
      {selectedLead && (
        <LeadDetailPanel
@@ -149,6 +144,5 @@ export default function Dashboard(){
      )}
 
    </div>
-
  )
 }
