@@ -1,38 +1,155 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { supabase } from "../lib/supabaseClient"
+import { supabase } from "../lib/supabase"
 
-export default function Dashboard() {
+type Lead = {
+  id:string
+  name:string
+  email:string
+  company:string
+  notes:string
+  status:string
+  score:number
+}
 
-  const router = useRouter()
-  const [loading,setLoading] = useState(true)
+export default function Dashboard(){
 
-  useEffect(() => {
+  const [leads,setLeads] = useState<Lead[]>([])
+  const [selected,setSelected] = useState<Lead | null>(null)
 
-    const checkUser = async () => {
+  const [newLead,setNewLead] = useState({
+    name:"",
+    email:"",
+    company:"",
+    notes:""
+  })
 
-      const { data:{ session } } = await supabase.auth.getSession()
+  async function loadLeads(){
 
-      if(!session){
-        router.push("/login")
-      } else {
-        setLoading(false)
-      }
-    }
+    const { data } = await supabase
+      .from("leads")
+      .select("*")
+      .order("created_at",{ascending:false})
 
-    checkUser()
-
-  },[])
-
-  if(loading){
-    return <div className="p-10">Loading...</div>
+    if(data) setLeads(data)
   }
 
-  return (
-    <div className="p-10">
-      <h1>Dashboard</h1>
+  useEffect(()=>{
+    loadLeads()
+  },[])
+
+  async function addLead(){
+
+    const { data } = await supabase
+      .from("leads")
+      .insert({
+        ...newLead,
+        status:"new",
+        score:0
+      })
+      .select()
+
+    if(data){
+      setLeads([data[0],...leads])
+      setNewLead({name:"",email:"",company:"",notes:""})
+    }
+  }
+
+  async function deleteLead(id:string){
+
+    await supabase
+      .from("leads")
+      .delete()
+      .eq("id",id)
+
+    setLeads(leads.filter(l=>l.id!==id))
+    setSelected(null)
+  }
+
+  async function generateFollowup(){
+
+    if(!selected) return
+
+    const res = await fetch("/api/ai",{
+      method:"POST",
+      body:JSON.stringify(selected)
+    })
+
+    const data = await res.json()
+
+    alert(data.text)
+  }
+
+  return(
+
+    <div className="flex h-screen">
+
+      {/* LEFT LIST */}
+      <div className="w-1/3 border-r p-4">
+
+        <h2 className="font-bold mb-4">Leads</h2>
+
+        <input
+          placeholder="Name"
+          value={newLead.name}
+          onChange={e=>setNewLead({...newLead,name:e.target.value})}
+        />
+
+        <input
+          placeholder="Email"
+          value={newLead.email}
+          onChange={e=>setNewLead({...newLead,email:e.target.value})}
+        />
+
+        <button onClick={addLead}>
+          Add Lead
+        </button>
+
+        {leads.map(l=>(
+          <div
+            key={l.id}
+            onClick={()=>setSelected(l)}
+            className="cursor-pointer border p-2 mt-2"
+          >
+            {l.name} — Score {l.score}
+          </div>
+        ))}
+
+      </div>
+
+      {/* RIGHT DETAIL */}
+
+      <div className="flex-1 p-6">
+
+        {selected && (
+
+          <div>
+
+            <h2 className="text-xl font-bold">
+              {selected.name}
+            </h2>
+
+            <p>{selected.email}</p>
+            <p>{selected.company}</p>
+
+            <button onClick={generateFollowup}>
+              Generate AI Followup
+            </button>
+
+            <button
+              onClick={()=>deleteLead(selected.id)}
+            >
+              Delete
+            </button>
+
+          </div>
+
+        )}
+
+      </div>
+
     </div>
+
   )
 }
