@@ -1,66 +1,164 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { createClient } from "@supabase/supabase-js"
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+type Message = {
+  role: "ai" | "user"
+  content: string
+}
 
 export default function AIOnboarding(){
 
-  const [messages,setMessages] = useState([
-    {role:"ai", text:"Hi 👋 I'm your AI employee. What kind of business do you run?"}
-  ])
-
+  const [messages,setMessages] = useState<Message[]>([])
   const [input,setInput] = useState("")
   const [loading,setLoading] = useState(false)
+  const [user,setUser] = useState<any>(null)
 
-  async function send(){
+  useEffect(()=>{
+    init()
+  },[])
 
-    if(!input) return
+  async function init(){
 
-    const newMessages = [...messages,{role:"user",text:input}]
-    setMessages(newMessages)
+    const { data:{ user } } = await supabase.auth.getUser()
+    setUser(user)
+
+    // start onboarding conversation
+    setMessages([
+      {
+        role:"ai",
+        content:"👋 Hi — I'm your AI employee. Let's set up your lead machine.\n\nWhat type of business do you run?"
+      }
+    ])
+  }
+
+  async function sendMessage(){
+
+    if(!input || loading) return
+
+    const updatedMessages = [
+      ...messages,
+      { role:"user", content:input }
+    ]
+
+    setMessages(updatedMessages)
     setInput("")
     setLoading(true)
 
-    const res = await fetch("/api/ai-onboarding",{
-      method:"POST",
-      body:JSON.stringify({message:input})
-    })
+    try{
 
-    const data = await res.json()
+      const res = await fetch("/api/ai",{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          onboarding:true,
+          messages:updatedMessages
+        })
+      })
 
-    setMessages([...newMessages,{role:"ai",text:data.reply}])
+      const data = await res.json()
+
+      const newMessages = [
+        ...updatedMessages,
+        { role:"ai", content:data.reply }
+      ]
+
+      setMessages(newMessages)
+
+      // 🚀 finish onboarding after enough interaction
+      if(newMessages.length >= 6){
+
+        await supabase
+          .from("profiles")
+          .update({
+            onboarded:true,
+            onboarding_chat: JSON.stringify(newMessages)
+          })
+          .eq("id",user.id)
+
+        window.location.reload()
+      }
+
+    }catch(e){
+      console.log(e)
+    }
 
     setLoading(false)
   }
 
-  return (
+  return(
 
-    <div style={{background:"#111",padding:20,borderRadius:20}}>
+    <div style={{
+      maxWidth:600,
+      marginTop:20,
+      background:"#111",
+      padding:20,
+      borderRadius:20
+    }}>
 
-      <h3>🤖 AI Setup</h3>
+      <h2>🤖 AI Onboarding</h2>
 
-      <div style={{maxHeight:300,overflow:"auto"}}>
+      <div style={{
+        maxHeight:300,
+        overflowY:"auto",
+        marginTop:20,
+        marginBottom:20
+      }}>
 
         {messages.map((m,i)=>(
-          <div key={i} style={{marginTop:10}}>
-            <b>{m.role==="ai"?"AI":"You"}:</b> {m.text}
+          <div
+            key={i}
+            style={{
+              marginBottom:10,
+              padding:12,
+              borderRadius:12,
+              background:m.role==="ai" ? "#1e1b4b" : "#1f2937"
+            }}
+          >
+            {m.content}
           </div>
         ))}
 
       </div>
 
-      <input
+      <textarea
+        placeholder="Type your answer..."
         value={input}
         onChange={(e)=>setInput(e.target.value)}
-        placeholder="Type..."
-        style={{width:"100%",marginTop:10}}
+        style={{
+          width:"100%",
+          height:80,
+          padding:10,
+          borderRadius:10,
+          background:"#000",
+          color:"#fff",
+          border:"1px solid #333"
+        }}
       />
 
-      <button onClick={send}>
+      <button
+        onClick={sendMessage}
+        style={{
+          marginTop:10,
+          padding:"10px 20px",
+          borderRadius:10,
+          background:"#2563eb",
+          color:"#fff",
+          border:"none"
+        }}
+      >
         {loading ? "Thinking..." : "Send"}
       </button>
 
     </div>
 
   )
-
 }
