@@ -1,4 +1,4 @@
-import { getOpenAI } from "@/lib/openai"
+import { getOpenAI } from "../../lib/openai"
 
 export async function POST(req:Request){
 
