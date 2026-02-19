@@ -7,16 +7,21 @@ const openai = new OpenAI({
 
 export async function POST(req: Request){
 
-  const { text } = await req.json()
+  const body = await req.json()
 
-  const completion = await openai.chat.completions.create({
+  // -----------------------------
+  // LEAD ANALYSIS MODE
+  // -----------------------------
+  if(body.text){
 
-    model:"gpt-4o-mini",
+    const completion = await openai.chat.completions.create({
 
-    messages:[
-      {
-        role:"system",
-        content:`
+      model:"gpt-4o-mini",
+
+      messages:[
+        {
+          role:"system",
+          content:`
 Extract structured lead info.
 
 Return STRICT JSON:
@@ -30,16 +35,63 @@ Return STRICT JSON:
   "next_action":""
 }
 `
-      },
-      {
-        role:"user",
-        content:text
-      }
-    ]
+        },
+        {
+          role:"user",
+          content:body.text
+        }
+      ]
 
-  })
+    })
 
-  const content = completion.choices[0].message.content || "{}"
+    const content = completion.choices[0].message.content || "{}"
 
-  return NextResponse.json(JSON.parse(content))
+    return NextResponse.json(JSON.parse(content))
+  }
+
+  // -----------------------------
+  // FOLLOW-UP GENERATION MODE
+  // -----------------------------
+  if(body.followup){
+
+    const { lead } = body
+
+    const completion = await openai.chat.completions.create({
+
+      model:"gpt-4o-mini",
+
+      messages:[
+        {
+          role:"system",
+          content:`
+You are a professional sales assistant.
+
+Write a short, high-converting follow-up message.
+
+Keep it concise.
+Professional.
+No fluff.
+`
+        },
+        {
+          role:"user",
+          content:`
+Lead Name: ${lead.name}
+Lead Summary: ${lead.ai_summary}
+Urgency: ${lead.urgency}
+Suggested Action: ${lead.next_action}
+
+Write a follow-up message.
+`
+        }
+      ]
+
+    })
+
+    return NextResponse.json({
+      message: completion.choices[0].message.content
+    })
+  }
+
+  return NextResponse.json({ error:"Invalid request" })
 }
