@@ -1,115 +1,64 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from "@/lib/supabaseClient"
 
 export default function Login() {
 
   const [email,setEmail] = useState("")
   const [loading,setLoading] = useState(false)
 
-  async function loginGoogle(){
+  const loginGoogle = async () => {
+
+    setLoading(true)
 
     await supabase.auth.signInWithOAuth({
       provider:"google",
       options:{
-        redirectTo:"https://leadflow-ai-ivory.vercel.app/dashboard"
+        redirectTo: window.location.origin + "/dashboard"
       }
     })
-
   }
 
-  async function loginEmail(){
-
-    if(!email) return
+  const loginEmail = async () => {
 
     setLoading(true)
 
     await supabase.auth.signInWithOtp({
-
-      email,
-      options:{
-        emailRedirectTo:"https://leadflow-ai-ivory.vercel.app/dashboard"
-      }
-
+      email
     })
 
-    alert("Magic link sent to your email 🚀")
-
+    alert("Check email for login link")
     setLoading(false)
   }
 
   return (
 
-    <div style={{
-      minHeight:"100vh",
-      background:"#000",
-      color:"#fff",
-      display:"flex",
-      justifyContent:"center",
-      alignItems:"center"
-    }}>
+    <div className="min-h-screen flex flex-col items-center justify-center gap-6">
 
-      <div style={{
-        width:400,
-        padding:30,
-        borderRadius:20,
-        background:"#111"
-      }}>
+      <h1 className="text-4xl font-bold">MyLeadAssistant</h1>
 
-        <h1>Leadflow AI</h1>
+      <button
+        onClick={loginGoogle}
+        className="bg-blue-600 text-white px-6 py-3 rounded"
+      >
+        Continue with Google
+      </button>
 
-        <button onClick={loginGoogle}
-        style={{
-          width:"100%",
-          padding:15,
-          marginTop:20,
-          background:"#fff",
-          color:"#000",
-          borderRadius:10
-        }}>
-          Continue with Google
-        </button>
+      <input
+        value={email}
+        onChange={(e)=>setEmail(e.target.value)}
+        placeholder="Email"
+        className="border p-3 rounded"
+      />
 
-        <p style={{marginTop:20}}>Or continue with email</p>
-
-        <input
-          placeholder="Email"
-          value={email}
-          onChange={(e)=>setEmail(e.target.value)}
-          style={{
-            width:"100%",
-            padding:12,
-            marginTop:10,
-            background:"#000",
-            border:"1px solid #333",
-            color:"#fff"
-          }}
-        />
-
-        <button
-          onClick={loginEmail}
-          disabled={loading}
-          style={{
-            width:"100%",
-            padding:15,
-            marginTop:15,
-            background:"#3b82f6",
-            borderRadius:10
-          }}
-        >
-          {loading ? "Sending..." : "Send Magic Link"}
-        </button>
-
-      </div>
+      <button
+        onClick={loginEmail}
+        className="bg-black text-white px-6 py-3 rounded"
+      >
+        Continue with Email
+      </button>
 
     </div>
-
   )
-
 }
