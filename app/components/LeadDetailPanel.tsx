@@ -21,6 +21,8 @@ export default function LeadDetailPanel({
  const [notes,setNotes] = useState<any[]>([])
  const [newNote,setNewNote] = useState("")
  const [status,setStatus] = useState(lead.status || "new")
+ const [followup,setFollowup] = useState("")
+ const [loading,setLoading] = useState(false)
 
  useEffect(()=>{
    loadNotes()
@@ -60,6 +62,25 @@ export default function LeadDetailPanel({
    refresh()
  }
 
+ async function generateFollowup(){
+
+   setLoading(true)
+
+   const res = await fetch("/api/ai",{
+     method:"POST",
+     headers:{ "Content-Type":"application/json" },
+     body:JSON.stringify({
+       followup:true,
+       lead
+     })
+   })
+
+   const data = await res.json()
+
+   setFollowup(data.message)
+   setLoading(false)
+ }
+
  return(
 
    <div className="fixed top-0 right-0 w-[420px] h-full bg-zinc-900 p-6 overflow-y-auto shadow-2xl">
@@ -76,7 +97,29 @@ export default function LeadDetailPanel({
        <div className="text-sm opacity-80">{lead.ai_summary}</div>
      </div>
 
-     <div className="mt-4">
+     <div className="mt-6 space-y-3">
+
+       <h3 className="font-semibold">AI Follow-Up Generator</h3>
+
+       <button
+         onClick={generateFollowup}
+         className="bg-purple-600 px-3 py-2 rounded"
+       >
+         {loading ? "Generating..." : "Generate Follow-Up"}
+       </button>
+
+       {followup && (
+         <textarea
+           value={followup}
+           readOnly
+           className="w-full bg-black border p-3 rounded mt-2"
+           rows={6}
+         />
+       )}
+
+     </div>
+
+     <div className="mt-6">
        <label>Status</label>
        <select
          value={status}
