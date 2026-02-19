@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import AIOnboarding from "../components/AIOnboarding"
 
 export default function Dashboard(){
 
