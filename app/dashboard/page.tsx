@@ -11,6 +11,7 @@ type Lead = {
   notes:string
   status:string
   score:number
+  created_at:string
 }
 
 const statuses = ["new","contacted","qualified","closed"]
@@ -19,6 +20,7 @@ export default function Dashboard(){
 
   const [leads,setLeads] = useState<Lead[]>([])
   const [selected,setSelected] = useState<Lead | null>(null)
+  const [streak,setStreak] = useState(1)
 
   const [newLead,setNewLead] = useState({
     name:"",
@@ -38,24 +40,21 @@ export default function Dashboard(){
 
   useEffect(()=>{
     loadLeads()
+    calculateStreak()
   },[])
 
   function calculateScore(lead:any){
-
     let score = 0
-
     if(lead.email) score += 20
     if(lead.company) score += 20
     if(lead.notes) score += 20
     if(lead.status === "contacted") score += 10
     if(lead.status === "qualified") score += 20
     if(lead.status === "closed") score += 30
-
     return Math.min(score,100)
   }
 
   async function addLead(){
-
     const score = calculateScore(newLead)
 
     const { data } = await supabase
@@ -113,38 +112,75 @@ export default function Dashboard(){
     alert(data.text)
   }
 
-  const hot = leads.filter(l=>l.score>=70).length
-  const followup = leads.filter(l=>l.status==="contacted").length
-  const cold = leads.filter(l=>l.score<30).length
+  function calculateStreak(){
+    setStreak(3) // placeholder logic for now
+  }
+
+  const today = new Date().toISOString().split("T")[0]
+
+  const todayCount = leads.filter(l =>
+    l.created_at?.startsWith(today)
+  ).length
+
+  const hot = leads.filter(l=>l.score>=70)
+  const cold = leads.filter(l=>l.score<30)
 
   return(
 
     <div className="p-6 bg-black text-white min-h-screen">
 
-      {/* AI MISSION PANEL */}
+      {/* DAILY PROGRESS */}
+
       <div className="bg-zinc-900 p-4 rounded mb-6">
 
-        <h2 className="text-xl font-bold mb-2">
-          🤖 AI Mission Control
+        <h2 className="text-lg font-bold mb-2">
+          🚀 Daily Progress
         </h2>
 
-        <div className="flex gap-6">
-
-          <div>🔥 Hot: {hot}</div>
-          <div>⏳ Needs Follow-up: {followup}</div>
-          <div>🧊 Cold: {cold}</div>
-
+        <div className="flex gap-6 text-sm">
+          <div>Today’s Leads: {todayCount}</div>
+          <div>🔥 Streak: {streak} days</div>
         </div>
 
-        <div className="mt-3 text-sm text-gray-400">
-          {hot > 0 
-            ? `${hot} hot leads need attention today.` 
-            : "No urgent leads. You're on track."}
+        <div className="mt-3 bg-zinc-800 h-2 rounded">
+          <div
+            className="bg-blue-500 h-2 rounded"
+            style={{width:`${Math.min(todayCount*20,100)}%`}}
+          />
         </div>
 
       </div>
 
+      {/* AI ALERTS */}
+
+      <div className="bg-zinc-900 p-4 rounded mb-6">
+
+        <h2 className="text-lg font-bold mb-2">
+          🤖 AI Alerts
+        </h2>
+
+        {hot.length > 0 && (
+          <div className="text-green-400">
+            🔥 {hot.length} high score leads ready to close
+          </div>
+        )}
+
+        {cold.length > 2 && (
+          <div className="text-red-400">
+            🧊 Many cold leads — re-engage them
+          </div>
+        )}
+
+        {hot.length === 0 && cold.length < 3 && (
+          <div className="text-gray-400">
+            Everything looks healthy today.
+          </div>
+        )}
+
+      </div>
+
       {/* ADD LEAD */}
+
       <div className="bg-zinc-900 p-4 rounded mb-6">
 
         <h2 className="font-bold mb-2">Add Lead</h2>
@@ -194,10 +230,14 @@ export default function Dashboard(){
                 <div
                   key={l.id}
                   onClick={()=>setSelected(l)}
-                  className="bg-zinc-800 p-2 rounded mb-2 cursor-pointer"
+                  className={`p-2 rounded mb-2 cursor-pointer ${
+                    l.score>=70
+                      ? "bg-green-800"
+                      : "bg-zinc-800"
+                  }`}
                 >
                   <div>{l.name}</div>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-xs">
                     Score {l.score}
                   </div>
 
@@ -257,6 +297,5 @@ export default function Dashboard(){
       )}
 
     </div>
-
   )
 }
