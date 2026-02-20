@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect,useState,useMemo } from "react"
+import { useEffect,useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { analyzeLeads, AIAnalysis } from "@/lib/aiBrain"
@@ -18,8 +18,8 @@ const [autopilot,setAutopilot]=useState(false)
 
 const [name,setName]=useState("")
 const [email,setEmail]=useState("")
-const [value,setValue]=useState(1000)
-const [type,setType]=useState("demo")
+const [value,setValue]=useState(500)
+const [type,setType]=useState("standard")
 
 useEffect(()=>{ init() },[])
 useEffect(()=>{ if(autopilot) runAutopilot() },[autopilot])
@@ -74,37 +74,28 @@ setAnalysis(analyzeLeads(updated))
 
 setName("")
 setEmail("")
-setValue(1000)
-setType("demo")
 }
 }
 
 async function runAutopilot(){
 
-const ranked = [...analysis]
-.sort((a,b)=>b.priorityScore - a.priorityScore)
+const updated=[...leads]
+const newAnalysis = analyzeLeads(updated)
 
-const top = ranked[0]
-if(!top){
-setAutopilot(false)
-return
-}
+for(const lead of updated){
 
-const lead = leads.find(l=>l.id===top.id)
-if(!lead){
-setAutopilot(false)
-return
-}
+const ai = newAnalysis.find(a=>String(a.id)===String(lead.id))
+if(!ai) continue
 
 let newStatus = lead.status
 
-if(top.expectedRevenue > 1000 && lead.status==="new"){
+if(ai.expectedRevenue > 1000 && lead.status==="new"){
 newStatus="contacted"
 }
-else if(top.probability>70 && lead.status==="contacted"){
+else if(ai.probability>70 && lead.status==="contacted"){
 newStatus="qualified"
 }
-else if(top.probability>90){
+else if(ai.probability>90){
 newStatus="closed"
 }
 
@@ -115,14 +106,14 @@ await supabase
 .update({status:newStatus})
 .eq("id",lead.id)
 
-const updated = leads.map(l =>
-l.id===lead.id ? {...l,status:newStatus} : l
-)
+lead.status=newStatus
+
+}
+
+}
 
 setLeads(updated)
 setAnalysis(analyzeLeads(updated))
-}
-
 setAutopilot(false)
 }
 
@@ -132,19 +123,11 @@ router.replace("/login")
 }
 
 if(loading){
-return <div className="min-h-screen flex items-center justify-center bg-neutral-950 text-white">Loading...</div>
+return <div className="min-h-screen flex items-center justify-center">Loading...</div>
 }
 
 const expectedRevenue =
-analysis.reduce((sum,a)=>sum+a.expectedRevenue,0)
-
-const rankedLeads = useMemo(()=>{
-return [...analysis]
-.sort((a,b)=>b.priorityScore - a.priorityScore)
-},[analysis])
-
-const topLeadAnalysis = rankedLeads[0]
-const topLead = leads.find(l=>l.id===topLeadAnalysis?.id)
+analysis.reduce((sum,a)=>sum+(a?.expectedRevenue ?? 0),0)
 
 const statuses=["new","contacted","qualified","closed"]
 
@@ -152,132 +135,59 @@ return(
 
 <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6 space-y-6">
 
-{/* HEADER */}
+<div className="flex justify-between">
 
-<div className="flex justify-between items-center">
+<h1 className="text-2xl font-bold">⚔️ Sales War Room</h1>
 
-<h1 className="text-2xl font-bold">
-🤖 AI Sales CEO
-</h1>
-
-<div className="space-x-3">
-
-<button
-onClick={()=>setAutopilot(true)}
-className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg">
-Run Autopilot
-</button>
-
-<button
-onClick={logout}
-className="bg-neutral-800 px-4 py-2 rounded-lg">
-Logout
+<button onClick={()=>setAutopilot(true)}
+className="bg-green-600 px-4 py-2 rounded-lg">
+Enable Autopilot
 </button>
 
 </div>
-
-</div>
-
-{/* NEXT BEST ACTION */}
-
-{topLead && topLeadAnalysis && (
-
-<div className="bg-neutral-900 p-6 rounded-xl border border-purple-600">
-
-<h2 className="text-lg font-semibold mb-2">
-🔥 Next Best Action
-</h2>
-
-<p className="text-xl font-bold">
-Contact {topLead.name}
-</p>
-
-<p className="text-sm text-neutral-400">
-Type: {topLead.lead_type}
-</p>
-
-<div className="mt-3 space-y-1 text-sm">
-
-<p>💰 Expected Revenue: 
-<span className="text-green-400 ml-1">
-${topLeadAnalysis.expectedRevenue.toFixed(0)}
-</span>
-</p>
-
-<p>📊 Close Probability: 
-<span className="ml-1">
-{topLeadAnalysis.probability}%
-</span>
-</p>
-
-<p>⚡ Priority Score: 
-<span className="ml-1">
-{topLeadAnalysis.priorityScore.toFixed(0)}
-</span>
-</p>
-
-</div>
-
-</div>
-
-)}
-
-{/* TOTAL REVENUE */}
 
 <div className="bg-neutral-900 p-6 rounded-xl">
-Total Expected Revenue:
+💰 Expected Revenue:
 <span className="text-green-400 text-2xl ml-2">
 ${expectedRevenue.toFixed(0)}
 </span>
 </div>
 
-{/* ADD LEAD */}
-
 <div className="bg-neutral-900 p-4 rounded-xl space-y-2">
 
-<input
-placeholder="Lead name"
+<input placeholder="Lead name"
 value={name}
 onChange={(e)=>setName(e.target.value)}
-className="w-full p-2 bg-neutral-950 rounded border border-neutral-800"
-/>
+className="w-full p-2 bg-neutral-950 rounded"/>
 
-<input
-placeholder="Lead email"
+<input placeholder="Lead email"
 value={email}
 onChange={(e)=>setEmail(e.target.value)}
-className="w-full p-2 bg-neutral-950 rounded border border-neutral-800"
-/>
+className="w-full p-2 bg-neutral-950 rounded"/>
+
+<input type="number"
+placeholder="Potential deal value"
+value={value}
+onChange={(e)=>setValue(Number(e.target.value))}
+className="w-full p-2 bg-neutral-950 rounded"/>
 
 <select
 value={type}
 onChange={(e)=>setType(e.target.value)}
-className="w-full p-2 bg-neutral-950 rounded border border-neutral-800">
+className="w-full p-2 bg-neutral-950 rounded">
 
-<option value="demo">Demo</option>
-<option value="client">Client</option>
-<option value="call">Call</option>
-<option value="deal">Deal</option>
+<option value="standard">Standard</option>
+<option value="enterprise">Enterprise</option>
+<option value="hot">Hot Lead</option>
 
 </select>
 
-<input
-type="number"
-placeholder="Potential deal value"
-value={value}
-onChange={(e)=>setValue(Number(e.target.value))}
-className="w-full p-2 bg-neutral-950 rounded border border-neutral-800"
-/>
-
-<button
-onClick={addLead}
-className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg w-full">
+<button onClick={addLead}
+className="bg-purple-600 px-4 py-2 rounded-lg">
 Add Lead
 </button>
 
 </div>
-
-{/* PIPELINE */}
 
 <div className="grid grid-cols-4 gap-4">
 
@@ -290,22 +200,18 @@ return(
 <div key={status}
 className="bg-neutral-900 p-4 rounded-xl">
 
-<h3 className="capitalize mb-3 font-semibold">
-{status}
-</h3>
+<h3 className="capitalize mb-3">{status}</h3>
 
 {filtered.map(l=>{
 
-const ai = analysis.find(a=>a.id===String(l.id))
+const ai = analysis.find(a=>String(a.id)===String(l.id))
 
 return(
 
 <div key={l.id}
-className="bg-neutral-950 p-3 mb-2 rounded border border-neutral-800">
+className="bg-neutral-950 p-2 mb-2 rounded">
 
-<p className="font-medium">
-{l.name}
-</p>
+<p>{l.name}</p>
 
 {ai &&(
 <p className="text-xs text-green-400">
@@ -330,4 +236,5 @@ Expected: ${ai.expectedRevenue.toFixed(0)}
 </div>
 
 )
+
 }
