@@ -1,62 +1,77 @@
 import { NextResponse } from "next/server"
-import { resend } from "@/lib/resend"
 import { createClient } from "@supabase/supabase-js"
+import { resend } from "@/lib/resend"
 import { analyzeLeads } from "@/lib/aiBrain"
 
 const supabase = createClient(
- process.env.NEXT_PUBLIC_SUPABASE_URL!,
- process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export async function POST() {
 
- const { data: leads } = await supabase
-   .from("leads")
-   .select("*")
+  const { data: leads } = await supabase
+    .from("leads")
+    .select("*")
 
- if(!leads) return NextResponse.json({})
+  if (!leads || leads.length === 0)
+    return NextResponse.json({})
 
- const analysis = analyzeLeads(leads)
+  const analysis = analyzeLeads(leads)
 
- const ranked = [...analysis].sort(
-   (a,b)=>b.priorityScore - a.priorityScore
- )
+  const ranked = [...analysis].sort(
+    (a, b) => b.priorityScore - a.priorityScore
+  )
 
- const top = ranked[0]
+  const top = ranked[0]
 
- if(!top) return NextResponse.json({})
+  const lead = leads.find(l => String(l.id) === String(top.id))
+  if (!lead) return NextResponse.json({})
 
- const lead = leads.find(l=>l.id===top.id)
+  // ================= AI PERSONALIZATION =================
 
- if(!lead) return NextResponse.json({})
+  const subject =
+    lead.status === "new"
+      ? `Quick idea regarding ${lead.interest}`
+      : `Following up on ${lead.interest}`
 
- // AI EMAIL CONTENT
+  const intro =
+    lead.lead_temperature === "hot"
+      ? "I know timing matters here."
+      : "I wanted to reach out."
 
- const subject = `Quick idea for ${lead.name}`
+  const body = `
+Hi ${lead.name},
 
- const html = `
-   Hi ${lead.name},<br/><br/>
+${intro}
 
-   I noticed this could represent approx $${top.expectedRevenue} opportunity.<br/><br/>
+Based on your interest in ${lead.interest}, 
+we typically see opportunities around $${lead.potential_value}.
 
-   Want me to send details?<br/><br/>
+Would it make sense to explore this further?
 
-   Best,<br/>
-   AI Sales Assistant
- `
+Best,
+AI Sales Agent
+`
 
- await resend.emails.send({
-   from: "sales@myleadassistant.com",
-   to: lead.email,
-   subject,
-   html
- })
+  await resend.emails.send({
+    from: "sales@myleadassistant.com",
+    to: lead.email,
+    subject,
+    text: body
+  })
 
- await supabase
-   .from("leads")
-   .update({ status:"contacted" })
-   .eq("id", lead.id)
+  // ================= UPDATE STATUS =================
 
- return NextResponse.json({ success:true })
+  let newStatus = "contacted"
 
+  if (top.probability > 70)
+    newStatus = "qualified"
+
+  await supabase
+    .from("leads")
+    .update({ status: newStatus })
+    .eq("id", lead.id)
+
+  return NextResponse.json({ success: true })
 }
