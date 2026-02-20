@@ -1,48 +1,14 @@
-import type { Lead } from "@/types/lead"
-import { analyzeLeads } from "./aiBrain"
+import { Lead } from "@/types/lead"
 
-export interface AIMission {
-  leadId: string
-  title: string
-  action: string
-  priority: number
-}
+export function generateAIMissions(leads:Lead[]){
 
-export function generateAIMissions(leads: Lead[]): AIMission[] {
+return leads
+.filter(l=>l.status!=="closed")
+.map(l=>({
 
-  const analysis = analyzeLeads(leads)
+leadId:l.id,
+title:`Follow up with ${l.name}`
 
-  const missions: AIMission[] = []
+}))
 
-  for (const ai of analysis) {
-
-    if (ai.priorityScore > 85) {
-      missions.push({
-        leadId: ai.id,
-        title: "🔥 Close High Value Deal",
-        action: "Move to closed",
-        priority: ai.priorityScore
-      })
-    }
-
-    else if (ai.priorityScore > 65) {
-      missions.push({
-        leadId: ai.id,
-        title: "⚡ High Priority Follow Up",
-        action: "Contact immediately",
-        priority: ai.priorityScore
-      })
-    }
-
-    else if (ai.priorityScore > 40) {
-      missions.push({
-        leadId: ai.id,
-        title: "📧 Nurture Lead",
-        action: "Send follow-up email",
-        priority: ai.priorityScore
-      })
-    }
-  }
-
-  return missions.sort((a, b) => b.priority - a.priority)
 }
