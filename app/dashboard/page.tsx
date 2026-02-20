@@ -6,64 +6,61 @@ import { supabase } from "@/lib/supabase"
 import { generatePriorityMissions } from "@/lib/aiBrain"
 
 type Lead = {
-  id: string
-  name: string
-  email: string
-  status: string
-  score: number
-  user_id: string
-  created_at: string
-  next_followup_at?: string
+  id:string
+  name:string
+  email:string
+  status:string
+  score:number
+  user_id:string
+  created_at:string
 }
 
 type Mission = {
-  type: string
-  text: string
-  priority: number
+  text:string
+  priority:number
 }
 
-export default function DashboardPage() {
+export default function DashboardPage(){
 
   const router = useRouter()
 
-  const [user, setUser] = useState<any>(null)
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [missions, setMissions] = useState<Mission[]>([])
-  const [loading, setLoading] = useState(true)
+  const [user,setUser] = useState<any>(null)
+  const [leads,setLeads] = useState<Lead[]>([])
+  const [missions,setMissions] = useState<Mission[]>([])
+  const [loading,setLoading] = useState(true)
 
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
+  const [name,setName] = useState("")
+  const [email,setEmail] = useState("")
 
   // ===============================
-  // INIT
+  // AUTH + INIT
   // ===============================
 
-  useEffect(() => {
+  useEffect(()=>{
 
-    async function init() {
+    async function init(){
 
       const { data } = await supabase.auth.getSession()
 
-      if (!data.session) {
+      if(!data.session){
         router.replace("/login")
         return
       }
 
       setUser(data.session.user)
 
-      const { data: leadData } = await supabase
+      const { data:leadData } = await supabase
         .from("leads")
         .select("*")
-        .eq("user_id", data.session.user.id)
-        .order("created_at", { ascending: false })
+        .eq("user_id",data.session.user.id)
+        .order("created_at",{ascending:false})
 
-      if (leadData) {
+      if(leadData){
 
         setLeads(leadData)
 
-        const aiMissions = generatePriorityMissions(leadData)
-        setMissions(aiMissions)
-
+        const ai = generatePriorityMissions(leadData)
+        setMissions(ai)
       }
 
       setLoading(false)
@@ -71,118 +68,120 @@ export default function DashboardPage() {
 
     init()
 
-  }, [])
+  },[])
 
   // ===============================
   // ADD LEAD
   // ===============================
 
-  async function addLead() {
+  async function addLead(){
 
-    if (!name || !email || !user) return
-
-    const nextFollowup = new Date()
-    nextFollowup.setDate(nextFollowup.getDate() + 3)
+    if(!name || !email || !user) return
 
     const { data } = await supabase
       .from("leads")
       .insert({
         name,
         email,
-        status: "new",
-        score: 30,
-        user_id: user.id,
-        next_followup_at: nextFollowup
+        status:"new",
+        score:30,
+        user_id:user.id
       })
       .select()
 
-    if (data) {
+    if(data){
 
-      const updated = [data[0], ...leads]
+      const updated = [data[0],...leads]
 
       setLeads(updated)
-
-      const aiMissions = generatePriorityMissions(updated)
-      setMissions(aiMissions)
+      setMissions(generatePriorityMissions(updated))
 
       setName("")
       setEmail("")
     }
   }
 
-  // ===============================
-  // LOGOUT
-  // ===============================
+  async function logout(){
 
-  async function logout() {
     await supabase.auth.signOut()
     router.replace("/login")
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading...
+  if(loading){
+
+    return(
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
+        Loading dashboard...
       </div>
     )
   }
 
-  const hotLeads = leads.filter(l => l.score >= 30).length
+  const statuses = ["new","contacted","qualified","closed"]
 
   // ===============================
   // UI
   // ===============================
 
-  return (
+  return(
 
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6">
 
       {/* HEADER */}
-      <div className="flex justify-between mb-6">
-        <h1 className="text-xl font-bold">MyLeadAssistant AI</h1>
-        <button onClick={logout}>Logout</button>
+
+      <div className="flex justify-between items-center mb-8">
+
+        <h1 className="text-2xl font-bold">
+          MyLeadAssistant AI
+        </h1>
+
+        <button
+          onClick={logout}
+          className="bg-neutral-800 px-4 py-2 rounded-lg hover:bg-neutral-700 transition"
+        >
+          Logout
+        </button>
+
       </div>
 
       {/* AI MISSION PANEL */}
-      <div className="bg-purple-700 p-4 rounded-xl mb-6">
 
-        <h2 className="font-bold mb-2">🤖 Today's Mission</h2>
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-5 rounded-xl shadow-lg mb-6">
+
+        <h2 className="font-bold mb-2">
+          🤖 Today's Mission
+        </h2>
 
         {missions.length === 0 && (
-          <p>No urgent actions right now.</p>
+          <p>No urgent actions.</p>
         )}
 
-        {missions.map((m, i) => (
-          <p key={i}>{m.text}</p>
+        {missions.map((m,i)=>(
+          <p key={i}>• {m.text}</p>
         ))}
 
       </div>
 
-      {/* STATS */}
-      <div className="bg-gray-900 p-4 rounded mb-6">
-        🔥 Hot Leads: {hotLeads}
-      </div>
-
       {/* ADD LEAD */}
-      <div className="bg-gray-900 p-4 rounded mb-6">
+
+      <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl mb-6">
 
         <input
-          placeholder="Name"
-          className="w-full mb-2 p-2 text-black"
+          placeholder="Lead name"
+          className="w-full mb-2 p-2 rounded bg-neutral-950 border border-neutral-800"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e)=>setName(e.target.value)}
         />
 
         <input
-          placeholder="Email"
-          className="w-full mb-2 p-2 text-black"
+          placeholder="Lead email"
+          className="w-full mb-3 p-2 rounded bg-neutral-950 border border-neutral-800"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e)=>setEmail(e.target.value)}
         />
 
         <button
           onClick={addLead}
-          className="bg-white text-black px-4 py-2 rounded"
+          className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-lg transition"
         >
           Add Lead
         </button>
@@ -190,27 +189,28 @@ export default function DashboardPage() {
       </div>
 
       {/* PIPELINE */}
-      <div className="grid grid-cols-2 gap-4">
 
-        {["new", "contacted", "qualified", "closed"].map(status => {
+      <div className="grid grid-cols-4 gap-4">
 
-          const filtered = leads.filter(l => l.status === status)
+        {statuses.map(status=>{
 
-          return (
+          const filtered = leads.filter(l=>l.status===status)
 
-            <div key={status} className="bg-gray-900 p-4 rounded">
+          return(
 
-              <h2 className="mb-3 capitalize">{status}</h2>
+            <div key={status} className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
 
-              {filtered.map(l => (
+              <h3 className="mb-3 capitalize font-semibold">
+                {status}
+              </h3>
 
-                <div key={l.id} className="bg-black p-2 mb-2 rounded">
+              {filtered.map(l=>(
+                <div key={l.id} className="bg-neutral-950 p-3 mb-2 rounded border border-neutral-800">
 
                   <p>{l.name}</p>
-                  <p className="text-xs text-gray-400">{l.email}</p>
+                  <p className="text-xs text-neutral-400">{l.email}</p>
 
                 </div>
-
               ))}
 
             </div>
@@ -222,6 +222,5 @@ export default function DashboardPage() {
       </div>
 
     </div>
-
   )
 }
