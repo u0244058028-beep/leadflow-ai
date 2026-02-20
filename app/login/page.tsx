@@ -4,72 +4,91 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "../../lib/supabase"
 
-export default function LoginPage() {
+export default function LoginPage(){
 
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
+
+  const [checking,setChecking] = useState(true)
 
   // ===============================
-  // SESSION CHECK + LISTENER
+  // AUTH FLOW (BULLETPROOF)
   // ===============================
 
-  useEffect(() => {
+  useEffect(()=>{
 
-    async function init() {
+    // 1️⃣ Check existing session
+    async function checkSession(){
 
       const { data } = await supabase.auth.getSession()
 
-      if (data.session) {
+      if(data.session){
         router.replace("/dashboard")
-      } else {
-        setLoading(false)
+        return
       }
+
+      setChecking(false)
     }
 
-    init()
+    checkSession()
 
+    // 2️⃣ Listen for login event (VERY IMPORTANT)
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session) {
+      (event,session)=>{
+
+        if(event==="SIGNED_IN" && session){
           router.replace("/dashboard")
         }
+
       }
     )
 
-    return () => {
+    return ()=>{
       listener.subscription.unsubscribe()
     }
 
-  }, [])
+  },[])
 
   // ===============================
   // GOOGLE LOGIN
   // ===============================
 
-  async function loginWithGoogle() {
+  async function loginWithGoogle(){
 
     await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: "https://www.myleadassistant.com"
+
+      provider:"google",
+
+      options:{
+        redirectTo:"https://www.myleadassistant.com"
       }
+
     })
+
   }
 
-  if (loading) {
-    return (
+  // ===============================
+  // UI
+  // ===============================
+
+  if(checking){
+
+    return(
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        Loading...
+        Checking session...
       </div>
     )
+
   }
 
-  return (
+  return(
+
     <div className="min-h-screen flex items-center justify-center bg-black text-white">
 
       <div className="bg-gray-900 p-8 rounded-xl w-80 text-center">
 
-        <h1 className="text-xl mb-6 font-bold">Login</h1>
+        <h1 className="text-xl mb-6 font-bold">
+          MyLeadAssistant
+        </h1>
 
         <button
           onClick={loginWithGoogle}
@@ -81,5 +100,7 @@ export default function LoginPage() {
       </div>
 
     </div>
+
   )
+
 }
