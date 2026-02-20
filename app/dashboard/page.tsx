@@ -7,10 +7,10 @@ import type { Lead } from "@/types/lead"
 
 export default function Dashboard() {
 
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [analysis, setAnalysis] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
+  const [interest,setInterest]=useState("website")
+const [source,setSource]=useState("referral")
+const [temperature,setTemperature]=useState("warm")
+const [notes,setNotes]=useState("")
 
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
