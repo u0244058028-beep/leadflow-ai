@@ -1,16 +1,15 @@
 export type Lead = {
- id: string
- name: string
- email: string
- status: string
+  id: string
+  name: string
+  email: string
 
- // AI signals
- score: number
+  status: "new" | "contacted" | "qualified" | "closed"
 
- // business data
- potential_value: number
- lead_type: string
+  score: number
 
- user_id: string
- created_at: string
+  potential_value: number
+  lead_type: "standard" | "enterprise" | "hot"
+
+  user_id: string
+  created_at?: string
 }
