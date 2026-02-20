@@ -23,11 +23,20 @@ const [user,setUser]=useState<any>(null)
 const [leads,setLeads]=useState<Lead[]>([])
 const [analysis,setAnalysis]=useState<AIAnalysis[]>([])
 const [loading,setLoading]=useState(true)
+const [autopilot,setAutopilot]=useState(false)
 
 const [name,setName]=useState("")
 const [email,setEmail]=useState("")
 
+useEffect(()=>{ init() },[])
+
 useEffect(()=>{
+
+if(autopilot){
+runAutopilot()
+}
+
+},[autopilot])
 
 async function init(){
 
@@ -53,10 +62,6 @@ setAnalysis(analyzeLeads(leadData))
 
 setLoading(false)
 }
-
-init()
-
-},[])
 
 async function addLead(){
 
@@ -85,21 +90,56 @@ setEmail("")
 }
 }
 
-async function logout(){
+async function runAutopilot(){
 
-await supabase.auth.signOut()
-router.replace("/login")
+const updated=[...leads]
+const newAnalysis = analyzeLeads(updated)
+
+for(let i=0;i<updated.length;i++){
+
+const ai = newAnalysis.find(a=>a.id===updated[i].id)
+if(!ai) continue
+
+const current = updated[i].status
+
+if(ai.probability > 90 && current !== "closed"){
+
+updated[i].status="closed"
+
+}else if(ai.probability > 70 && current === "contacted"){
+
+updated[i].status="qualified"
+
+}else if(ai.urgency > 75 && current === "new"){
+
+updated[i].status="contacted"
 
 }
 
-if(loading){
+await supabase
+.from("leads")
+.update({status:updated[i].status})
+.eq("id",updated[i].id)
 
+}
+
+setLeads(updated)
+setAnalysis(analyzeLeads(updated))
+
+setAutopilot(false)
+}
+
+async function logout(){
+await supabase.auth.signOut()
+router.replace("/login")
+}
+
+if(loading){
 return(
 <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
 Loading...
 </div>
 )
-
 }
 
 const expectedRevenue =
@@ -118,20 +158,31 @@ return(
 
 {/* HEADER */}
 
-<div className="flex justify-between">
+<div className="flex justify-between items-center">
 
 <h1 className="text-2xl font-bold">
 ⚔️ Sales War Room
 </h1>
 
-<button onClick={logout}
+<div className="flex gap-3">
+
+<button
+onClick={()=>setAutopilot(true)}
+className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-500">
+Enable Autopilot
+</button>
+
+<button
+onClick={logout}
 className="bg-neutral-800 px-4 py-2 rounded-lg hover:bg-neutral-700">
 Logout
 </button>
 
 </div>
 
-{/* REVENUE RADAR */}
+</div>
+
+{/* REVENUE */}
 
 <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl">
 
@@ -150,12 +201,12 @@ ${expectedRevenue}
 <div className="bg-purple-700 p-4 rounded-xl">
 
 <h2 className="font-bold mb-3">
-🤖 Today's Missions
+🤖 AI Mission
 </h2>
 
 {priorityLeads.map(p=>(
 <p key={p.id}>
-👉 {p.action} — {p.probability}% close probability
+👉 {p.action} — {p.probability}%
 </p>
 ))}
 
@@ -184,39 +235,6 @@ onClick={addLead}
 className="bg-purple-600 px-4 py-2 rounded-lg">
 Add Lead
 </button>
-
-</div>
-
-{/* PRIORITY QUEUE */}
-
-<div className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
-
-<h2 className="mb-3 font-semibold">
-🔥 Priority Queue
-</h2>
-
-{priorityLeads.map(p=>{
-
-const lead = leads.find(l=>l.id===p.id)
-
-if(!lead) return null
-
-return(
-
-<div key={p.id}
-className="bg-neutral-950 p-3 mb-2 rounded border border-neutral-800">
-
-<p>{lead.name}</p>
-
-<p className="text-xs text-neutral-400">
-{p.action}
-</p>
-
-</div>
-
-)
-
-})}
 
 </div>
 
