@@ -1,182 +1,283 @@
 "use client"
 
-import { useEffect,useState } from "react"
+import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { analyzeLeads } from "@/lib/aiBrain"
 import type { Lead } from "@/types/lead"
 
-export default function Dashboard(){
+export default function Dashboard() {
 
-const [leads,setLeads]=useState<Lead[]>([])
-const [analysis,setAnalysis]=useState<any[]>([])
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [analysis, setAnalysis] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
 
-const [name,setName]=useState("")
-const [email,setEmail]=useState("")
-const [value,setValue]=useState(500)
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [value, setValue] = useState(500)
 
-useEffect(()=>{
+  // ================= LOAD DATA =================
 
-async function load(){
+  useEffect(() => {
 
-const { data:{session} } = await supabase.auth.getSession()
+    async function load() {
 
-if(!session) return
+      const { data: { session } } = await supabase.auth.getSession()
 
-const { data } = await supabase
-.from("leads")
-.select("*")
-.eq("user_id",session.user.id)
+      if (!session) {
+        setLoading(false)
+        return
+      }
 
-if(data){
+      const { data } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("user_id", session.user.id)
 
-setLeads(data)
-setAnalysis(analyzeLeads(data))
+      if (data) {
+        setLeads(data)
+        setAnalysis(analyzeLeads(data))
+      }
 
-}
+      setLoading(false)
+    }
 
-}
+    load()
 
-load()
+  }, [])
 
-},[])
+  // ================= ADD LEAD =================
 
-async function addLead(){
+  async function addLead() {
 
-const { data:{session} } = await supabase.auth.getSession()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session || !name || !email) return
 
-if(!session) return
+    const { data } = await supabase
+      .from("leads")
+      .insert({
+        name,
+        email,
+        status: "new",
+        score: 50,
+        potential_value: value,
+        user_id: session.user.id
+      })
+      .select()
 
-const { data } = await supabase
-.from("leads")
-.insert({
-name,
-email,
-status:"new",
-score:50,
-potential_value:value,
-user_id:session.user.id
-})
-.select()
+    if (data) {
 
-if(data){
+      const updated = [data[0], ...leads]
 
-const updated=[data[0],...leads]
+      setLeads(updated)
+      setAnalysis(analyzeLeads(updated))
 
-setLeads(updated)
-setAnalysis(analyzeLeads(updated))
+      setName("")
+      setEmail("")
+      setValue(500)
+    }
+  }
 
-}
+  // ================= AUTOPILOT =================
 
-}
+  async function runAutopilot() {
 
-const expectedRevenue =
-analysis.reduce((sum,a)=>sum+a.expectedRevenue,0)
+    setSending(true)
 
-const nextAction =
-[...analysis].sort((a,b)=>b.priorityScore-a.priorityScore)[0]
+    await fetch("/api/ai-autopilot", {
+      method: "POST"
+    })
 
-return(
+    // reload after sending
+    const { data: { session } } = await supabase.auth.getSession()
 
-<div className="min-h-screen bg-black text-white p-4 space-y-6">
+    if (session) {
+      const { data } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("user_id", session.user.id)
 
-{/* AI TASK */}
+      if (data) {
+        setLeads(data)
+        setAnalysis(analyzeLeads(data))
+      }
+    }
 
-<div className="bg-purple-700 p-4 rounded-xl">
+    setSending(false)
+  }
 
-<h2 className="font-bold mb-2">
-🤖 Your AI Assistant
-</h2>
+  // ================= SAFE CALCULATIONS =================
 
-{nextAction &&(
+  const expectedRevenue =
+    analysis.reduce((sum, a) => sum + (a?.expectedRevenue || 0), 0)
 
-<div>
+  const sorted = [...analysis].sort(
+    (a, b) => (b?.priorityScore || 0) - (a?.priorityScore || 0)
+  )
 
-<p className="text-lg">
-👉 {nextAction.action}
-</p>
+  const nextAction = sorted[0]
 
-<p className="text-sm">
-{nextAction.probability}% close chance
-</p>
+  const nextLead = nextAction
+    ? leads.find(l => String(l.id) === String(nextAction.id))
+    : null
 
-</div>
+  // ================= LOADING =================
 
-)}
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        Loading...
+      </div>
+    )
+  }
 
-</div>
+  // ================= UI =================
 
-{/* MONEY */}
+  return (
 
-<div className="bg-neutral-900 p-4 rounded-xl">
+    <div className="min-h-screen bg-black text-white p-4 space-y-6">
 
-<p className="text-sm text-neutral-400">
-Expected revenue
-</p>
+      {/* AI TASK */}
 
-<p className="text-3xl text-green-400 font-bold">
-${Math.round(expectedRevenue)}
-</p>
+      <div className="bg-purple-700 p-4 rounded-xl">
 
-</div>
+        <h2 className="font-bold mb-2">
+          🤖 Your AI Assistant
+        </h2>
 
-{/* ADD LEAD */}
+        {nextAction && nextLead ? (
 
-<div className="bg-neutral-900 p-4 rounded-xl space-y-2">
+          <div>
 
-<input placeholder="Name"
-value={name}
-onChange={(e)=>setName(e.target.value)}
-className="w-full p-2 bg-black"/>
+            <p className="text-lg font-semibold">
+              👉 {nextAction.action}
+            </p>
 
-<input placeholder="Email"
-value={email}
-onChange={(e)=>setEmail(e.target.value)}
-className="w-full p-2 bg-black"/>
+            <p className="text-sm">
+              Lead: {nextLead.name}
+            </p>
 
-<input type="number"
-value={value}
-onChange={(e)=>setValue(Number(e.target.value))}
-className="w-full p-2 bg-black"/>
+            <p className="text-sm">
+              {Math.round(nextAction.probability)}% close chance
+            </p>
 
-<button
-onClick={addLead}
-className="bg-purple-600 p-2 rounded w-full">
-Add Lead
-</button>
+            <p className="text-sm">
+              Potential: ${Math.round(nextAction.expectedRevenue)}
+            </p>
 
-</div>
+            <button
+              onClick={runAutopilot}
+              disabled={sending}
+              className="mt-3 bg-green-600 px-4 py-2 rounded"
+            >
+              {sending ? "Sending..." : "Execute AI Action"}
+            </button>
 
-{/* PIPELINE */}
+          </div>
 
-<div>
+        ) : (
 
-{leads.map(l=>{
+          <p>No leads yet</p>
 
-const ai = analysis.find(a=>a.id===l.id)
+        )}
 
-return(
+      </div>
 
-<div key={l.id}
-className="bg-neutral-900 p-3 mb-2 rounded">
+      {/* MONEY */}
 
-<p>{l.name}</p>
+      <div className="bg-neutral-900 p-4 rounded-xl">
 
-{ai &&(
-<p className="text-green-400 text-sm">
-${Math.round(ai.expectedRevenue)}
-</p>
-)}
+        <p className="text-sm text-neutral-400">
+          Expected revenue
+        </p>
 
-</div>
+        <p className="text-3xl text-green-400 font-bold">
+          ${Math.round(expectedRevenue)}
+        </p>
 
-)
+      </div>
 
-})}
+      {/* ADD LEAD */}
 
-</div>
+      <div className="bg-neutral-900 p-4 rounded-xl space-y-2">
 
-</div>
+        <input
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full p-2 bg-black border border-neutral-800 rounded"
+        />
 
-)
+        <input
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full p-2 bg-black border border-neutral-800 rounded"
+        />
+
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => setValue(Number(e.target.value))}
+          className="w-full p-2 bg-black border border-neutral-800 rounded"
+        />
+
+        <button
+          onClick={addLead}
+          className="bg-purple-600 p-2 rounded w-full"
+        >
+          Add Lead
+        </button>
+
+      </div>
+
+      {/* PIPELINE */}
+
+      <div className="space-y-2">
+
+        {leads.map(l => {
+
+          const ai = analysis.find(a => String(a.id) === String(l.id))
+
+          return (
+
+            <div
+              key={l.id}
+              className="bg-neutral-900 p-3 rounded"
+            >
+
+              <div className="flex justify-between items-center">
+
+                <div>
+                  <p className="font-semibold">{l.name}</p>
+                  <p className="text-xs text-neutral-400">
+                    {l.email}
+                  </p>
+                </div>
+
+                {ai && (
+                  <div className="text-right">
+                    <p className="text-green-400 text-sm">
+                      ${Math.round(ai.expectedRevenue)}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {Math.round(ai.probability)}%
+                    </p>
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+
+          )
+
+        })}
+
+      </div>
+
+    </div>
+
+  )
 
 }
