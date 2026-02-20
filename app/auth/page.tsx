@@ -1,25 +1,35 @@
-'use client'
+"use client"
 
 import { useEffect } from "react"
-import { supabase } from "../lib/supabase"
 import { useRouter } from "next/navigation"
+import { supabase } from "../../lib/supabase"
 
-export default function AuthPage() {
+export default function AuthCallback(){
 
   const router = useRouter()
 
-  useEffect(() => {
+  useEffect(()=>{
 
-    async function handleAuth() {
+    async function handleAuth(){
 
-      await supabase.auth.getSession()
+      // Viktig: hent session etter redirect
+      const { data } = await supabase.auth.getSession()
 
-      router.push("/test")
+      if(data.session){
+        router.replace("/dashboard")
+      } else {
+        router.replace("/login")
+      }
+
     }
 
     handleAuth()
 
-  }, [router])
+  },[])
 
-  return <p>Logging you in...</p>
+  return(
+    <div className="min-h-screen flex items-center justify-center bg-black text-white">
+      Logging you in...
+    </div>
+  )
 }
