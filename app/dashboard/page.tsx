@@ -1,10 +1,9 @@
 "use client"
 
-import { useEffect,useState } from "react"
+import { useEffect,useState,useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { analyzeLeads, AIAnalysis } from "@/lib/aiBrain"
-
 import type { Lead } from "@/types/lead"
 
 export default function DashboardPage(){
@@ -19,8 +18,8 @@ const [autopilot,setAutopilot]=useState(false)
 
 const [name,setName]=useState("")
 const [email,setEmail]=useState("")
-const [value,setValue]=useState(500)
-const [type,setType]=useState("standard")
+const [value,setValue]=useState(1000)
+const [type,setType]=useState("demo")
 
 useEffect(()=>{ init() },[])
 useEffect(()=>{ if(autopilot) runAutopilot() },[autopilot])
@@ -59,7 +58,7 @@ const { data } = await supabase
 name,
 email,
 status:"new",
-score:50, // default AI baseline
+score:50,
 potential_value:value,
 lead_type:type,
 user_id:user.id
@@ -75,30 +74,37 @@ setAnalysis(analyzeLeads(updated))
 
 setName("")
 setEmail("")
+setValue(1000)
+setType("demo")
 }
 }
 
 async function runAutopilot(){
 
-const updated=[...leads]
-const newAnalysis = analyzeLeads(updated)
+const ranked = [...analysis]
+.sort((a,b)=>b.priorityScore - a.priorityScore)
 
-for(const lead of updated){
+const top = ranked[0]
+if(!top){
+setAutopilot(false)
+return
+}
 
-const ai = newAnalysis.find(a=>a.id===lead.id)
-if(!ai) continue
+const lead = leads.find(l=>l.id===top.id)
+if(!lead){
+setAutopilot(false)
+return
+}
 
 let newStatus = lead.status
 
-// REAL REVENUE OPTIMIZATION
-
-if(ai.expectedRevenue > 1000 && lead.status==="new"){
+if(top.expectedRevenue > 1000 && lead.status==="new"){
 newStatus="contacted"
 }
-else if(ai.probability>70 && lead.status==="contacted"){
+else if(top.probability>70 && lead.status==="contacted"){
 newStatus="qualified"
 }
-else if(ai.probability>90){
+else if(top.probability>90){
 newStatus="closed"
 }
 
@@ -109,14 +115,14 @@ await supabase
 .update({status:newStatus})
 .eq("id",lead.id)
 
-lead.status=newStatus
-
-}
-
-}
+const updated = leads.map(l =>
+l.id===lead.id ? {...l,status:newStatus} : l
+)
 
 setLeads(updated)
 setAnalysis(analyzeLeads(updated))
+}
+
 setAutopilot(false)
 }
 
@@ -126,11 +132,19 @@ router.replace("/login")
 }
 
 if(loading){
-return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+return <div className="min-h-screen flex items-center justify-center bg-neutral-950 text-white">Loading...</div>
 }
 
 const expectedRevenue =
 analysis.reduce((sum,a)=>sum+a.expectedRevenue,0)
+
+const rankedLeads = useMemo(()=>{
+return [...analysis]
+.sort((a,b)=>b.priorityScore - a.priorityScore)
+},[analysis])
+
+const topLeadAnalysis = rankedLeads[0]
+const topLead = leads.find(l=>l.id===topLeadAnalysis?.id)
 
 const statuses=["new","contacted","qualified","closed"]
 
@@ -138,21 +152,82 @@ return(
 
 <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6 space-y-6">
 
-<div className="flex justify-between">
+{/* HEADER */}
 
-<h1 className="text-2xl font-bold">⚔️ Sales War Room</h1>
+<div className="flex justify-between items-center">
 
-<button onClick={()=>setAutopilot(true)}
-className="bg-green-600 px-4 py-2 rounded-lg">
-Enable Autopilot
+<h1 className="text-2xl font-bold">
+🤖 AI Sales CEO
+</h1>
+
+<div className="space-x-3">
+
+<button
+onClick={()=>setAutopilot(true)}
+className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg">
+Run Autopilot
+</button>
+
+<button
+onClick={logout}
+className="bg-neutral-800 px-4 py-2 rounded-lg">
+Logout
 </button>
 
 </div>
 
+</div>
+
+{/* NEXT BEST ACTION */}
+
+{topLead && topLeadAnalysis && (
+
+<div className="bg-neutral-900 p-6 rounded-xl border border-purple-600">
+
+<h2 className="text-lg font-semibold mb-2">
+🔥 Next Best Action
+</h2>
+
+<p className="text-xl font-bold">
+Contact {topLead.name}
+</p>
+
+<p className="text-sm text-neutral-400">
+Type: {topLead.lead_type}
+</p>
+
+<div className="mt-3 space-y-1 text-sm">
+
+<p>💰 Expected Revenue: 
+<span className="text-green-400 ml-1">
+${topLeadAnalysis.expectedRevenue.toFixed(0)}
+</span>
+</p>
+
+<p>📊 Close Probability: 
+<span className="ml-1">
+{topLeadAnalysis.probability}%
+</span>
+</p>
+
+<p>⚡ Priority Score: 
+<span className="ml-1">
+{topLeadAnalysis.priorityScore.toFixed(0)}
+</span>
+</p>
+
+</div>
+
+</div>
+
+)}
+
+{/* TOTAL REVENUE */}
+
 <div className="bg-neutral-900 p-6 rounded-xl">
-💰 Expected Revenue:
+Total Expected Revenue:
 <span className="text-green-400 text-2xl ml-2">
-${expectedRevenue}
+${expectedRevenue.toFixed(0)}
 </span>
 </div>
 
@@ -160,35 +235,43 @@ ${expectedRevenue}
 
 <div className="bg-neutral-900 p-4 rounded-xl space-y-2">
 
-<input placeholder="Lead name"
+<input
+placeholder="Lead name"
 value={name}
 onChange={(e)=>setName(e.target.value)}
-className="w-full p-2 bg-neutral-950 rounded"/>
+className="w-full p-2 bg-neutral-950 rounded border border-neutral-800"
+/>
 
-<input placeholder="Lead email"
+<input
+placeholder="Lead email"
 value={email}
 onChange={(e)=>setEmail(e.target.value)}
-className="w-full p-2 bg-neutral-950 rounded"/>
-
-<input type="number"
-placeholder="Potential deal value"
-value={value}
-onChange={(e)=>setValue(Number(e.target.value))}
-className="w-full p-2 bg-neutral-950 rounded"/>
+className="w-full p-2 bg-neutral-950 rounded border border-neutral-800"
+/>
 
 <select
 value={type}
 onChange={(e)=>setType(e.target.value)}
-className="w-full p-2 bg-neutral-950 rounded">
+className="w-full p-2 bg-neutral-950 rounded border border-neutral-800">
 
-<option value="standard">Standard</option>
-<option value="enterprise">Enterprise</option>
-<option value="hot">Hot Lead</option>
+<option value="demo">Demo</option>
+<option value="client">Client</option>
+<option value="call">Call</option>
+<option value="deal">Deal</option>
 
 </select>
 
-<button onClick={addLead}
-className="bg-purple-600 px-4 py-2 rounded-lg">
+<input
+type="number"
+placeholder="Potential deal value"
+value={value}
+onChange={(e)=>setValue(Number(e.target.value))}
+className="w-full p-2 bg-neutral-950 rounded border border-neutral-800"
+/>
+
+<button
+onClick={addLead}
+className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg w-full">
 Add Lead
 </button>
 
@@ -207,7 +290,9 @@ return(
 <div key={status}
 className="bg-neutral-900 p-4 rounded-xl">
 
-<h3 className="capitalize mb-3">{status}</h3>
+<h3 className="capitalize mb-3 font-semibold">
+{status}
+</h3>
 
 {filtered.map(l=>{
 
@@ -216,13 +301,15 @@ const ai = analysis.find(a=>a.id===l.id)
 return(
 
 <div key={l.id}
-className="bg-neutral-950 p-2 mb-2 rounded">
+className="bg-neutral-950 p-3 mb-2 rounded border border-neutral-800">
 
-<p>{l.name}</p>
+<p className="font-medium">
+{l.name}
+</p>
 
 {ai &&(
 <p className="text-xs text-green-400">
-Expected: ${ai.expectedRevenue}
+Expected: ${ai.expectedRevenue.toFixed(0)}
 </p>
 )}
 
@@ -243,5 +330,4 @@ Expected: ${ai.expectedRevenue}
 </div>
 
 )
-
 }
