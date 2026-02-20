@@ -296,7 +296,7 @@ className="bg-neutral-900 p-4 rounded-xl">
 
 {filtered.map(l=>{
 
-const ai = analysis.find(a=>a.id===l.id)
+const ai = analysis.find(a=>a.id===String(l.id))
 
 return(
 
