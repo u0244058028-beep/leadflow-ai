@@ -59,7 +59,7 @@ export default function LoginPage(){
       provider:"google",
 
       options:{
-        redirectTo:"https://www.myleadassistant.com"
+redirectTo:"https://www.myleadassistant.com/auth"
       }
 
     })
