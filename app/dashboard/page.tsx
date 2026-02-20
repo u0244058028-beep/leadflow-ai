@@ -28,14 +28,18 @@ const [autopilot,setAutopilot]=useState(false)
 const [name,setName]=useState("")
 const [email,setEmail]=useState("")
 
-useEffect(()=>{ init() },[])
+/* ===============================
+INIT
+================================ */
 
 useEffect(()=>{
+init()
+},[])
 
+useEffect(()=>{
 if(autopilot){
 runAutopilot()
 }
-
 },[autopilot])
 
 async function init(){
@@ -62,6 +66,10 @@ setAnalysis(analyzeLeads(leadData))
 
 setLoading(false)
 }
+
+/* ===============================
+ADD LEAD
+================================ */
 
 async function addLead(){
 
@@ -90,67 +98,88 @@ setEmail("")
 }
 }
 
+/* ===============================
+REAL AUTOPILOT ENGINE
+================================ */
+
 async function runAutopilot(){
 
 const updated=[...leads]
 const newAnalysis = analyzeLeads(updated)
 
-for(let i=0;i<updated.length;i++){
+for(const lead of updated){
 
-const ai = newAnalysis.find(a=>a.id===updated[i].id)
+const ai = newAnalysis.find(a=>a.id===lead.id)
 if(!ai) continue
 
-const current = updated[i].status
+let newStatus = lead.status
 
-if(ai.probability > 90 && current !== "closed"){
-
-updated[i].status="closed"
-
-}else if(ai.probability > 70 && current === "contacted"){
-
-updated[i].status="qualified"
-
-}else if(ai.urgency > 75 && current === "new"){
-
-updated[i].status="contacted"
-
+if(ai.probability > 90 && lead.status !== "closed"){
+newStatus="closed"
 }
+else if(ai.probability > 70 && lead.status === "contacted"){
+newStatus="qualified"
+}
+else if(ai.urgency > 75 && lead.status === "new"){
+newStatus="contacted"
+}
+
+if(newStatus !== lead.status){
+
+lead.status=newStatus
 
 await supabase
 .from("leads")
-.update({status:updated[i].status})
-.eq("id",updated[i].id)
+.update({status:newStatus})
+.eq("id",lead.id)
+
+}
 
 }
 
 setLeads(updated)
 setAnalysis(analyzeLeads(updated))
-
 setAutopilot(false)
 }
+
+/* ===============================
+LOGOUT
+================================ */
 
 async function logout(){
 await supabase.auth.signOut()
 router.replace("/login")
 }
 
+/* ===============================
+UI STATE
+================================ */
+
 if(loading){
 return(
-<div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+<div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
 Loading...
 </div>
 )
 }
 
+/* ===============================
+AI CALCULATIONS
+================================ */
+
 const expectedRevenue =
 analysis.reduce((sum,a)=>sum+a.expectedRevenue,0)
 
 const priorityLeads =
-analysis
-.sort((a,b)=>b.probability+b.urgency - (a.probability+a.urgency))
+[...analysis] // IMPORTANT: avoid mutating state
+.sort((a,b)=>(b.probability+b.urgency)-(a.probability+a.urgency))
 .slice(0,5)
 
 const statuses=["new","contacted","qualified","closed"]
+
+/* ===============================
+UI
+================================ */
 
 return(
 
@@ -168,13 +197,13 @@ return(
 
 <button
 onClick={()=>setAutopilot(true)}
-className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-500">
+className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-500 transition">
 Enable Autopilot
 </button>
 
 <button
 onClick={logout}
-className="bg-neutral-800 px-4 py-2 rounded-lg hover:bg-neutral-700">
+className="bg-neutral-800 px-4 py-2 rounded-lg hover:bg-neutral-700 transition">
 Logout
 </button>
 
@@ -204,6 +233,10 @@ ${expectedRevenue}
 🤖 AI Mission
 </h2>
 
+{priorityLeads.length === 0 && (
+<p>No actions needed.</p>
+)}
+
 {priorityLeads.map(p=>(
 <p key={p.id}>
 👉 {p.action} — {p.probability}%
@@ -232,7 +265,7 @@ onChange={(e)=>setEmail(e.target.value)}
 
 <button
 onClick={addLead}
-className="bg-purple-600 px-4 py-2 rounded-lg">
+className="bg-purple-600 px-4 py-2 rounded-lg hover:bg-purple-500 transition">
 Add Lead
 </button>
 
@@ -240,7 +273,7 @@ Add Lead
 
 {/* PIPELINE */}
 
-<div className="grid grid-cols-4 gap-4">
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
 {statuses.map(status=>{
 
@@ -251,7 +284,7 @@ return(
 <div key={status}
 className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
 
-<h3 className="mb-3 capitalize">
+<h3 className="mb-3 capitalize font-semibold">
 {status}
 </h3>
 
@@ -260,7 +293,7 @@ className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
 <div key={l.id}
 className="bg-neutral-950 p-2 mb-2 rounded border border-neutral-800">
 
-<p>{l.name}</p>
+<p className="font-medium">{l.name}</p>
 
 </div>
 
