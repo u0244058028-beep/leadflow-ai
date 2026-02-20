@@ -3,248 +3,272 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { analyzeLeads, AIAnalysis } from "@/lib/aiBrain"
+import { analyzeLeads } from "@/lib/aiBrain"
 import { generateAIMissions } from "@/lib/aiEmployee"
 import type { Lead } from "@/types/lead"
 
-export default function DashboardPage() {
+export default function DashboardPage(){
 
-  const router = useRouter()
+const router = useRouter()
 
-  const [user, setUser] = useState<any>(null)
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [analysis, setAnalysis] = useState<AIAnalysis[]>([])
-  const [loading, setLoading] = useState(true)
-  const [autopilot, setAutopilot] = useState(false)
+const [user,setUser]=useState<any>(null)
+const [leads,setLeads]=useState<Lead[]>([])
+const [loading,setLoading]=useState(true)
+const [autopilot,setAutopilot]=useState(false)
 
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [value, setValue] = useState(500)
-  const [type, setType] = useState("standard")
+const [name,setName]=useState("")
+const [email,setEmail]=useState("")
+const [value,setValue]=useState(500)
+const [type,setType]=useState("standard")
 
-  useEffect(() => { init() }, [])
-  useEffect(() => { if (autopilot) runAutopilot() }, [autopilot])
+useEffect(()=>{ init() },[])
+useEffect(()=>{ if(autopilot) runAutopilot() },[autopilot])
 
-  async function init() {
+// INIT
 
-    const { data } = await supabase.auth.getSession()
+async function init(){
 
-    if (!data.session) {
-      router.replace("/login")
-      return
-    }
+const { data } = await supabase.auth.getSession()
 
-    setUser(data.session.user)
+if(!data.session){
+router.replace("/login")
+return
+}
 
-    const { data: leadData } = await supabase
-      .from("leads")
-      .select("*")
-      .eq("user_id", data.session.user.id)
+setUser(data.session.user)
 
-    if (leadData) {
-      setLeads(leadData)
-      setAnalysis(analyzeLeads(leadData))
-    }
+const { data:leadData } = await supabase
+.from("leads")
+.select("*")
+.eq("user_id",data.session.user.id)
 
-    setLoading(false)
-  }
+setLeads(leadData ?? [])
+setLoading(false)
+}
 
-  async function addLead() {
+// ADD LEAD
 
-    if (!name || !email || !user) return
+async function addLead(){
 
-    const { data } = await supabase
-      .from("leads")
-      .insert({
-        name,
-        email,
-        status: "new",
-        score: 50,
-        potential_value: value,
-        lead_type: type,
-        user_id: user.id
-      })
-      .select()
+if(!name || !email || !user) return
 
-    if (data) {
+const { data } = await supabase
+.from("leads")
+.insert({
+name,
+email,
+status:"new",
+score:50,
+potential_value:value,
+lead_type:type,
+user_id:user.id
+})
+.select()
 
-      const updated = [data[0], ...leads]
+if(data){
 
-      setLeads(updated)
-      setAnalysis(analyzeLeads(updated))
+const updated=[data[0],...leads]
+setLeads(updated)
 
-      setName("")
-      setEmail("")
-    }
-  }
+setName("")
+setEmail("")
+}
+}
 
-  async function runAutopilot() {
+// AUTOPILOT
 
-    const updated = [...leads]
-    const newAnalysis = analyzeLeads(updated)
+async function runAutopilot(){
 
-    for (const lead of updated) {
+const analysis = analyzeLeads(leads)
 
-      const ai = newAnalysis.find(a => String(a.id) === String(lead.id))
-      if (!ai) continue
+const updated=[...leads]
 
-      let newStatus = lead.status
+for(const lead of updated){
 
-      if (ai.priorityScore > 85) newStatus = "closed"
-      else if (ai.priorityScore > 65) newStatus = "qualified"
-      else if (ai.priorityScore > 40) newStatus = "contacted"
+const ai = analysis.find(a=>String(a.id)===String(lead.id))
+if(!ai) continue
 
-      if (newStatus !== lead.status) {
+let newStatus = lead.status
 
-        await supabase
-          .from("leads")
-          .update({ status: newStatus })
-          .eq("id", lead.id)
+if(ai.priorityScore>85) newStatus="closed"
+else if(ai.priorityScore>65) newStatus="qualified"
+else if(ai.priorityScore>40) newStatus="contacted"
 
-        lead.status = newStatus
-      }
-    }
+if(newStatus!==lead.status){
 
-    setLeads(updated)
-    setAnalysis(analyzeLeads(updated))
-    setAutopilot(false)
-  }
+await supabase
+.from("leads")
+.update({status:newStatus})
+.eq("id",lead.id)
 
-  async function logout() {
-    await supabase.auth.signOut()
-    router.replace("/login")
-  }
+lead.status=newStatus
+}
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>
-  }
+}
 
-  const expectedRevenue =
-    analysis.reduce((sum, a) => sum + (a?.expectedRevenue ?? 0), 0)
+setLeads(updated)
+setAutopilot(false)
+}
 
-  const missions = generateAIMissions(leads)
+// LOADING
 
-  const statuses = ["new", "contacted", "qualified", "closed"]
+if(loading){
 
-  return (
+return(
+<div className="min-h-screen flex items-center justify-center bg-neutral-950 text-white">
+Loading...
+</div>
+)
+}
 
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6 space-y-6">
+// AI DATA
 
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">🤖 AI Sales Employee</h1>
-        <button onClick={() => setAutopilot(true)}
-          className="bg-green-600 px-4 py-2 rounded-lg">
-          Enable Autopilot
-        </button>
-      </div>
+const analysis = analyzeLeads(leads)
+const missions = generateAIMissions(leads)
 
-      <div className="bg-neutral-900 p-6 rounded-xl">
-        💰 Expected Revenue:
-        <span className="text-green-400 text-2xl ml-2">
-          ${expectedRevenue.toFixed(0)}
-        </span>
-      </div>
+const expectedRevenue =
+analysis.reduce((sum,a)=>sum+(a.expectedRevenue||0),0)
 
-      {/* AI EMPLOYEE MISSIONS */}
+const statuses=["new","contacted","qualified","closed"]
 
-      <div className="bg-purple-700 p-4 rounded-xl">
-        <h2 className="font-bold mb-3">⚔️ AI Missions</h2>
+// UI
 
-        {missions.length === 0 && (
-          <p>No active missions</p>
-        )}
+return(
 
-        {missions.slice(0, 5).map(m => (
-          <div key={m.leadId}
-            className="bg-purple-900 p-3 rounded mb-2">
-            <p className="font-semibold">{m.title}</p>
-            <p className="text-xs">{m.action}</p>
-          </div>
-        ))}
-      </div>
+<div className="min-h-screen bg-neutral-950 text-neutral-200 p-6 space-y-6">
 
-      {/* ADD LEAD */}
+<div className="flex justify-between">
 
-      <div className="bg-neutral-900 p-4 rounded-xl space-y-2">
+<h1 className="text-2xl font-bold">
+🤖 AI Sales Employee
+</h1>
 
-        <input
-          placeholder="Lead name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full p-2 bg-neutral-950 rounded"
-        />
+<button
+onClick={()=>setAutopilot(true)}
+className="bg-green-600 px-4 py-2 rounded-lg">
+Enable Autopilot
+</button>
 
-        <input
-          placeholder="Lead email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-2 bg-neutral-950 rounded"
-        />
+</div>
 
-        <input
-          type="number"
-          placeholder="Potential deal value"
-          value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
-          className="w-full p-2 bg-neutral-950 rounded"
-        />
+{/* REVENUE */}
 
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          className="w-full p-2 bg-neutral-950 rounded"
-        >
-          <option value="standard">Standard</option>
-          <option value="enterprise">Enterprise</option>
-          <option value="hot">Hot Lead</option>
-        </select>
+<div className="bg-neutral-900 p-6 rounded-xl">
+💰 Expected Revenue:
+<span className="text-green-400 text-2xl ml-2">
+${expectedRevenue.toFixed(0)}
+</span>
+</div>
 
-        <button
-          onClick={addLead}
-          className="bg-purple-600 px-4 py-2 rounded-lg">
-          Add Lead
-        </button>
-      </div>
+{/* MISSIONS */}
 
-      {/* PIPELINE */}
+<div className="bg-purple-700 p-4 rounded-xl">
 
-      <div className="grid grid-cols-4 gap-4">
+<h2 className="font-bold mb-3">
+⚔️ AI Missions
+</h2>
 
-        {statuses.map(status => {
+{missions.length===0 && <p>No missions yet</p>}
 
-          const filtered = leads.filter(l => l.status === status)
+{missions.slice(0,5).map(m=>(
+<p key={m.leadId}>
+👉 {m.title}
+</p>
+))}
 
-          return (
+</div>
 
-            <div key={status}
-              className="bg-neutral-900 p-4 rounded-xl">
+{/* ADD LEAD */}
 
-              <h3 className="capitalize mb-3">{status}</h3>
+<div className="bg-neutral-900 p-4 rounded-xl space-y-2">
 
-              {filtered.map(l => {
+<input
+placeholder="Lead name"
+value={name}
+onChange={(e)=>setName(e.target.value)}
+className="w-full p-2 bg-neutral-950 rounded"/>
 
-                const ai = analysis.find(a => String(a.id) === String(l.id))
+<input
+placeholder="Lead email"
+value={email}
+onChange={(e)=>setEmail(e.target.value)}
+className="w-full p-2 bg-neutral-950 rounded"/>
 
-                return (
+<input
+type="number"
+value={value}
+onChange={(e)=>setValue(Number(e.target.value))}
+className="w-full p-2 bg-neutral-950 rounded"/>
 
-                  <div key={l.id}
-                    className="bg-neutral-950 p-2 mb-2 rounded">
+<select
+value={type}
+onChange={(e)=>setType(e.target.value)}
+className="w-full p-2 bg-neutral-950 rounded">
 
-                    <p>{l.name}</p>
+<option value="standard">Standard</option>
+<option value="enterprise">Enterprise</option>
+<option value="hot">Hot Lead</option>
 
-                    {ai && (
-                      <p className="text-xs text-green-400">
-                        Expected: ${ai.expectedRevenue.toFixed(0)}
-                      </p>
-                    )}
+</select>
 
-                  </div>
-                )
-              })}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+<button
+onClick={addLead}
+className="bg-purple-600 px-4 py-2 rounded-lg">
+Add Lead
+</button>
+
+</div>
+
+{/* PIPELINE */}
+
+<div className="grid grid-cols-4 gap-4">
+
+{statuses.map(status=>{
+
+const filtered = leads.filter(l=>l.status===status)
+
+return(
+
+<div key={status}
+className="bg-neutral-900 p-4 rounded-xl">
+
+<h3 className="capitalize mb-3">
+{status}
+</h3>
+
+{filtered.map(l=>{
+
+const ai = analysis.find(a=>String(a.id)===String(l.id))
+
+return(
+
+<div key={l.id}
+className="bg-neutral-950 p-2 mb-2 rounded">
+
+<p>{l.name}</p>
+
+{ai &&(
+<p className="text-xs text-green-400">
+Expected: ${ai.expectedRevenue.toFixed(0)}
+</p>
+)}
+
+</div>
+
+)
+
+})}
+
+</div>
+
+)
+
+})}
+
+</div>
+
+</div>
+
+)
+
 }
