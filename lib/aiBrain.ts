@@ -14,35 +14,71 @@ type Lead = {
   value?: number
 }
 
-export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
+type LearningModel = {
+  closeRate: number
+  avgDaysToClose: number
+  qualifiedToCloseRate: number
+  contactedToQualifiedRate: number
+}
 
-  // ===============================
-  // REAL AI LEARNING CORE
-  // ===============================
+function buildLearningModel(leads: Lead[]): LearningModel {
 
-  const closedLeads = leads.filter(l => l.status === "closed")
-  const qualifiedLeads = leads.filter(l => l.status === "qualified")
+  const total = leads.length
+  const closed = leads.filter(l => l.status === "closed")
+  const qualified = leads.filter(l => l.status === "qualified")
+  const contacted = leads.filter(l => l.status === "contacted")
 
   const closeRate =
-    leads.length === 0
-      ? 0.2
-      : closedLeads.length / leads.length
+    total === 0 ? 0.2 : closed.length / total
 
-  const qualificationBoost =
-    qualifiedLeads.length > 0
-      ? 15
-      : 0
+  const qualifiedToCloseRate =
+    qualified.length === 0
+      ? 0.2
+      : closed.length / qualified.length
+
+  const contactedToQualifiedRate =
+    contacted.length === 0
+      ? 0.2
+      : qualified.length / contacted.length
+
+  const daysToClose = closed.map(l => {
+    const created = new Date(l.created_at)
+    return (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24)
+  })
+
+  const avgDaysToClose =
+    daysToClose.length === 0
+      ? 5
+      : daysToClose.reduce((a, b) => a + b, 0) / daysToClose.length
+
+  return {
+    closeRate,
+    avgDaysToClose,
+    qualifiedToCloseRate,
+    contactedToQualifiedRate
+  }
+}
+
+export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
+
+  const model = buildLearningModel(leads)
 
   return leads.map(lead => {
 
-    let probability = lead.score + qualificationBoost
+    let probability = lead.score
 
-    if (lead.status === "qualified") probability += 20
-    if (lead.status === "contacted") probability += 10
-    if (lead.status === "closed") probability = 100
+    // Adaptive weights
+    if (lead.status === "contacted")
+      probability += 20 * model.contactedToQualifiedRate
 
-    // 🔥 LEARNING ADJUSTMENT
-    probability = probability * (1 + closeRate)
+    if (lead.status === "qualified")
+      probability += 30 * model.qualifiedToCloseRate
+
+    if (lead.status === "closed")
+      probability = 100
+
+    // Global performance boost
+    probability = probability * (1 + model.closeRate)
 
     if (probability > 100) probability = 100
 
@@ -51,16 +87,25 @@ export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
       (Date.now() - created.getTime()) /
       (1000 * 60 * 60 * 24)
 
-    const urgency = Math.min(ageDays * 10, 100)
+    // Timing intelligence
+    const urgency =
+      ageDays > model.avgDaysToClose
+        ? 80
+        : Math.min(ageDays * 10, 70)
 
     const expectedRevenue =
       Math.round((lead.value || 1000) * (probability / 100))
 
-    let action = "Review lead"
+    let action = "Monitor"
 
-    if (probability > 80) action = "Close deal now"
-    else if (urgency > 60) action = "Follow up immediately"
-    else if (lead.status === "new") action = "Initiate first contact"
+    if (probability > 85)
+      action = "Close immediately"
+
+    else if (urgency > 70)
+      action = "Follow up urgently"
+
+    else if (lead.status === "new")
+      action = "Initiate first contact"
 
     return {
       id: lead.id,
