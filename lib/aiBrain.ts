@@ -36,8 +36,8 @@ export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
 
     let action = "Monitor"
 
-    if (priorityScore > 80) action = "Close deal"
-    else if (priorityScore > 60) action = "Follow up now"
+    if (priorityScore > 85) action = "Close deal"
+    else if (priorityScore > 65) action = "Follow up immediately"
     else if (priorityScore > 40) action = "Send email"
 
     return {
