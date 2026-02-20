@@ -56,10 +56,10 @@ export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
 
     return {
 
-      id: lead.id,
+id: String(lead.id),
 
       probability,
-      urgency,
+      urgencye,
 
       expectedRevenue,
       priorityScore,
