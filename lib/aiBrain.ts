@@ -8,9 +8,10 @@ export type AIAnalysis = {
 
 type Lead = {
   id:string
+  name:string
+  email:string
   status:string
-  score:number
-  created_at:string
+  potential_value:number
 }
 
 const STAGE_MULTIPLIER = {
