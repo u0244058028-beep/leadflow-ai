@@ -5,16 +5,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { analyzeLeads, AIAnalysis } from "@/lib/aiBrain"
 
-type Lead = {
-id:string
-name:string
-email:string
-status:string
-potential_value:number
-lead_type:string
-user_id:string
-created_at:string
-}
+import type { Lead } from "@/types/lead"
 
 export default function DashboardPage(){
 
