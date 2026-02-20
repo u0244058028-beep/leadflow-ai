@@ -1,251 +1,263 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect,useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { analyzeLeads, AIAnalysis } from "@/lib/aiBrain"
 
 type Lead = {
-  id: string
-  name: string
-  email: string
-  status: string
-  score: number
-  user_id: string
-  created_at: string
-  value?: number
+  id:string
+  name:string
+  email:string
+  status:string
+  score:number
+  user_id:string
+  created_at:string
 }
 
-export default function DashboardPage() {
+export default function DashboardPage(){
 
-  const router = useRouter()
+const router = useRouter()
 
-  const [user, setUser] = useState<any>(null)
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [analysis, setAnalysis] = useState<AIAnalysis[]>([])
-  const [loading, setLoading] = useState(true)
-  const [autopilot, setAutopilot] = useState(false)
+const [user,setUser]=useState<any>(null)
+const [leads,setLeads]=useState<Lead[]>([])
+const [analysis,setAnalysis]=useState<AIAnalysis[]>([])
+const [loading,setLoading]=useState(true)
 
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
+const [name,setName]=useState("")
+const [email,setEmail]=useState("")
 
-  useEffect(() => {
-    init()
-  }, [])
+useEffect(()=>{
 
-  useEffect(() => {
-    if (autopilot) {
-      runAutopilot()
-    }
-  }, [autopilot])
+async function init(){
 
-  async function init() {
+const { data } = await supabase.auth.getSession()
 
-    const { data } = await supabase.auth.getSession()
+if(!data.session){
+router.replace("/login")
+return
+}
 
-    if (!data.session) {
-      router.replace("/login")
-      return
-    }
+setUser(data.session.user)
 
-    setUser(data.session.user)
+const { data:leadData } = await supabase
+.from("leads")
+.select("*")
+.eq("user_id",data.session.user.id)
+.order("created_at",{ascending:false})
 
-    const { data: leadData } = await supabase
-      .from("leads")
-      .select("*")
-      .eq("user_id", data.session.user.id)
-      .order("created_at", { ascending: false })
+if(leadData){
+setLeads(leadData)
+setAnalysis(analyzeLeads(leadData))
+}
 
-    if (leadData) {
-      setLeads(leadData)
-      setAnalysis(analyzeLeads(leadData))
-    }
+setLoading(false)
+}
 
-    setLoading(false)
-  }
+init()
 
-  async function addLead() {
+},[])
 
-    if (!name || !email || !user) return
+async function addLead(){
 
-    const { data } = await supabase
-      .from("leads")
-      .insert({
-        name,
-        email,
-        status: "new",
-        score: 30,
-        user_id: user.id,
-        value: 1000
-      })
-      .select()
+if(!name || !email || !user) return
 
-    if (data) {
-      const updated = [data[0], ...leads]
-      setLeads(updated)
-      setAnalysis(analyzeLeads(updated))
-      setName("")
-      setEmail("")
-    }
-  }
+const { data } = await supabase
+.from("leads")
+.insert({
+name,
+email,
+status:"new",
+score:30,
+user_id:user.id
+})
+.select()
 
-  async function runAutopilot() {
+if(data){
 
-    const updatedLeads = [...leads]
+const updated=[data[0],...leads]
 
-    for (let i = 0; i < updatedLeads.length; i++) {
+setLeads(updated)
+setAnalysis(analyzeLeads(updated))
 
-      const ai = analysis.find(a => a.id === updatedLeads[i].id)
-      if (!ai) continue
+setName("")
+setEmail("")
+}
+}
 
-      if (ai.probability > 90 && updatedLeads[i].status !== "closed") {
-        updatedLeads[i].status = "closed"
-      }
-      else if (ai.probability > 65 && updatedLeads[i].status === "contacted") {
-        updatedLeads[i].status = "qualified"
-      }
-      else if (ai.urgency > 60 && updatedLeads[i].status === "new") {
-        updatedLeads[i].status = "contacted"
-      }
+async function logout(){
 
-      await supabase
-        .from("leads")
-        .update({ status: updatedLeads[i].status })
-        .eq("id", updatedLeads[i].id)
-    }
+await supabase.auth.signOut()
+router.replace("/login")
 
-    setLeads(updatedLeads)
-    setAnalysis(analyzeLeads(updatedLeads))
-  }
+}
 
-  async function logout() {
-    await supabase.auth.signOut()
-    router.replace("/login")
-  }
+if(loading){
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
-        Loading...
-      </div>
-    )
-  }
+return(
+<div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+Loading...
+</div>
+)
 
-  const statuses = ["new", "contacted", "qualified", "closed"]
+}
 
-  const totalRevenue =
-    analysis.reduce((sum, a) => sum + a.expectedRevenue, 0)
+const expectedRevenue =
+analysis.reduce((sum,a)=>sum+a.expectedRevenue,0)
 
-  return (
+const priorityLeads =
+analysis
+.sort((a,b)=>b.probability+b.urgency - (a.probability+a.urgency))
+.slice(0,5)
 
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6">
+const statuses=["new","contacted","qualified","closed"]
 
-      <div className="flex justify-between mb-6">
-        <h1 className="text-2xl font-bold">MyLeadAssistant AI</h1>
+return(
 
-        <div className="flex gap-3">
+<div className="min-h-screen bg-neutral-950 text-neutral-200 p-6 space-y-6">
 
-          <button
-            onClick={() => setAutopilot(!autopilot)}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              autopilot
-                ? "bg-green-600"
-                : "bg-neutral-800"
-            }`}
-          >
-            {autopilot ? "Autopilot ON" : "Autopilot OFF"}
-          </button>
+{/* HEADER */}
 
-          <button
-            onClick={logout}
-            className="bg-neutral-800 px-4 py-2 rounded-lg"
-          >
-            Logout
-          </button>
+<div className="flex justify-between">
 
-        </div>
-      </div>
+<h1 className="text-2xl font-bold">
+⚔️ Sales War Room
+</h1>
 
-      <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black p-4 rounded-xl mb-6 font-bold">
-        💰 Revenue Forecast: ${totalRevenue}
-      </div>
+<button onClick={logout}
+className="bg-neutral-800 px-4 py-2 rounded-lg hover:bg-neutral-700">
+Logout
+</button>
 
-      <div className="bg-neutral-900 p-4 rounded-xl mb-6">
+</div>
 
-        <input
-          placeholder="Lead name"
-          className="w-full mb-2 p-3 bg-neutral-950 border border-neutral-800 rounded"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+{/* REVENUE RADAR */}
 
-        <input
-          placeholder="Lead email"
-          className="w-full mb-3 p-3 bg-neutral-950 border border-neutral-800 rounded"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+<div className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl">
 
-        <button
-          onClick={addLead}
-          className="bg-purple-600 px-6 py-2 rounded-lg"
-        >
-          Add Lead
-        </button>
+<h2 className="mb-2 font-semibold">
+💰 Expected Revenue
+</h2>
 
-      </div>
+<p className="text-3xl text-green-400 font-bold">
+${expectedRevenue}
+</p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+</div>
 
-        {statuses.map(status => {
+{/* AI MISSIONS */}
 
-          const filtered = leads.filter(l => l.status === status)
+<div className="bg-purple-700 p-4 rounded-xl">
 
-          return (
+<h2 className="font-bold mb-3">
+🤖 Today's Missions
+</h2>
 
-            <div key={status}
-              className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
+{priorityLeads.map(p=>(
+<p key={p.id}>
+👉 {p.action} — {p.probability}% close probability
+</p>
+))}
 
-              <h3 className="mb-3 capitalize font-semibold">{status}</h3>
+</div>
 
-              {filtered.map(l => {
+{/* ADD LEAD */}
 
-                const ai = analysis.find(a => a.id === l.id)
+<div className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
 
-                return (
+<input
+placeholder="Lead name"
+className="w-full mb-2 p-2 bg-neutral-950 border border-neutral-800 rounded"
+value={name}
+onChange={(e)=>setName(e.target.value)}
+/>
 
-                  <div key={l.id}
-                    className="bg-neutral-950 p-3 mb-3 rounded border border-neutral-800">
+<input
+placeholder="Lead email"
+className="w-full mb-3 p-2 bg-neutral-950 border border-neutral-800 rounded"
+value={email}
+onChange={(e)=>setEmail(e.target.value)}
+/>
 
-                    <p className="font-medium">{l.name}</p>
-                    <p className="text-xs text-neutral-400">{l.email}</p>
+<button
+onClick={addLead}
+className="bg-purple-600 px-4 py-2 rounded-lg">
+Add Lead
+</button>
 
-                    {ai && (
-                      <div className="text-xs mt-2 space-y-1">
-                        <div>🎯 {ai.probability}%</div>
-                        <div className="text-yellow-400">
-                          💰 ${ai.expectedRevenue}
-                        </div>
-                        <div className="text-purple-400">
-                          👉 {ai.action}
-                        </div>
-                      </div>
-                    )}
+</div>
 
-                  </div>
+{/* PRIORITY QUEUE */}
 
-                )
+<div className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
 
-              })}
+<h2 className="mb-3 font-semibold">
+🔥 Priority Queue
+</h2>
 
-            </div>
+{priorityLeads.map(p=>{
 
-          )
+const lead = leads.find(l=>l.id===p.id)
 
-        })}
+if(!lead) return null
 
-      </div>
+return(
 
-    </div>
-  )
+<div key={p.id}
+className="bg-neutral-950 p-3 mb-2 rounded border border-neutral-800">
+
+<p>{lead.name}</p>
+
+<p className="text-xs text-neutral-400">
+{p.action}
+</p>
+
+</div>
+
+)
+
+})}
+
+</div>
+
+{/* PIPELINE */}
+
+<div className="grid grid-cols-4 gap-4">
+
+{statuses.map(status=>{
+
+const filtered = leads.filter(l=>l.status===status)
+
+return(
+
+<div key={status}
+className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
+
+<h3 className="mb-3 capitalize">
+{status}
+</h3>
+
+{filtered.map(l=>(
+
+<div key={l.id}
+className="bg-neutral-950 p-2 mb-2 rounded border border-neutral-800">
+
+<p>{l.name}</p>
+
+</div>
+
+))}
+
+</div>
+
+)
+
+})}
+
+</div>
+
+</div>
+
+)
+
 }
