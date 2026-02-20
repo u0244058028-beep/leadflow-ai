@@ -68,6 +68,7 @@ const { data } = await supabase
 name,
 email,
 status:"new",
+score:50, // default AI baseline
 potential_value:value,
 lead_type:type,
 user_id:user.id
