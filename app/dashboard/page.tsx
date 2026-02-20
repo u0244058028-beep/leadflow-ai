@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { generateMission, Lead as MissionLead } from "@/lib/aiMission"
+import { generatePriorityMissions } from "@/lib/aiBrain"
 
 type Lead = {
   id:string
