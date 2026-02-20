@@ -12,95 +12,112 @@ type Lead = {
   score: number
   created_at: string
   value?: number
+  previous_status?: string
 }
 
-type StageWeights = {
-  newWeight: number
-  contactedWeight: number
-  qualifiedWeight: number
-}
-
-function initializeWeights(): StageWeights {
-  return {
-    newWeight: 1,
-    contactedWeight: 1.2,
-    qualifiedWeight: 1.5
+type TransitionMatrix = {
+  [from: string]: {
+    [to: string]: number
   }
 }
 
-function updateWeights(leads: Lead[], weights: StageWeights): StageWeights {
+const pipeline = ["new","contacted","qualified","closed"]
 
-  const closed = leads.filter(l => l.status === "closed")
-  const stagnated = leads.filter(l => {
-    const age =
-      (Date.now() - new Date(l.created_at).getTime()) /
-      (1000 * 60 * 60 * 24)
-    return age > 7 && l.status !== "closed"
+function buildTransitionMatrix(leads: Lead[]): TransitionMatrix {
+
+  const matrix: TransitionMatrix = {}
+
+  for(const from of pipeline){
+    matrix[from] = {}
+    for(const to of pipeline){
+      matrix[from][to] = 0
+    }
+  }
+
+  leads.forEach(l => {
+
+    if(!l.previous_status) return
+
+    matrix[l.previous_status][l.status] += 1
+
   })
 
-  let reward = closed.length * 1
-  let penalty = stagnated.length * 0.2
+  // normalize probabilities
+  Object.keys(matrix).forEach(from => {
 
-  const adjustment = reward - penalty
+    const total = Object.values(matrix[from]).reduce((a,b)=>a+b,0)
 
-  return {
-    newWeight: Math.max(0.5, weights.newWeight + adjustment * 0.01),
-    contactedWeight: Math.max(0.5, weights.contactedWeight + adjustment * 0.02),
-    qualifiedWeight: Math.max(0.5, weights.qualifiedWeight + adjustment * 0.03)
-  }
+    if(total === 0) return
+
+    Object.keys(matrix[from]).forEach(to => {
+      matrix[from][to] =
+        matrix[from][to] / total
+    })
+  })
+
+  return matrix
+}
+
+function estimateProbability(
+  lead: Lead,
+  matrix: TransitionMatrix
+){
+
+  let probability = lead.score
+
+  if(lead.status === "new")
+    probability *= matrix.new.closed || 0.1
+
+  if(lead.status === "contacted")
+    probability *= matrix.contacted.closed || 0.2
+
+  if(lead.status === "qualified")
+    probability *= matrix.qualified.closed || 0.5
+
+  if(probability > 100)
+    probability = 100
+
+  return probability
 }
 
 export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
 
-  let weights = initializeWeights()
-
-  // reinforcement update
-  weights = updateWeights(leads, weights)
+  const matrix = buildTransitionMatrix(leads)
 
   return leads.map(lead => {
 
-    let base = lead.score
-
-    if (lead.status === "new")
-      base *= weights.newWeight
-
-    if (lead.status === "contacted")
-      base *= weights.contactedWeight
-
-    if (lead.status === "qualified")
-      base *= weights.qualifiedWeight
-
-    if (lead.status === "closed")
-      base = 100
-
-    if (base > 100) base = 100
+    const probability =
+      Math.round(estimateProbability(lead, matrix))
 
     const ageDays =
-      (Date.now() - new Date(lead.created_at).getTime()) /
-      (1000 * 60 * 60 * 24)
+      (Date.now() -
+      new Date(lead.created_at).getTime())
+      / (1000*60*60*24)
 
-    const urgency = Math.min(ageDays * 10, 100)
+    const urgency = Math.min(ageDays*12,100)
 
     const expectedRevenue =
-      Math.round((lead.value || 1000) * (base / 100))
+      Math.round((lead.value || 1000) *
+      (probability/100))
 
     let action = "Monitor"
 
-    if (base > 85)
-      action = "Close aggressively"
+    if(probability > 80)
+      action = "Push to close"
 
-    else if (urgency > 70)
+    else if(urgency > 70)
       action = "Immediate follow-up"
 
-    else if (lead.status === "new")
-      action = "Initiate contact"
+    else if(lead.status === "new")
+      action = "Make first contact"
 
     return {
       id: lead.id,
-      probability: Math.round(base),
+      probability,
       urgency: Math.round(urgency),
       expectedRevenue,
       action
     }
+
   })
 }
