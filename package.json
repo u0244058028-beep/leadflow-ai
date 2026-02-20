@@ -12,7 +12,8 @@
     "react": "^18",
     "react-dom": "^18",
     "@supabase/supabase-js": "^2",
-    "openai": "^4"
+    "openai": "^4",
+    "resend": "^4.0.0"
   },
   "devDependencies": {
     "typescript": "^5",
