@@ -1,31 +1,67 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "../../lib/supabase"
 
 export default function LoginPage() {
 
   const router = useRouter()
+  const [loading, setLoading] = useState(true)
+
+  // ===============================
+  // SESSION CHECK + LISTENER
+  // ===============================
 
   useEffect(() => {
-    checkSession()
+
+    async function init() {
+
+      const { data } = await supabase.auth.getSession()
+
+      if (data.session) {
+        router.replace("/dashboard")
+      } else {
+        setLoading(false)
+      }
+    }
+
+    init()
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session) {
+          router.replace("/dashboard")
+        }
+      }
+    )
+
+    return () => {
+      listener.subscription.unsubscribe()
+    }
+
   }, [])
 
-  async function checkSession() {
-    const { data:{ session } } = await supabase.auth.getSession()
-    if(session){
-      router.replace("/dashboard")
-    }
-  }
+  // ===============================
+  // GOOGLE LOGIN
+  // ===============================
 
-  async function loginWithGoogle(){
+  async function loginWithGoogle() {
+
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "https://www.myleadassistant.com/dashboard"
+        redirectTo: "https://www.myleadassistant.com"
       }
     })
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        Loading...
+      </div>
+    )
   }
 
   return (
