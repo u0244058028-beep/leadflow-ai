@@ -6,13 +6,14 @@ import { supabase } from "@/lib/supabase"
 import { analyzeLeads, AIAnalysis } from "@/lib/aiBrain"
 
 type Lead = {
-  id:string
-  name:string
-  email:string
-  status:string
-  score:number
-  user_id:string
-  created_at:string
+id:string
+name:string
+email:string
+status:string
+potential_value:number
+lead_type:string
+user_id:string
+created_at:string
 }
 
 export default function DashboardPage(){
@@ -27,20 +28,11 @@ const [autopilot,setAutopilot]=useState(false)
 
 const [name,setName]=useState("")
 const [email,setEmail]=useState("")
+const [value,setValue]=useState(500)
+const [type,setType]=useState("standard")
 
-/* ===============================
-INIT
-================================ */
-
-useEffect(()=>{
-init()
-},[])
-
-useEffect(()=>{
-if(autopilot){
-runAutopilot()
-}
-},[autopilot])
+useEffect(()=>{ init() },[])
+useEffect(()=>{ if(autopilot) runAutopilot() },[autopilot])
 
 async function init(){
 
@@ -57,7 +49,6 @@ const { data:leadData } = await supabase
 .from("leads")
 .select("*")
 .eq("user_id",data.session.user.id)
-.order("created_at",{ascending:false})
 
 if(leadData){
 setLeads(leadData)
@@ -66,10 +57,6 @@ setAnalysis(analyzeLeads(leadData))
 
 setLoading(false)
 }
-
-/* ===============================
-ADD LEAD
-================================ */
 
 async function addLead(){
 
@@ -81,7 +68,8 @@ const { data } = await supabase
 name,
 email,
 status:"new",
-score:30,
+potential_value:value,
+lead_type:type,
 user_id:user.id
 })
 .select()
@@ -98,10 +86,6 @@ setEmail("")
 }
 }
 
-/* ===============================
-REAL AUTOPILOT ENGINE
-================================ */
-
 async function runAutopilot(){
 
 const updated=[...leads]
@@ -114,24 +98,26 @@ if(!ai) continue
 
 let newStatus = lead.status
 
-if(ai.probability > 90 && lead.status !== "closed"){
-newStatus="closed"
+// REAL REVENUE OPTIMIZATION
+
+if(ai.expectedRevenue > 1000 && lead.status==="new"){
+newStatus="contacted"
 }
-else if(ai.probability > 70 && lead.status === "contacted"){
+else if(ai.probability>70 && lead.status==="contacted"){
 newStatus="qualified"
 }
-else if(ai.urgency > 75 && lead.status === "new"){
-newStatus="contacted"
+else if(ai.probability>90){
+newStatus="closed"
 }
 
 if(newStatus !== lead.status){
-
-lead.status=newStatus
 
 await supabase
 .from("leads")
 .update({status:newStatus})
 .eq("id",lead.id)
+
+lead.status=newStatus
 
 }
 
@@ -142,130 +128,75 @@ setAnalysis(analyzeLeads(updated))
 setAutopilot(false)
 }
 
-/* ===============================
-LOGOUT
-================================ */
-
 async function logout(){
 await supabase.auth.signOut()
 router.replace("/login")
 }
 
-/* ===============================
-UI STATE
-================================ */
-
 if(loading){
-return(
-<div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
-Loading...
-</div>
-)
+return <div className="min-h-screen flex items-center justify-center">Loading...</div>
 }
-
-/* ===============================
-AI CALCULATIONS
-================================ */
 
 const expectedRevenue =
 analysis.reduce((sum,a)=>sum+a.expectedRevenue,0)
 
-const priorityLeads =
-[...analysis] // IMPORTANT: avoid mutating state
-.sort((a,b)=>(b.probability+b.urgency)-(a.probability+a.urgency))
-.slice(0,5)
-
 const statuses=["new","contacted","qualified","closed"]
-
-/* ===============================
-UI
-================================ */
 
 return(
 
 <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6 space-y-6">
 
-{/* HEADER */}
+<div className="flex justify-between">
 
-<div className="flex justify-between items-center">
+<h1 className="text-2xl font-bold">⚔️ Sales War Room</h1>
 
-<h1 className="text-2xl font-bold">
-⚔️ Sales War Room
-</h1>
-
-<div className="flex gap-3">
-
-<button
-onClick={()=>setAutopilot(true)}
-className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-500 transition">
+<button onClick={()=>setAutopilot(true)}
+className="bg-green-600 px-4 py-2 rounded-lg">
 Enable Autopilot
 </button>
 
-<button
-onClick={logout}
-className="bg-neutral-800 px-4 py-2 rounded-lg hover:bg-neutral-700 transition">
-Logout
-</button>
-
 </div>
 
-</div>
-
-{/* REVENUE */}
-
-<div className="bg-neutral-900 border border-neutral-800 p-6 rounded-xl">
-
-<h2 className="mb-2 font-semibold">
-💰 Expected Revenue
-</h2>
-
-<p className="text-3xl text-green-400 font-bold">
+<div className="bg-neutral-900 p-6 rounded-xl">
+💰 Expected Revenue:
+<span className="text-green-400 text-2xl ml-2">
 ${expectedRevenue}
-</p>
-
-</div>
-
-{/* AI MISSIONS */}
-
-<div className="bg-purple-700 p-4 rounded-xl">
-
-<h2 className="font-bold mb-3">
-🤖 AI Mission
-</h2>
-
-{priorityLeads.length === 0 && (
-<p>No actions needed.</p>
-)}
-
-{priorityLeads.map(p=>(
-<p key={p.id}>
-👉 {p.action} — {p.probability}%
-</p>
-))}
-
+</span>
 </div>
 
 {/* ADD LEAD */}
 
-<div className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
+<div className="bg-neutral-900 p-4 rounded-xl space-y-2">
 
-<input
-placeholder="Lead name"
-className="w-full mb-2 p-2 bg-neutral-950 border border-neutral-800 rounded"
+<input placeholder="Lead name"
 value={name}
 onChange={(e)=>setName(e.target.value)}
-/>
+className="w-full p-2 bg-neutral-950 rounded"/>
 
-<input
-placeholder="Lead email"
-className="w-full mb-3 p-2 bg-neutral-950 border border-neutral-800 rounded"
+<input placeholder="Lead email"
 value={email}
 onChange={(e)=>setEmail(e.target.value)}
-/>
+className="w-full p-2 bg-neutral-950 rounded"/>
 
-<button
-onClick={addLead}
-className="bg-purple-600 px-4 py-2 rounded-lg hover:bg-purple-500 transition">
+<input type="number"
+placeholder="Potential deal value"
+value={value}
+onChange={(e)=>setValue(Number(e.target.value))}
+className="w-full p-2 bg-neutral-950 rounded"/>
+
+<select
+value={type}
+onChange={(e)=>setType(e.target.value)}
+className="w-full p-2 bg-neutral-950 rounded">
+
+<option value="standard">Standard</option>
+<option value="enterprise">Enterprise</option>
+<option value="hot">Hot Lead</option>
+
+</select>
+
+<button onClick={addLead}
+className="bg-purple-600 px-4 py-2 rounded-lg">
 Add Lead
 </button>
 
@@ -273,7 +204,7 @@ Add Lead
 
 {/* PIPELINE */}
 
-<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+<div className="grid grid-cols-4 gap-4">
 
 {statuses.map(status=>{
 
@@ -282,22 +213,32 @@ const filtered = leads.filter(l=>l.status===status)
 return(
 
 <div key={status}
-className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
+className="bg-neutral-900 p-4 rounded-xl">
 
-<h3 className="mb-3 capitalize font-semibold">
-{status}
-</h3>
+<h3 className="capitalize mb-3">{status}</h3>
 
-{filtered.map(l=>(
+{filtered.map(l=>{
+
+const ai = analysis.find(a=>a.id===l.id)
+
+return(
 
 <div key={l.id}
-className="bg-neutral-950 p-2 mb-2 rounded border border-neutral-800">
+className="bg-neutral-950 p-2 mb-2 rounded">
 
-<p className="font-medium">{l.name}</p>
+<p>{l.name}</p>
+
+{ai &&(
+<p className="text-xs text-green-400">
+Expected: ${ai.expectedRevenue}
+</p>
+)}
 
 </div>
 
-))}
+)
+
+})}
 
 </div>
 
