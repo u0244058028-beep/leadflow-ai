@@ -1,7 +1,8 @@
 export const metadata = {
-  title: "MyLeadAssistant",
-  description: "AI Sales Assistant"
+  title: "MyLeadAssistant AI",
 }
+
+import "./globals.css"
 
 export default function RootLayout({
   children,
@@ -10,9 +11,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-black text-white">
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
