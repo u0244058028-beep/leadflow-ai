@@ -1,46 +1,61 @@
-import { Lead } from "@/types/lead"
+import type { Lead } from "@/types/lead"
 
 export type AIAnalysis = {
-  id:string
-  probability:number
-  urgency:number
-  expectedRevenue:number
-  priorityScore:number
-  action:string
+  id: string
+  probability: number
+  urgency: number
+  expectedRevenue: number
+  priorityScore: number
+  action: string
 }
 
-export function analyzeLeads(leads:Lead[]):AIAnalysis[]{
+export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
 
-return leads.map(lead=>{
+  return leads.map((lead) => {
 
-let probability = 20
+    const baseProbability =
+      lead.status === "new" ? 25 :
+      lead.status === "contacted" ? 50 :
+      lead.status === "qualified" ? 75 :
+      95
 
-if(lead.status==="contacted") probability=40
-if(lead.status==="qualified") probability=70
-if(lead.lead_type==="hot") probability+=20
+    const temperatureBoost =
+      lead.lead_temperature === "hot" ? 20 :
+      lead.lead_temperature === "warm" ? 10 :
+      0
 
-const urgency = Math.min(100, lead.score + (lead.potential_value/50))
+    const probability = Math.min(
+      baseProbability + temperatureBoost,
+      98
+    )
 
-const expectedRevenue =
-lead.potential_value * (probability/100)
+    const urgency =
+      lead.lead_temperature === "hot" ? 90 :
+      lead.lead_temperature === "warm" ? 60 :
+      30
 
-const priorityScore =
-(probability*0.5)+(urgency*0.3)+(expectedRevenue/20)
+    const expectedRevenue =
+      (lead.potential_value || 0) * (probability / 100)
 
-let action="Follow up"
+    const priorityScore =
+      expectedRevenue + urgency
 
-if(probability>80) action="Close deal now"
-else if(probability>50) action="Book call"
+    const action =
+      lead.status === "new"
+        ? "Send intro email"
+        : lead.status === "contacted"
+        ? "Send follow-up"
+        : lead.status === "qualified"
+        ? "Push to close"
+        : "Closed"
 
-return{
-id:lead.id,
-probability,
-urgency,
-expectedRevenue,
-priorityScore,
-action
-}
-
-})
-
+    return {
+      id: String(lead.id),
+      probability,
+      urgency,
+      expectedRevenue,
+      priorityScore,
+      action
+    }
+  })
 }
