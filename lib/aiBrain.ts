@@ -14,102 +14,90 @@ type Lead = {
   value?: number
 }
 
-type LearningModel = {
-  closeRate: number
-  avgDaysToClose: number
-  qualifiedToCloseRate: number
-  contactedToQualifiedRate: number
+type StageWeights = {
+  newWeight: number
+  contactedWeight: number
+  qualifiedWeight: number
 }
 
-function buildLearningModel(leads: Lead[]): LearningModel {
+function initializeWeights(): StageWeights {
+  return {
+    newWeight: 1,
+    contactedWeight: 1.2,
+    qualifiedWeight: 1.5
+  }
+}
 
-  const total = leads.length
+function updateWeights(leads: Lead[], weights: StageWeights): StageWeights {
+
   const closed = leads.filter(l => l.status === "closed")
-  const qualified = leads.filter(l => l.status === "qualified")
-  const contacted = leads.filter(l => l.status === "contacted")
-
-  const closeRate =
-    total === 0 ? 0.2 : closed.length / total
-
-  const qualifiedToCloseRate =
-    qualified.length === 0
-      ? 0.2
-      : closed.length / qualified.length
-
-  const contactedToQualifiedRate =
-    contacted.length === 0
-      ? 0.2
-      : qualified.length / contacted.length
-
-  const daysToClose = closed.map(l => {
-    const created = new Date(l.created_at)
-    return (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24)
+  const stagnated = leads.filter(l => {
+    const age =
+      (Date.now() - new Date(l.created_at).getTime()) /
+      (1000 * 60 * 60 * 24)
+    return age > 7 && l.status !== "closed"
   })
 
-  const avgDaysToClose =
-    daysToClose.length === 0
-      ? 5
-      : daysToClose.reduce((a, b) => a + b, 0) / daysToClose.length
+  let reward = closed.length * 1
+  let penalty = stagnated.length * 0.2
+
+  const adjustment = reward - penalty
 
   return {
-    closeRate,
-    avgDaysToClose,
-    qualifiedToCloseRate,
-    contactedToQualifiedRate
+    newWeight: Math.max(0.5, weights.newWeight + adjustment * 0.01),
+    contactedWeight: Math.max(0.5, weights.contactedWeight + adjustment * 0.02),
+    qualifiedWeight: Math.max(0.5, weights.qualifiedWeight + adjustment * 0.03)
   }
 }
 
 export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
 
-  const model = buildLearningModel(leads)
+  let weights = initializeWeights()
+
+  // reinforcement update
+  weights = updateWeights(leads, weights)
 
   return leads.map(lead => {
 
-    let probability = lead.score
+    let base = lead.score
 
-    // Adaptive weights
+    if (lead.status === "new")
+      base *= weights.newWeight
+
     if (lead.status === "contacted")
-      probability += 20 * model.contactedToQualifiedRate
+      base *= weights.contactedWeight
 
     if (lead.status === "qualified")
-      probability += 30 * model.qualifiedToCloseRate
+      base *= weights.qualifiedWeight
 
     if (lead.status === "closed")
-      probability = 100
+      base = 100
 
-    // Global performance boost
-    probability = probability * (1 + model.closeRate)
+    if (base > 100) base = 100
 
-    if (probability > 100) probability = 100
-
-    const created = new Date(lead.created_at)
     const ageDays =
-      (Date.now() - created.getTime()) /
+      (Date.now() - new Date(lead.created_at).getTime()) /
       (1000 * 60 * 60 * 24)
 
-    // Timing intelligence
-    const urgency =
-      ageDays > model.avgDaysToClose
-        ? 80
-        : Math.min(ageDays * 10, 70)
+    const urgency = Math.min(ageDays * 10, 100)
 
     const expectedRevenue =
-      Math.round((lead.value || 1000) * (probability / 100))
+      Math.round((lead.value || 1000) * (base / 100))
 
     let action = "Monitor"
 
-    if (probability > 85)
-      action = "Close immediately"
+    if (base > 85)
+      action = "Close aggressively"
 
     else if (urgency > 70)
-      action = "Follow up urgently"
+      action = "Immediate follow-up"
 
     else if (lead.status === "new")
-      action = "Initiate first contact"
+      action = "Initiate contact"
 
     return {
       id: lead.id,
-      probability: Math.round(probability),
+      probability: Math.round(base),
       urgency: Math.round(urgency),
       expectedRevenue,
       action
