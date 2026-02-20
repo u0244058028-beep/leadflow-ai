@@ -6,17 +6,7 @@ export type AIAnalysis = {
   action:string
 }
 
-type Lead = {
-id:string
-name:string
-email:string
-status:string
-score:number
-potential_value:number
-lead_type:string
-user_id:string
-created_at:string
-}
+import type { Lead } from "@/types/lead"
 
 const STAGE_MULTIPLIER = {
   new:0.2,
