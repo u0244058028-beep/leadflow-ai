@@ -1,17 +1,11 @@
-// lib/aiBrain.ts
-
 import type { Lead } from "@/types/lead"
 
-export type AIAnalysis = {
-
+export interface AIAnalysis {
   id: string
-
   probability: number
   urgency: number
-
   expectedRevenue: number
   priorityScore: number
-
   action: string
 }
 
@@ -23,47 +17,35 @@ export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
       lead.status === "new" ? 20 :
       lead.status === "contacted" ? 50 :
       lead.status === "qualified" ? 75 :
-      lead.status === "closed" ? 100 :
-      10
+      95
 
-    const typeBoost =
-      lead.lead_type === "enterprise" ? 15 :
-      lead.lead_type === "hot" ? 25 :
-      0
-
-    const probability = Math.min(100, baseProbability + typeBoost)
+    const probability =
+      baseProbability + (lead.score ?? 0) * 0.3
 
     const urgency =
-      lead.status === "new" ? 60 :
-      lead.status === "contacted" ? 70 :
-      lead.status === "qualified" ? 80 :
-      0
+      lead.lead_type === "hot" ? 90 :
+      lead.lead_type === "enterprise" ? 70 :
+      40
 
     const expectedRevenue =
-      (lead.potential_value || 0) * (probability / 100)
+      (lead.potential_value ?? 0) * (probability / 100)
 
-    // 🔥 CEO PRIORITY SCORE
     const priorityScore =
-      expectedRevenue * 0.7 +
-      urgency * 1.5 +
-      probability * 1.2
+      probability * 0.6 +
+      urgency * 0.4
 
-    const action =
-      lead.status === "new" ? "Make first contact" :
-      lead.status === "contacted" ? "Send follow-up" :
-      lead.status === "qualified" ? "Close deal" :
-      "Monitor"
+    let action = "Monitor"
+
+    if (priorityScore > 80) action = "Close deal"
+    else if (priorityScore > 60) action = "Follow up now"
+    else if (priorityScore > 40) action = "Send email"
 
     return {
-
-id: String(lead.id),
-
+      id: String(lead.id),
       probability,
       urgency,
-
       expectedRevenue,
       priorityScore,
-
       action
     }
   })
