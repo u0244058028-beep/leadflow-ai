@@ -1,88 +1,74 @@
 export type Lead = {
-  id:string
-  name:string
-  email:string
-  status:string
-  score:number
-  created_at:string
-  next_followup_at?:string
+  id: string
+  name: string
+  email: string
+  status: string
+  score: number
+  created_at: string
 }
 
-type Mission = {
-  type:string
-  text:string
-  priority:number
+export type AIAnalysis = {
+  id: string
+  probability: number
+  urgency: number
+  action: string
 }
 
-export function generatePriorityMissions(leads:Lead[]):Mission[]{
-
-  const missions:Mission[] = []
+export function analyzeLeads(leads: Lead[]): AIAnalysis[] {
 
   const now = new Date()
 
-  // ======================
-  // FOLLOWUP URGENCY
-  // ======================
+  return leads.map(lead => {
 
-  leads.forEach(lead=>{
+    // ----------------------
+    // DEAL PROBABILITY
+    // ----------------------
 
-    if(!lead.next_followup_at) return
+    let probability = 20
 
-    const followup = new Date(lead.next_followup_at)
+    if (lead.status === "contacted") probability += 15
+    if (lead.status === "qualified") probability += 35
+    if (lead.score >= 50) probability += 20
+    if (lead.status === "closed") probability = 100
 
-    if(followup <= now && lead.status !== "closed"){
+    if (probability > 100) probability = 100
 
-      missions.push({
-        type:"followup",
-        text:`🔥 Follow up with ${lead.name} now`,
-        priority:100
-      })
+    // ----------------------
+    // URGENCY CALCULATION
+    // ----------------------
+
+    const created = new Date(lead.created_at)
+    const diffDays =
+      (now.getTime() - created.getTime()) / (1000 * 3600 * 24)
+
+    let urgency = 0
+
+    if (diffDays > 3) urgency += 30
+    if (diffDays > 5) urgency += 50
+    if (lead.status === "qualified") urgency += 20
+
+    if (urgency > 100) urgency = 100
+
+    // ----------------------
+    // ACTION SUGGESTION
+    // ----------------------
+
+    let action = "Monitor lead"
+
+    if (probability >= 70 && lead.status !== "closed") {
+      action = "Try closing deal"
+    } else if (urgency >= 50) {
+      action = "Send follow-up now"
+    } else if (lead.status === "new") {
+      action = "Initiate first contact"
+    }
+
+    return {
+      id: lead.id,
+      probability,
+      urgency,
+      action
     }
 
   })
-
-  // ======================
-  // HOT LEADS
-  // ======================
-
-  leads
-    .filter(l=>l.score >= 50 && l.status !== "closed")
-    .forEach(l=>{
-      missions.push({
-        type:"hot",
-        text:`⭐ High priority lead: ${l.name}`,
-        priority:80
-      })
-    })
-
-  // ======================
-  // NEW LEADS TODAY
-  // ======================
-
-  const today = new Date()
-
-  leads.forEach(l=>{
-
-    const created = new Date(l.created_at)
-
-    const sameDay =
-      created.getDate() === today.getDate()
-
-    if(sameDay){
-
-      missions.push({
-        type:"new",
-        text:`🚀 New lead added: ${l.name}`,
-        priority:60
-      })
-    }
-
-  })
-
-  // ======================
-  // SORT BY PRIORITY
-  // ======================
-
-  return missions.sort((a,b)=>b.priority-a.priority)
-
 }
