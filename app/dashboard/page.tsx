@@ -28,10 +28,6 @@ export default function DashboardPage() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
 
-  // ===============================
-  // INIT
-  // ===============================
-
   useEffect(() => {
 
     async function init() {
@@ -63,10 +59,6 @@ export default function DashboardPage() {
 
   }, [])
 
-  // ===============================
-  // ADD LEAD
-  // ===============================
-
   async function addLead() {
 
     if (!name || !email || !user) return
@@ -79,7 +71,7 @@ export default function DashboardPage() {
         status: "new",
         score: 30,
         user_id: user.id,
-        value: 1000 // default deal value
+        value: 1000
       })
       .select()
 
@@ -95,19 +87,12 @@ export default function DashboardPage() {
     }
   }
 
-  // ===============================
-  // LOGOUT
-  // ===============================
-
   async function logout() {
-
     await supabase.auth.signOut()
     router.replace("/login")
-
   }
 
   if (loading) {
-
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
         Loading dashboard...
@@ -120,17 +105,13 @@ export default function DashboardPage() {
   const totalRevenue =
     analysis.reduce((sum, a) => sum + a.expectedRevenue, 0)
 
-  // ===============================
-  // UI
-  // ===============================
-
   return (
 
     <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6">
 
       {/* HEADER */}
 
-      <div className="flex justify-between mb-8">
+      <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">MyLeadAssistant AI</h1>
 
         <button
@@ -141,7 +122,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* TOTAL REVENUE KPI */}
+      {/* REVENUE KPI */}
 
       <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold p-4 rounded-xl mb-6">
         💰 Predicted Revenue: ${totalRevenue}
@@ -153,30 +134,30 @@ export default function DashboardPage() {
 
         <input
           placeholder="Lead name"
-          className="w-full mb-2 p-2 rounded bg-neutral-950 border border-neutral-800"
+          className="w-full mb-2 p-3 rounded bg-neutral-950 border border-neutral-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
 
         <input
           placeholder="Lead email"
-          className="w-full mb-3 p-2 rounded bg-neutral-950 border border-neutral-800"
+          className="w-full mb-3 p-3 rounded bg-neutral-950 border border-neutral-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
 
         <button
           onClick={addLead}
-          className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-lg transition"
+          className="bg-purple-600 hover:bg-purple-500 px-6 py-2 rounded-lg transition"
         >
           Add Lead
         </button>
 
       </div>
 
-      {/* PIPELINE */}
+      {/* PIPELINE — RESPONSIVE */}
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
         {statuses.map(status => {
 
@@ -184,9 +165,12 @@ export default function DashboardPage() {
 
           return (
 
-            <div key={status} className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
+            <div
+              key={status}
+              className="bg-neutral-900 border border-neutral-800 p-4 rounded-xl min-h-[300px]"
+            >
 
-              <h3 className="mb-3 capitalize font-semibold">
+              <h3 className="mb-3 capitalize font-semibold text-lg">
                 {status}
               </h3>
 
@@ -196,23 +180,28 @@ export default function DashboardPage() {
 
                 return (
 
-                  <div key={l.id} className="bg-neutral-950 p-3 mb-3 rounded border border-neutral-800">
+                  <div
+                    key={l.id}
+                    className="bg-neutral-950 p-3 mb-3 rounded border border-neutral-800"
+                  >
 
                     <p className="font-medium">{l.name}</p>
-                    <p className="text-xs text-neutral-400">{l.email}</p>
+                    <p className="text-xs text-neutral-400 mb-2">
+                      {l.email}
+                    </p>
 
                     {ai && (
 
-                      <div className="mt-3 text-xs">
+                      <div className="text-xs space-y-1">
 
-                        <div className="mb-1">
+                        <div>
                           🎯 Close probability:
                           <span className="ml-2 font-bold text-green-400">
                             {ai.probability}%
                           </span>
                         </div>
 
-                        <div className="mb-1">
+                        <div>
                           💰 Expected revenue:
                           <span className="ml-2 font-bold text-yellow-400">
                             ${ai.expectedRevenue}
@@ -220,7 +209,7 @@ export default function DashboardPage() {
                         </div>
 
                         {ai.urgency >= 50 && (
-                          <div className="text-red-400 mb-1">
+                          <div className="text-red-400">
                             ⚠️ High urgency
                           </div>
                         )}
