@@ -13,6 +13,7 @@ type Lead = {
   score: number
   user_id: string
   created_at: string
+  value?: number
 }
 
 export default function DashboardPage() {
@@ -26,6 +27,10 @@ export default function DashboardPage() {
 
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+
+  // ===============================
+  // INIT
+  // ===============================
 
   useEffect(() => {
 
@@ -58,6 +63,10 @@ export default function DashboardPage() {
 
   }, [])
 
+  // ===============================
+  // ADD LEAD
+  // ===============================
+
   async function addLead() {
 
     if (!name || !email || !user) return
@@ -69,7 +78,8 @@ export default function DashboardPage() {
         email,
         status: "new",
         score: 30,
-        user_id: user.id
+        user_id: user.id,
+        value: 1000 // default deal value
       })
       .select()
 
@@ -85,12 +95,19 @@ export default function DashboardPage() {
     }
   }
 
+  // ===============================
+  // LOGOUT
+  // ===============================
+
   async function logout() {
+
     await supabase.auth.signOut()
     router.replace("/login")
+
   }
 
   if (loading) {
+
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
         Loading dashboard...
@@ -100,18 +117,34 @@ export default function DashboardPage() {
 
   const statuses = ["new", "contacted", "qualified", "closed"]
 
+  const totalRevenue =
+    analysis.reduce((sum, a) => sum + a.expectedRevenue, 0)
+
+  // ===============================
+  // UI
+  // ===============================
+
   return (
 
     <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6">
 
+      {/* HEADER */}
+
       <div className="flex justify-between mb-8">
         <h1 className="text-2xl font-bold">MyLeadAssistant AI</h1>
+
         <button
           onClick={logout}
           className="bg-neutral-800 px-4 py-2 rounded-lg hover:bg-neutral-700 transition"
         >
           Logout
         </button>
+      </div>
+
+      {/* TOTAL REVENUE KPI */}
+
+      <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold p-4 rounded-xl mb-6">
+        💰 Predicted Revenue: ${totalRevenue}
       </div>
 
       {/* ADD LEAD */}
@@ -176,6 +209,13 @@ export default function DashboardPage() {
                           🎯 Close probability:
                           <span className="ml-2 font-bold text-green-400">
                             {ai.probability}%
+                          </span>
+                        </div>
+
+                        <div className="mb-1">
+                          💰 Expected revenue:
+                          <span className="ml-2 font-bold text-yellow-400">
+                            ${ai.expectedRevenue}
                           </span>
                         </div>
 
