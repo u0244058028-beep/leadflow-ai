@@ -3,15 +3,17 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { generateMission } from "@/lib/aiMission"
+import { generateMission, Lead as MissionLead } from "@/lib/aiMission"
 
 type Lead = {
-  id: string
-  name: string
-  email: string
-  status: string
-  score: number
-  user_id: string
+  id:string
+  name:string
+  email:string
+  status:string
+  score:number
+  user_id:string
+  created_at:string
+  next_followup_at?:string
 }
 
 export default function DashboardPage(){
@@ -20,9 +22,15 @@ export default function DashboardPage(){
 
   const [user,setUser] = useState<any>(null)
   const [leads,setLeads] = useState<Lead[]>([])
+  const [missions,setMissions] = useState<any[]>([])
+  const [loading,setLoading] = useState(true)
+
   const [name,setName] = useState("")
   const [email,setEmail] = useState("")
-  const [loading,setLoading] = useState(true)
+
+  // ===============================
+  // INIT
+  // ===============================
 
   useEffect(()=>{
 
@@ -44,7 +52,14 @@ export default function DashboardPage(){
         .order("created_at",{ascending:false})
 
       if(leadData){
+
         setLeads(leadData)
+
+        const aiMissions = generateMission(
+          leadData as MissionLead[]
+        )
+
+        setMissions(aiMissions)
       }
 
       setLoading(false)
@@ -54,9 +69,16 @@ export default function DashboardPage(){
 
   },[])
 
+  // ===============================
+  // ADD LEAD
+  // ===============================
+
   async function addLead(){
 
     if(!name || !email || !user) return
+
+    const nextFollowup = new Date()
+    nextFollowup.setDate(nextFollowup.getDate()+3)
 
     const { data } = await supabase
       .from("leads")
@@ -65,20 +87,37 @@ export default function DashboardPage(){
         email,
         status:"new",
         score:30,
-        user_id:user.id
+        user_id:user.id,
+        next_followup_at:nextFollowup
       })
       .select()
 
     if(data){
-      setLeads([data[0],...leads])
+
+      const updated = [data[0],...leads]
+
+      setLeads(updated)
+
+      const aiMissions = generateMission(
+        updated as MissionLead[]
+      )
+
+      setMissions(aiMissions)
+
       setName("")
       setEmail("")
     }
   }
 
+  // ===============================
+  // LOGOUT
+  // ===============================
+
   async function logout(){
+
     await supabase.auth.signOut()
     router.replace("/login")
+
   }
 
   if(loading){
@@ -87,33 +126,59 @@ export default function DashboardPage(){
 
   const hotLeads = leads.filter(l=>l.score>=30).length
 
+  // ===============================
+  // UI
+  // ===============================
+
   return(
 
     <div className="min-h-screen p-6">
 
+      {/* HEADER */}
+
       <div className="flex justify-between mb-6">
-        <h1 className="text-xl font-bold">Dashboard</h1>
+        <h1 className="text-xl font-bold">MyLeadAssistant AI</h1>
         <button onClick={logout}>Logout</button>
       </div>
 
-      <div className="bg-purple-700 p-4 rounded mb-6">
+      {/* AI MISSION PANEL */}
+
+      <div className="bg-purple-700 p-4 rounded-xl mb-6">
+
+        <h2 className="font-bold mb-2">🤖 Today's Mission</h2>
+
+        {missions.length === 0 && (
+          <p>No urgent actions right now.</p>
+        )}
+
+        {missions.map((m,i)=>(
+          <p key={i}>{m.text}</p>
+        ))}
+
+      </div>
+
+      {/* STATS */}
+
+      <div className="bg-gray-900 p-4 rounded mb-6">
         🔥 Hot Leads: {hotLeads}
       </div>
+
+      {/* ADD LEAD */}
 
       <div className="bg-gray-900 p-4 rounded mb-6">
 
         <input
           placeholder="Name"
+          className="w-full mb-2 p-2 text-black"
           value={name}
           onChange={(e)=>setName(e.target.value)}
-          className="w-full p-2 mb-2 text-black"
         />
 
         <input
           placeholder="Email"
+          className="w-full mb-2 p-2 text-black"
           value={email}
           onChange={(e)=>setEmail(e.target.value)}
-          className="w-full p-2 mb-2 text-black"
         />
 
         <button
@@ -125,6 +190,8 @@ export default function DashboardPage(){
 
       </div>
 
+      {/* PIPELINE */}
+
       <div className="grid grid-cols-2 gap-4">
 
         {["new","contacted","qualified","closed"].map(status=>{
@@ -132,18 +199,24 @@ export default function DashboardPage(){
           const filtered = leads.filter(l=>l.status===status)
 
           return(
+
             <div key={status} className="bg-gray-900 p-4 rounded">
 
               <h2 className="mb-3 capitalize">{status}</h2>
 
               {filtered.map(l=>(
+
                 <div key={l.id} className="bg-black p-2 mb-2 rounded">
+
                   <p>{l.name}</p>
                   <p className="text-xs text-gray-400">{l.email}</p>
+
                 </div>
+
               ))}
 
             </div>
+
           )
 
         })}
