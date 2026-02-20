@@ -7,50 +7,35 @@ import { supabase } from "../../lib/supabase"
 export default function LoginPage(){
 
   const router = useRouter()
-
   const [checking,setChecking] = useState(true)
-
-  // ===============================
-  // AUTH FLOW (BULLETPROOF)
-  // ===============================
 
   useEffect(()=>{
 
-    // 1️⃣ Check existing session
-    async function checkSession(){
+    async function init(){
 
-      const { data } = await supabase.auth.getSession()
+      try{
 
-      if(data.session){
-        router.replace("/dashboard")
-        return
+        const { data } = await supabase.auth.getSession()
+
+        if(data.session){
+          router.replace("/dashboard")
+          return
+        }
+
+      }catch(e){
+
+        // auto fix broken sessions
+        localStorage.clear()
+
       }
 
       setChecking(false)
+
     }
 
-    checkSession()
-
-    // 2️⃣ Listen for login event (VERY IMPORTANT)
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (event,session)=>{
-
-        if(event==="SIGNED_IN" && session){
-          router.replace("/dashboard")
-        }
-
-      }
-    )
-
-    return ()=>{
-      listener.subscription.unsubscribe()
-    }
+    init()
 
   },[])
-
-  // ===============================
-  // GOOGLE LOGIN
-  // ===============================
 
   async function loginWithGoogle(){
 
@@ -59,25 +44,15 @@ export default function LoginPage(){
       provider:"google",
 
       options:{
-redirectTo:"https://www.myleadassistant.com/auth"
+        redirectTo:"https://www.myleadassistant.com/auth"
       }
 
     })
 
   }
 
-  // ===============================
-  // UI
-  // ===============================
-
   if(checking){
-
-    return(
-      <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        Checking session...
-      </div>
-    )
-
+    return <div className="min-h-screen flex items-center justify-center bg-black text-white">Checking session...</div>
   }
 
   return(
@@ -86,9 +61,7 @@ redirectTo:"https://www.myleadassistant.com/auth"
 
       <div className="bg-gray-900 p-8 rounded-xl w-80 text-center">
 
-        <h1 className="text-xl mb-6 font-bold">
-          MyLeadAssistant
-        </h1>
+        <h1 className="text-xl mb-6 font-bold">MyLeadAssistant</h1>
 
         <button
           onClick={loginWithGoogle}
