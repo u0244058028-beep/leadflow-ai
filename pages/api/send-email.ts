@@ -19,9 +19,19 @@ export default async function handler(
   }
 
   try {
+    // Hent brukerprofil for avsendernavn
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, company_name')
+      .eq('id', userId)
+      .single()
+
+    const fromName = profile?.full_name || 'LeadFlow AI'
+    const fromEmail = 'noreply@myleadassistant.com' // Bytt til ditt domene
+
     // Send e-post via Resend
     const { data, error } = await resend.emails.send({
-      from: 'LeadFlow AI <noreply@myleadassistant.com>', // Bytt til ditt domene
+      from: `${fromName} via LeadFlow <${fromEmail}>`,
       to: [to],
       subject: subject,
       html: html,
@@ -35,7 +45,7 @@ export default async function handler(
       lead_id: leadId,
       action_type: 'email_sent',
       description: `Sent email to ${to}: ${subject}`,
-      metadata: { subject, to },
+      metadata: { subject, to, from: fromName },
     })
 
     res.status(200).json({ success: true, data })
