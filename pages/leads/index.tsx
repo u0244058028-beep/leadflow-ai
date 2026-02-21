@@ -117,6 +117,17 @@ export default function LeadsPage() {
     return 'bg-red-100 text-red-800'
   }
 
+  function getStatusColor(status: string) {
+    switch (status) {
+      case 'new': return 'bg-blue-100 text-blue-800'
+      case 'contacted': return 'bg-purple-100 text-purple-800'
+      case 'qualified': return 'bg-green-100 text-green-800'
+      case 'converted': return 'bg-emerald-100 text-emerald-800'
+      case 'lost': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   return (
     <Layout>
       <div className="flex justify-between items-center mb-6">
@@ -175,7 +186,7 @@ export default function LeadsPage() {
                         </p>
                       </div>
                       <div className="ml-2 flex-shrink-0 flex items-center gap-2">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getScoreColor(lead.status)}`}>
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(lead.status)}`}>
                           {lead.status}
                         </span>
                         
