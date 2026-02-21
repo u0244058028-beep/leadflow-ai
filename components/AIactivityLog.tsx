@@ -45,6 +45,15 @@ export default function AIActivityLog({ leadId }: { leadId?: string }) {
     }
   }
 
+  function getActionText(type: string) {
+    switch (type) {
+      case 'followup_generated': return 'Generated follow-up'
+      case 'score_updated': return 'Updated lead score'
+      case 'email_sent': return 'Sent email'
+      default: return 'AI action'
+    }
+  }
+
   return (
     <div className="bg-white p-6 rounded-lg shadow">
       <h2 className="text-lg font-semibold mb-4">AI Activity Log</h2>
@@ -56,11 +65,19 @@ export default function AIActivityLog({ leadId }: { leadId?: string }) {
             <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded">
               <span className="text-xl">{getActionIcon(activity.action_type)}</span>
               <div className="flex-1">
-                <p className="text-sm">{activity.description}</p>
+                <p className="text-sm">
+                  <span className="font-medium">{getActionText(activity.action_type)}</span>
+                  {activity.description && `: ${activity.description}`}
+                </p>
                 <p className="text-xs text-gray-500 mt-1">
                   {new Date(activity.created_at).toLocaleString()}
-                  {activity.is_edited && ' • Edited by user'}
+                  {activity.is_edited && ' • Edited by you'}
                 </p>
+                {activity.metadata?.message_preview && (
+                  <p className="text-xs text-gray-600 mt-1 italic">
+                    "{activity.metadata.message_preview}..."
+                  </p>
+                )}
               </div>
             </div>
           ))}
