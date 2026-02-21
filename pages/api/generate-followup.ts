@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import OpenAI from 'openai'
-import { supabase } from '@/lib/supabaseClient' // <-- importer supabase
+import { supabase } from '@/lib/supabaseClient'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -14,7 +14,11 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { leadName, company, leadId, userId } = req.body // <-- få med leadId og userId
+  const { leadName, company, leadId, userId } = req.body
+
+  if (!leadId || !userId) {
+    return res.status(400).json({ error: 'Missing leadId or userId' })
+  }
 
   try {
     const prompt = `Write a friendly follow-up message to a lead named ${leadName}${company ? ` from ${company}` : ''}. Keep it short, professional and friendly.`
@@ -34,7 +38,10 @@ export default async function handler(
       lead_id: leadId,
       action_type: 'followup_generated',
       description: `Generated follow-up message for ${leadName}`,
-      metadata: { message_preview: message?.substring(0, 100) },
+      metadata: { 
+        message_preview: message?.substring(0, 100),
+        full_message: message 
+      },
     })
 
     res.status(200).json({ message })
