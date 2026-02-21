@@ -15,18 +15,47 @@ export default function App({ Component, pageProps }: AppProps) {
       // Tillat landing page (/) og login-siden uten innlogging
       if (!session && router.pathname !== '/login' && router.pathname !== '/') {
         router.push('/login')
-      } else {
-        setIsLoading(false)
+        return
       }
+
+      // Hvis bruker er innlogget, sjekk om de har profil
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', session.user.id)
+          .single()
+
+        // Hvis ingen profil og ikke allerede på onboarding, redirect til onboarding
+        if (!profile && router.pathname !== '/onboarding') {
+          router.push('/onboarding')
+          return
+        }
+      }
+
+      setIsLoading(false)
     }
 
     checkUser()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         router.push('/login')
-      } else if (event === 'SIGNED_IN' && (router.pathname === '/login' || router.pathname === '/')) {
-        router.push('/dashboard')
+      } else if (event === 'SIGNED_IN') {
+        // Ved innlogging, sjekk profil
+        if (session) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', session.user.id)
+            .single()
+
+          if (profile) {
+            router.push('/dashboard')
+          } else {
+            router.push('/onboarding')
+          }
+        }
       }
     })
 
