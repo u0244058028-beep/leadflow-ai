@@ -7,9 +7,18 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(false)
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [email, setEmail] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
+    // Hent brukerens e-post
+    const getUserEmail = async () => {
+      const user = (await supabase.auth.getUser()).data.user
+      if (user) {
+        setEmail(user.email || '')
+      }
+    }
+
     // Sjekk om bruker allerede har en profil
     const checkProfile = async () => {
       const user = (await supabase.auth.getUser()).data.user
@@ -30,6 +39,7 @@ export default function Onboarding() {
       }
     }
 
+    getUserEmail()
     checkProfile()
   }, [router])
 
@@ -113,7 +123,7 @@ export default function Onboarding() {
                 id="email"
                 type="email"
                 disabled
-                value={(supabase.auth.getUser().then(u => u.data.user?.email).catch(() => '')) as string}
+                value={email}
                 className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-50 p-2"
               />
             </div>
