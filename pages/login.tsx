@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/router'
 
@@ -9,20 +9,25 @@ export default function Login() {
   const [message, setMessage] = useState('')
   const router = useRouter()
 
+  // Hvis brukeren allerede er logget inn, send til dashboard
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.push('/dashboard')
+    })
+  }, [router])
+
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage('')
 
     if (isLogin) {
-      // Logg inn med e-post og passord
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
       if (error) setMessage(error.message)
-      else router.push('/')
+      else router.push('/dashboard')
     } else {
-      // Registrer ny bruker med e-post og passord
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -36,7 +41,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin, // eller en spesifikk side, f.eks. '/'
+        redirectTo: `${window.location.origin}/dashboard`, // <-- viktig: send til dashboard
       },
     })
     if (error) setMessage(error.message)
@@ -49,7 +54,6 @@ export default function Login() {
           {isLogin ? 'Logg inn' : 'Opprett konto'}
         </h2>
 
-        {/* Google-knapp */}
         <button
           onClick={handleGoogleLogin}
           className="w-full flex items-center justify-center gap-2 py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-gray-700 hover:bg-gray-50"
