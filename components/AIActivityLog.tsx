@@ -41,6 +41,8 @@ export default function AIActivityLog({ leadId }: { leadId?: string }) {
       case 'followup_generated': return '✉️'
       case 'score_updated': return '📊'
       case 'email_sent': return '📨'
+      case 'booking_initiated': return '📅'
+      case 'booking_completed': return '✅'
       default: return '🤖'
     }
   }
@@ -50,6 +52,8 @@ export default function AIActivityLog({ leadId }: { leadId?: string }) {
       case 'followup_generated': return 'Generated follow-up'
       case 'score_updated': return 'Updated lead score'
       case 'email_sent': return 'Sent email'
+      case 'booking_initiated': return 'Meeting booking opened'
+      case 'booking_completed': return 'Meeting booked'
       default: return 'AI action'
     }
   }
