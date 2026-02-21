@@ -9,8 +9,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex justify-between h-16">
             <div className="flex">
               <Link href="/" className="flex items-center font-semibold text-gray-900">
-                LeadFollowup
-              </Link>
+  LeadFlow
+</Link>
               <div className="ml-10 flex items-center space-x-4">
                 <Link href="/leads" className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                   Leads
