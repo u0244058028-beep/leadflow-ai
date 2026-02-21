@@ -12,29 +12,54 @@ export default async function handler(
   const { leadId, notes, userId } = req.body
 
   if (!leadId || !userId) {
-    return res.status(400).json({ error: 'Missing leadId or userId' })
+    return res.status(400).json({ 
+      error: 'Missing required fields',
+      received: { leadId, userId }
+    })
   }
 
   try {
-    // Hent lead-data fra Supabase
+    console.log('Scoring lead:', { leadId, userId })
+
+    // FØRST: Sjekk om lead finnes
     const { data: lead, error: leadError } = await supabase
       .from('leads')
-      .select('name, company, email, status')
+      .select('id, name, company, email, status')
       .eq('id', leadId)
       .single()
 
-    if (leadError || !lead) {
-      throw new Error('Lead not found')
+    if (leadError) {
+      console.error('Supabase error:', leadError)
+      return res.status(404).json({ 
+        error: 'Lead not found in database',
+        details: leadError.message,
+        leadId 
+      })
     }
 
-    // Hent brukerens profil for kontekst
+    if (!lead) {
+      return res.status(404).json({ 
+        error: 'Lead not found',
+        leadId 
+      })
+    }
+
+    console.log('Lead found:', lead.name)
+
+    // Hent brukerens profil
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name, company_name')
       .eq('id', userId)
       .single()
 
-    // Cerebras API – verdens raskeste!
+    // Sjekk om Cerebras API-nøkkel finnes
+    if (!process.env.CEREBRAS_API_KEY) {
+      console.error('CEREBRAS_API_KEY is missing')
+      return res.status(500).json({ error: 'API key not configured' })
+    }
+
+    // Cerebras API-kall
     const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -60,25 +85,25 @@ export default async function handler(
           }
         ],
         temperature: 0.3,
-        max_tokens: 5,
-        stream: false
+        max_tokens: 5
       })
     })
 
     if (!response.ok) {
-      const errorData = await response.text()
-      console.error('Cerebras API error:', response.status, errorData)
-      throw new Error(`Cerebras API error: ${response.status}`)
+      const errorText = await response.text()
+      console.error('Cerebras API error:', response.status, errorText)
+      return res.status(502).json({ 
+        error: 'Cerebras API failed',
+        status: response.status 
+      })
     }
 
     const data = await response.json()
     const scoreText = data.choices[0]?.message?.content || '5'
-    
-    // Ekstraher tall fra responsen
     const score = parseInt(scoreText.replace(/[^0-9]/g, '')) || 5
     const finalScore = Math.min(10, Math.max(1, score))
 
-    // Oppdater lead med ny score
+    // Oppdater lead
     const { error: updateError } = await supabase
       .from('leads')
       .update({ 
@@ -88,52 +113,49 @@ export default async function handler(
       .eq('id', leadId)
 
     if (updateError) {
-      console.error('Error updating lead:', updateError)
-      throw new Error('Failed to update lead score')
+      console.error('Update error:', updateError)
+      return res.status(500).json({ error: 'Failed to update lead' })
     }
 
-    // Logg aktiviteten i ai_activity_log
+    // Logg aktivitet
     try {
       await supabase.from('ai_activity_log').insert({
         user_id: userId,
         lead_id: leadId,
         action_type: 'score_updated',
-        description: `Cerebras AI scored lead ${finalScore}/10`,
+        description: `Cerebras AI scored ${lead.name}: ${finalScore}/10`,
         metadata: { 
-          provider: 'cerebras', 
-          model: 'llama3.1-8b',
           score: finalScore,
-          notes_preview: notes?.substring(0, 100)
+          model: 'llama3.1-8b',
+          notes_preview: notes?.substring(0, 50)
         }
       })
     } catch (logError) {
-      console.warn('Failed to log activity:', logError)
-      // Ikke kritisk, fortsett
+      console.warn('Logging failed:', logError)
     }
 
-    // Hvis score er høy, opprett automatisk oppgave
+    // Hot lead? Opprett oppgave
     if (finalScore >= 8) {
       await supabase.from('tasks').insert({
         lead_id: leadId,
         user_id: userId,
-        title: `🔥 Hot lead: ${lead.name} scored ${finalScore}/10`,
-        description: `Follow up immediately with this hot lead. Score: ${finalScore}/10`,
-        due_date: new Date().toISOString(),
-        priority: 'high'
+        title: `🔥 Hot lead: ${lead.name}`,
+        description: `Lead scored ${finalScore}/10. Follow up immediately!`,
+        due_date: new Date().toISOString()
       })
     }
 
     res.status(200).json({ 
-      score: finalScore, 
       success: true,
-      message: `Lead scored ${finalScore}/10`
+      score: finalScore,
+      lead: lead.name
     })
 
   } catch (error: any) {
-    console.error('Error scoring lead:', error)
+    console.error('Unexpected error:', error)
     res.status(500).json({ 
-      error: error.message || 'Failed to score lead',
-      success: false 
+      error: error.message || 'Internal server error',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })
   }
 }
