@@ -21,13 +21,28 @@ export default async function handler(
   }
 
   try {
-    const prompt = `Write a friendly follow-up message to a lead named ${leadName}${company ? ` from ${company}` : ''}. Keep it short, professional and friendly.`
+    // Hent brukerprofil for å personliggjøre meldingen
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, company_name')
+      .eq('id', userId)
+      .single()
+
+    const userName = profile?.full_name || 'Your contact'
+    const companyName = profile?.company_name || 'our team'
+
+    const prompt = `Write a friendly follow-up email from ${userName} at ${companyName} to a lead named ${leadName}${company ? ` from ${company}` : ''}. 
+The email should be professional, warm, and encourage a response. 
+Keep it concise (max 150 words).
+Include placeholders like {{lead_name}} that can be replaced later.
+
+Email:`
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
-      max_tokens: 150,
+      max_tokens: 300,
     })
 
     const message = completion.choices[0].message.content
