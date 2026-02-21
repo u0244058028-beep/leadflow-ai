@@ -8,6 +8,7 @@ import { Lead } from '@/types'
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [scoringLead, setScoringLead] = useState<string | null>(null)
 
   useEffect(() => {
     loadLeads()
@@ -30,6 +31,40 @@ export default function LeadsPage() {
     await supabase.from('leads').insert([{ ...leadData, user_id: user.id }])
     setShowForm(false)
     loadLeads()
+  }
+
+  async function rescoreLead(leadId: string) {
+    setScoringLead(leadId)
+    
+    const { data: notes } = await supabase
+      .from('notes')
+      .select('content')
+      .eq('lead_id', leadId)
+      .limit(10)
+    
+    const notesText = notes?.map(n => n.content).join(' ') || ''
+    
+    const user = (await supabase.auth.getUser()).data.user
+    
+    await fetch('/api/score-lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        leadId,
+        notes: notesText,
+        userId: user?.id,
+      }),
+    })
+    
+    setScoringLead(null)
+    loadLeads()
+  }
+
+  function getScoreColor(score: number | null) {
+    if (!score) return 'bg-gray-100 text-gray-800'
+    if (score >= 8) return 'bg-green-100 text-green-800'
+    if (score >= 5) return 'bg-yellow-100 text-yellow-800'
+    return 'bg-red-100 text-red-800'
   }
 
   return (
@@ -64,14 +99,26 @@ export default function LeadsPage() {
                       <p className="text-sm font-medium text-blue-600 truncate">{lead.name}</p>
                       <p className="text-sm text-gray-500">{lead.company || '–'}</p>
                     </div>
-                    <div className="ml-2 flex-shrink-0 flex">
-                      <p className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                    <div className="ml-2 flex-shrink-0 flex items-center gap-2">
+                      <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getScoreColor(lead.ai_score)}`}>
                         {lead.status}
                       </p>
-                      {lead.ai_score && (
-                        <p className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                      
+                      {lead.ai_score ? (
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getScoreColor(lead.ai_score)}`}>
                           Score: {lead.ai_score}
-                        </p>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            rescoreLead(lead.id)
+                          }}
+                          disabled={scoringLead === lead.id}
+                          className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full hover:bg-purple-200 disabled:opacity-50"
+                        >
+                          {scoringLead === lead.id ? 'Scoring...' : 'Get score'}
+                        </button>
                       )}
                     </div>
                   </div>
