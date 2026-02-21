@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
 import TaskForm from '@/components/TaskForm'
 import AIActivityLog from '@/components/AIActivityLog'
+import BookingModal from '@/components/BookingModal'
 import { Lead, Task, Note } from '@/types'
 
 export default function LeadDetail() {
@@ -16,12 +17,16 @@ export default function LeadDetail() {
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [generatedMessage, setGeneratedMessage] = useState('')
   const [loadingAI, setLoadingAI] = useState(false)
+  const [userName, setUserName] = useState('')
   
   // E-post states
   const [showEmailForm, setShowEmailForm] = useState(false)
   const [emailSubject, setEmailSubject] = useState('')
   const [emailContent, setEmailContent] = useState('')
   const [sendingEmail, setSendingEmail] = useState(false)
+  
+  // Booking state
+  const [showBookingModal, setShowBookingModal] = useState(false)
 
   useEffect(() => {
     if (id) loadData()
@@ -31,6 +36,15 @@ export default function LeadDetail() {
     const user = (await supabase.auth.getUser()).data.user
     if (!user) return
 
+    // Hent brukernavn
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single()
+    if (profile) setUserName(profile.full_name)
+
+    // Hent lead
     const { data: leadData } = await supabase
       .from('leads')
       .select('*')
@@ -38,6 +52,7 @@ export default function LeadDetail() {
       .single()
     setLead(leadData)
 
+    // Hent oppgaver
     const { data: tasksData } = await supabase
       .from('tasks')
       .select('*')
@@ -45,6 +60,7 @@ export default function LeadDetail() {
       .order('due_date', { ascending: true })
     setTasks(tasksData || [])
 
+    // Hent notater
     const { data: notesData } = await supabase
       .from('notes')
       .select('*')
@@ -175,6 +191,27 @@ export default function LeadDetail() {
     } finally {
       setSendingEmail(false)
     }
+  }
+
+  async function handleBookMeeting() {
+    if (!lead?.email) {
+      alert('This lead has no email address. Please add an email first.')
+      return
+    }
+    
+    const user = (await supabase.auth.getUser()).data.user
+    if (!user) return
+
+    setShowBookingModal(true)
+
+    // Logg at booking ble foreslått
+    await supabase.from('ai_activity_log').insert({
+      user_id: user.id,
+      lead_id: lead.id,
+      action_type: 'booking_initiated',
+      description: `Opened booking calendar for ${lead.name}`,
+      metadata: { email: lead.email },
+    })
   }
 
   function getScoreColor(score: number | null) {
@@ -366,6 +403,22 @@ export default function LeadDetail() {
                 </div>
               </div>
             )}
+
+            {/* Booking-knapp */}
+            <div className="mt-4 border-t pt-4">
+              <button
+                onClick={handleBookMeeting}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Book meeting with {lead.name}
+              </button>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Lead will receive calendar invitation directly
+              </p>
+            </div>
           </div>
 
           <div className="mt-6">
@@ -373,6 +426,15 @@ export default function LeadDetail() {
           </div>
         </div>
       </div>
+
+      {/* Booking Modal */}
+      <BookingModal
+        isOpen={showBookingModal}
+        onClose={() => setShowBookingModal(false)}
+        leadName={lead.name}
+        leadEmail={lead.email}
+        userName={userName}
+      />
     </Layout>
   )
 }
