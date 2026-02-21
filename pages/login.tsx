@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/router'
 
@@ -8,13 +8,6 @@ export default function Login() {
   const [isLogin, setIsLogin] = useState(true)
   const [message, setMessage] = useState('')
   const router = useRouter()
-
-  // Hvis brukeren allerede er logget inn, send til dashboard
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) router.push('/dashboard')
-    })
-  }, [router])
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,14 +19,14 @@ export default function Login() {
         password,
       })
       if (error) setMessage(error.message)
-      else router.push('/dashboard')
+      // Redirect håndteres i _app
     } else {
       const { error } = await supabase.auth.signUp({
         email,
         password,
       })
       if (error) setMessage(error.message)
-      else setMessage('Sjekk e-posten din for bekreftelse!')
+      else setMessage('Check your email for confirmation!')
     }
   }
 
@@ -41,7 +34,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/dashboard`, // <-- viktig: send til dashboard
+        redirectTo: `${window.location.origin}`,
       },
     })
     if (error) setMessage(error.message)
@@ -51,7 +44,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
         <h2 className="text-2xl font-bold text-center">
-          {isLogin ? 'Logg inn' : 'Opprett konto'}
+          {isLogin ? 'Log in' : 'Create account'}
         </h2>
 
         <button
@@ -76,7 +69,7 @@ export default function Login() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          Fortsett med Google
+          Continue with Google
         </button>
 
         <div className="relative">
@@ -84,14 +77,14 @@ export default function Login() {
             <div className="w-full border-t border-gray-300" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Eller med e-post</span>
+            <span className="px-2 bg-white text-gray-500">Or with email</span>
           </div>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleEmailSubmit}>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              E-post
+              Email
             </label>
             <input
               id="email"
@@ -104,7 +97,7 @@ export default function Login() {
           </div>
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Passord
+              Password
             </label>
             <input
               id="password"
@@ -120,16 +113,16 @@ export default function Login() {
             type="submit"
             className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
-            {isLogin ? 'Logg inn' : 'Registrer'}
+            {isLogin ? 'Log in' : 'Sign up'}
           </button>
         </form>
         <p className="text-center text-sm">
-          {isLogin ? 'Har du ikke konto? ' : 'Har du allerede konto? '}
+          {isLogin ? "Don't have an account? " : 'Already have an account? '}
           <button
             onClick={() => setIsLogin(!isLogin)}
             className="text-blue-600 hover:underline"
           >
-            {isLogin ? 'Opprett en' : 'Logg inn'}
+            {isLogin ? 'Sign up' : 'Log in'}
           </button>
         </p>
       </div>
