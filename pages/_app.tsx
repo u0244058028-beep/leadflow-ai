@@ -12,8 +12,8 @@ export default function App({ Component, pageProps }: AppProps) {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       
-      // Hvis ingen session og ikke på login-siden, redirect til login
-      if (!session && router.pathname !== '/login') {
+      // Tillat landing page (/) og login-siden uten innlogging
+      if (!session && router.pathname !== '/login' && router.pathname !== '/') {
         router.push('/login')
       } else {
         setIsLoading(false)
@@ -22,12 +22,11 @@ export default function App({ Component, pageProps }: AppProps) {
 
     checkUser()
 
-    // Lytt på auth-endringer
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         router.push('/login')
-      } else if (event === 'SIGNED_IN' && router.pathname === '/login') {
-        router.push('/')
+      } else if (event === 'SIGNED_IN' && (router.pathname === '/login' || router.pathname === '/')) {
+        router.push('/dashboard')
       }
     })
 
