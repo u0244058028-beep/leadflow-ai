@@ -1,19 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
 import LeadForm from '@/components/LeadForm'
 import Link from 'next/link'
 import { Lead } from '@/types'
+import { useDebounce } from '@/hooks/useDebounce'
 
 type SortField = 'name' | 'company' | 'status' | 'ai_score' | 'created_at'
 type SortOrder = 'asc' | 'desc'
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
-  const [filteredLeads, setFilteredLeads] = useState<Lead[]>([])
   const [showForm, setShowForm] = useState(false)
   const [scoringLead, setScoringLead] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [filterLoading, setFilterLoading] = useState(false)
   const [error, setError] = useState('')
   
   // Søk og filtrering state
@@ -25,7 +26,9 @@ export default function LeadsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
 
-  // Hent unike statuser for filter
+  // Debounce søketerm (vent 300ms etter siste tastetrykk)
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+
   const statusOptions = ['all', 'new', 'contacted', 'qualified', 'converted', 'lost']
   const scoreOptions = ['all', 'high', 'medium', 'low', 'unscored']
 
@@ -33,13 +36,17 @@ export default function LeadsPage() {
     loadLeads()
   }, [])
 
-  useEffect(() => {
-    // Filtrer og sorter leads når søk/filter endres
+  // Optimalisert filtrering med useMemo
+  const filteredLeads = useMemo(() => {
+    if (!leads.length) return []
+    
+    setFilterLoading(true)
+    
     let filtered = [...leads]
 
-    // Tekstsøk
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase()
+    // Tekstsøk (bruker debounced verdi)
+    if (debouncedSearchTerm) {
+      const term = debouncedSearchTerm.toLowerCase()
       filtered = filtered.filter(lead => 
         lead.name.toLowerCase().includes(term) ||
         (lead.company?.toLowerCase() || '').includes(term) ||
@@ -75,19 +82,22 @@ export default function LeadsPage() {
       let aValue: any = a[sortField]
       let bValue: any = b[sortField]
 
-      // Håndter null/undefined
       if (aValue === null || aValue === undefined) aValue = ''
       if (bValue === null || bValue === undefined) bValue = ''
 
-      // Sammenlign
       if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1
       if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1
       return 0
     })
 
-    setFilteredLeads(filtered)
-    setCurrentPage(1) // Reset til første side ved nytt filter
-  }, [leads, searchTerm, statusFilter, scoreFilter, sortField, sortOrder])
+    setFilterLoading(false)
+    return filtered
+  }, [leads, debouncedSearchTerm, statusFilter, scoreFilter, sortField, sortOrder])
+
+  // Reset til første side når filter endres
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearchTerm, statusFilter, scoreFilter, sortField, sortOrder])
 
   async function loadLeads() {
     setLoading(true)
@@ -109,7 +119,6 @@ export default function LeadsPage() {
 
       if (error) throw error
       setLeads(data || [])
-      setFilteredLeads(data || [])
     } catch (error: any) {
       console.error('Error loading leads:', error)
       setError(error.message)
@@ -209,7 +218,6 @@ export default function LeadsPage() {
     currentPage * itemsPerPage
   )
 
-  // Håndter sortering
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
@@ -219,7 +227,6 @@ export default function LeadsPage() {
     }
   }
 
-  // Sorteringsikon
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <span className="text-gray-300 ml-1">↕️</span>
     return <span className="text-blue-600 ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
@@ -273,6 +280,11 @@ export default function LeadsPage() {
                   d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                 />
               </svg>
+              {filterLoading && (
+                <div className="absolute right-3 top-2.5">
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-blue-600"></div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -368,8 +380,9 @@ export default function LeadsPage() {
 
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         {loading ? (
-          <div className="p-8 text-center text-gray-500">
-            Loading leads...
+          <div className="p-12 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
+            <p className="text-gray-500">Loading leads...</p>
           </div>
         ) : filteredLeads.length === 0 ? (
           <div className="p-8 text-center">
