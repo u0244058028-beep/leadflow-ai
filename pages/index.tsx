@@ -13,7 +13,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      {/* Navigasjon */}
+      {/* Navigation */}
       <nav className="border-b border-gray-200 bg-white/80 backdrop-blur-sm fixed w-full z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
@@ -36,13 +36,13 @@ export default function LandingPage() {
                     href="/login"
                     className="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium"
                   >
-                    Logg inn
+                    Log in
                   </Link>
                   <Link
                     href="/login?signup=true"
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
                   >
-                    Start gratis
+                    Start free trial
                   </Link>
                 </>
               )}
@@ -55,71 +55,71 @@ export default function LandingPage() {
       <section className="pt-32 pb-20 px-4">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            Følg opp leads med
+            Follow up leads with
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent block">
-              AI-assistent
+              AI Assistant
             </span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-10">
-            Automatisk lead-scoring, intelligente oppfølgingsmeldinger og smart oppgaveadministrasjon. 
-            Alt du trenger for å konvertere flere kunder.
+            Automatic lead scoring, intelligent follow-up messages, and smart task management. 
+            Everything you need to convert more customers.
           </p>
           <div className="flex gap-4 justify-center">
             <Link
               href="/login?signup=true"
               className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-lg font-medium"
             >
-              Start gratis 14-dagers prøveperiode
+              Start 14-day free trial
             </Link>
             <Link
               href="#demo"
               className="px-8 py-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-lg font-medium"
             >
-              Se demo
+              Watch demo
             </Link>
           </div>
           <p className="text-sm text-gray-500 mt-4">
-            Ingen kredittkort kreves • Sett opp på 2 minutter
+            No credit card required • Set up in 2 minutes
           </p>
         </div>
       </section>
 
-      {/* Funksjoner */}
+      {/* Features */}
       <section className="py-20 bg-white" id="features">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
-            Alt du trenger for å følge opp leads
+            Everything you need to follow up leads
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
-                title: 'AI-drevet lead-scoring',
-                description: 'Få automatisk vurdering av hvor sannsynlig det er at et lead konverterer, basert på samtaler og notater.',
+                title: 'AI-powered lead scoring',
+                description: 'Get automatic assessment of how likely a lead is to convert, based on conversations and notes.',
                 icon: '🤖',
               },
               {
-                title: 'Smarte oppfølgingsmeldinger',
-                description: 'Generer personlige e-poster med ett klikk. AI-en skriver utkast basert på leadets historikk.',
+                title: 'Smart follow-up messages',
+                description: 'Generate personalized emails with one click. AI writes drafts based on lead history.',
                 icon: '✉️',
               },
               {
-                title: 'Oppgaveadministrasjon',
-                description: 'Hold styr på oppgaver knyttet til hvert lead. Få påminnelser og se hva som haster.',
+                title: 'Task management',
+                description: 'Keep track of tasks for each lead. Get reminders and see what needs attention.',
                 icon: '✅',
               },
               {
-                title: 'Integrert med dine verktøy',
-                description: 'Koble til e-post, kalender og andre systemer du allerede bruker.',
+                title: 'Integrate with your tools',
+                description: 'Connect email, calendar, and other systems you already use.',
                 icon: '🔌',
               },
               {
-                title: 'Sanntidsdashboard',
-                description: 'Få oversikt over pipeline, konverteringsrate og teamets ytelse på ett sted.',
+                title: 'Real-time dashboard',
+                description: 'Get overview of pipeline, conversion rate, and team performance in one place.',
                 icon: '📊',
               },
               {
-                title: 'Sikkerhet og personvern',
-                description: 'Dine data er kryptert og behandles i henhold til GDPR.',
+                title: 'Security & privacy',
+                description: 'Your data is encrypted and processed according to GDPR.',
                 icon: '🔒',
               },
             ].map((feature, i) => (
@@ -133,28 +133,28 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Hvordan det fungerer */}
+      {/* How it works */}
       <section className="py-20 bg-gray-50" id="how-it-works">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
-            Kom i gang på 2 minutter
+            Get started in 2 minutes
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
                 step: '1',
-                title: 'Opprett konto',
-                description: 'Registrer deg med Google eller e-post. Ingen kredittkort nødvendig.',
+                title: 'Create account',
+                description: 'Sign up with Google or email. No credit card needed.',
               },
               {
                 step: '2',
-                title: 'Legg til leads',
-                description: 'Importer eksisterende leads eller legg til manuelt. AI-en begynner å analysere med en gang.',
+                title: 'Add leads',
+                description: 'Import existing leads or add manually. AI starts analyzing immediately.',
               },
               {
                 step: '3',
-                title: 'Få AI-hjelp',
-                description: 'La AI-en score leads og generere oppfølgingsmeldinger. Du fokuserer på å konvertere.',
+                title: 'Get AI help',
+                description: 'Let AI score leads and generate follow-ups. You focus on closing deals.',
               },
             ].map((item) => (
               <div key={item.step} className="text-center">
@@ -169,31 +169,31 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Priser */}
+      {/* Pricing */}
       <section className="py-20 bg-white" id="pricing">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">
-            Enkel, forutsigbar prising
+            Simple, predictable pricing
           </h2>
           <p className="text-xl text-gray-600 text-center mb-12">
-            Ingen skjulte avgifter. Du betaler kun for det du bruker.
+            No hidden fees. You only pay for what you use.
           </p>
           <div className="max-w-md mx-auto">
             <div className="border-2 border-blue-600 rounded-2xl p-8 shadow-xl">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
-              <p className="text-gray-600 mb-6">For salgsteam og gründere</p>
+              <p className="text-gray-600 mb-6">For sales teams and founders</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold">499 kr</span>
-                <span className="text-gray-600">/mnd</span>
+                <span className="text-4xl font-bold">$29</span>
+                <span className="text-gray-600">/month</span>
               </div>
               <ul className="space-y-3 mb-8">
                 {[
-                  'Ubegrenset antall leads',
-                  'AI-scoring av leads',
-                  'Generering av oppfølgingsmeldinger',
-                  'Oppgaveadministrasjon',
-                  'E-postintegrasjon',
-                  '14 dagers gratis prøveperiode',
+                  'Unlimited leads',
+                  'AI lead scoring',
+                  'Follow-up message generation',
+                  'Task management',
+                  'Email integration',
+                  '14-day free trial',
                 ].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -207,7 +207,7 @@ export default function LandingPage() {
                 href="/login?signup=true"
                 className="block w-full text-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
               >
-                Start gratis prøveperiode
+                Start free trial
               </Link>
             </div>
           </div>
@@ -221,27 +221,27 @@ export default function LandingPage() {
             <div>
               <h4 className="text-lg font-semibold mb-4">LeadFlow</h4>
               <p className="text-gray-400 text-sm">
-                AI-drevet lead-oppfølging for moderne salgsteam.
+                AI-powered lead follow-up for modern sales teams.
               </p>
             </div>
             <div>
-              <h4 className="text-lg font-semibold mb-4">Produkt</h4>
+              <h4 className="text-lg font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link href="#features" className="hover:text-white">Funksjoner</Link></li>
-                <li><Link href="#pricing" className="hover:text-white">Prising</Link></li>
-                <li><Link href="#how-it-works" className="hover:text-white">Hvordan det fungerer</Link></li>
+                <li><Link href="#features" className="hover:text-white">Features</Link></li>
+                <li><Link href="#pricing" className="hover:text-white">Pricing</Link></li>
+                <li><Link href="#how-it-works" className="hover:text-white">How it works</Link></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-lg font-semibold mb-4">Selskap</h4>
+              <h4 className="text-lg font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link href="/about" className="hover:text-white">Om oss</Link></li>
-                <li><Link href="/contact" className="hover:text-white">Kontakt</Link></li>
-                <li><Link href="/privacy" className="hover:text-white">Personvern</Link></li>
+                <li><Link href="/about" className="hover:text-white">About</Link></li>
+                <li><Link href="/contact" className="hover:text-white">Contact</Link></li>
+                <li><Link href="/privacy" className="hover:text-white">Privacy</Link></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-lg font-semibold mb-4">Følg oss</h4>
+              <h4 className="text-lg font-semibold mb-4">Follow us</h4>
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><a href="#" className="hover:text-white">Twitter</a></li>
                 <li><a href="#" className="hover:text-white">LinkedIn</a></li>
@@ -249,7 +249,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-sm text-gray-400 text-center">
-            © {new Date().getFullYear()} LeadFlow. Alle rettigheter reservert.
+            © {new Date().getFullYear()} LeadFlow. All rights reserved.
           </div>
         </div>
       </footer>
