@@ -16,6 +16,12 @@ export default function LeadDetail() {
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [generatedMessage, setGeneratedMessage] = useState('')
   const [loadingAI, setLoadingAI] = useState(false)
+  
+  // E-post states
+  const [showEmailForm, setShowEmailForm] = useState(false)
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailContent, setEmailContent] = useState('')
+  const [sendingEmail, setSendingEmail] = useState(false)
 
   useEffect(() => {
     if (id) loadData()
@@ -52,12 +58,10 @@ export default function LeadDetail() {
     const user = (await supabase.auth.getUser()).data.user
     if (!user || !lead) return
     
-    // Legg til notatet
     await supabase.from('notes').insert([
       { lead_id: lead.id, content: newNote, user_id: user.id }
     ])
     
-    // Hent alle notater for å sende til scoring
     const { data: allNotes } = await supabase
       .from('notes')
       .select('content')
@@ -67,7 +71,6 @@ export default function LeadDetail() {
     
     const notesText = allNotes?.map(n => n.content).join(' ') || newNote
     
-    // Kall score-api (fire and forget - vi venter ikke på svar)
     fetch('/api/score-lead', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -122,6 +125,55 @@ export default function LeadDetail() {
       console.error(error)
     } finally {
       setLoadingAI(false)
+    }
+  }
+
+  async function sendEmail() {
+    if (!lead?.email) {
+      alert('This lead has no email address')
+      return
+    }
+    
+    setSendingEmail(true)
+    try {
+      const user = (await supabase.auth.getUser()).data.user
+      if (!user || !lead) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, company_name')
+        .eq('id', user.id)
+        .single()
+
+      let personalizedHtml = emailContent
+        .replace(/{{lead_name}}/g, lead.name)
+        .replace(/{{user_name}}/g, profile?.full_name || 'Your contact')
+        .replace(/{{company_name}}/g, profile?.company_name || 'Our team')
+
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: lead.email,
+          subject: emailSubject,
+          html: personalizedHtml,
+          leadId: lead.id,
+          userId: user.id,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Failed to send email')
+
+      alert('Email sent successfully!')
+      setShowEmailForm(false)
+      setEmailSubject('')
+      setEmailContent('')
+      setGeneratedMessage('')
+    } catch (error) {
+      console.error(error)
+      alert('Failed to send email')
+    } finally {
+      setSendingEmail(false)
     }
   }
 
@@ -249,14 +301,73 @@ export default function LeadDetail() {
             >
               {loadingAI ? 'Generating...' : 'Generate follow-up message'}
             </button>
-            {generatedMessage && (
-              <div className="mt-4 p-3 bg-gray-50 rounded">
-                <p className="text-sm whitespace-pre-wrap">{generatedMessage}</p>
+            
+            {generatedMessage && !showEmailForm && (
+              <div className="mt-4">
+                <div className="p-3 bg-gray-50 rounded mb-3">
+                  <p className="text-sm whitespace-pre-wrap">{generatedMessage}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setEmailContent(generatedMessage)
+                    setEmailSubject(`Following up with ${lead.name}`)
+                    setShowEmailForm(true)
+                  }}
+                  className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                >
+                  ✉️ Send as email
+                </button>
+              </div>
+            )}
+
+            {showEmailForm && (
+              <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+                <h3 className="font-medium mb-3">Send email to {lead.email}</h3>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Subject</label>
+                    <input
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Message</label>
+                    <textarea
+                      rows={6}
+                      value={emailContent}
+                      onChange={(e) => setEmailContent(e.target.value)}
+                      className="mt-1 block w-full border border-gray-300 rounded-md p-2 font-mono text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Available placeholders: {'{{lead_name}}'}, {'{{user_name}}'}, {'{{company_name}}'}
+                    </p>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={sendEmail}
+                      disabled={sendingEmail}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {sendingEmail ? 'Sending...' : 'Send email'}
+                    </button>
+                    <button
+                      onClick={() => setShowEmailForm(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
 
-          {/* AI Activity Log for this lead */}
           <div className="mt-6">
             <AIActivityLog leadId={lead.id} />
           </div>
