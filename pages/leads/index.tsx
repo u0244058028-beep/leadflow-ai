@@ -60,7 +60,7 @@ export default function LeadsPage() {
     loadLeads()
   }
 
-  function getScoreColor(score: number | null) {
+  function getScoreColor(score: number | null | undefined) {
     if (!score) return 'bg-gray-100 text-gray-800'
     if (score >= 8) return 'bg-green-100 text-green-800'
     if (score >= 5) return 'bg-yellow-100 text-yellow-800'
