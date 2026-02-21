@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
 import Link from 'next/link'
+import AIActivityLog from '@/components/AIActivityLog'
 
 export default function Dashboard() {
   const [leadCount, setLeadCount] = useState(0)
@@ -44,6 +45,7 @@ export default function Dashboard() {
   return (
     <Layout>
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+      
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-lg font-semibold text-gray-700">Total Leads</h2>
@@ -60,7 +62,7 @@ export default function Dashboard() {
       </div>
 
       {topLeads.length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="bg-white p-6 rounded-lg shadow mb-8">
           <h2 className="text-lg font-semibold mb-4">Top 5 AI-scored leads</h2>
           <ul className="divide-y">
             {topLeads.map((lead) => (
@@ -74,6 +76,11 @@ export default function Dashboard() {
           </ul>
         </div>
       )}
+
+      {/* AI Activity Log Section */}
+      <div className="mt-8">
+        <AIActivityLog />
+      </div>
     </Layout>
   )
 }
