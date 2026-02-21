@@ -1,26 +1,27 @@
 {
-  "name": "leadflow-ai",
-  "version": "1.0.0",
+  "name": "lead-followup-saas",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
-    "next": "14.2.3",
-    "react": "^18",
-    "react-dom": "^18",
-    "@supabase/supabase-js": "^2",
-    "openai": "^4",
-    "resend": "^4.0.0"
+    "@supabase/supabase-js": "^2.39.0",
+    "next": "14.1.0",
+    "openai": "^4.24.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/react": "^18",
     "@types/node": "^20",
-    "tailwindcss": "^3",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.0.1",
     "postcss": "^8",
-    "autoprefixer": "^10"
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5"
   }
 }
