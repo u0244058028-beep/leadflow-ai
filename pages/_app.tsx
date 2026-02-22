@@ -7,63 +7,102 @@ import { useRouter } from 'next/router'
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
+  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      // Tillat landing page (/) og login-siden uten innlogging
-      if (!session && router.pathname !== '/login' && router.pathname !== '/') {
-        router.push('/login')
-        return
-      }
+    let mounted = true
 
-      // Hvis bruker er innlogget, sjekk om de har profil
-      if (session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', session.user.id)
-          .single()
+    const checkAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) throw error
 
-        // Hvis ingen profil og ikke allerede på onboarding, redirect til onboarding
-        if (!profile && router.pathname !== '/onboarding') {
-          router.push('/onboarding')
-          return
+        if (mounted) {
+          // Publiske sider som ikke krever innlogging
+          const publicPaths = ['/login', '/', '/s/']
+          const isPublicPath = publicPaths.some(path => 
+            router.pathname === path || router.pathname.startsWith('/s/')
+          )
+
+          if (!session && !isPublicPath) {
+            console.log('No session, redirecting to login')
+            router.push('/login')
+            return
+          }
+
+          if (session) {
+            // Sjekk om bruker har profil
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', session.user.id)
+              .single()
+
+            // Hvis ingen profil og ikke på onboarding, redirect
+            if (!profile && router.pathname !== '/onboarding' && !isPublicPath) {
+              router.push('/onboarding')
+              return
+            }
+          }
+
+          setAuthChecked(true)
+          setIsLoading(false)
+        }
+      } catch (err) {
+        console.error('Auth check error:', err)
+        if (mounted) {
+          setAuthChecked(true)
+          setIsLoading(false)
         }
       }
-
-      setIsLoading(false)
     }
 
-    checkUser()
+    checkAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // Lytt på auth-endringer
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event)
+      
       if (event === 'SIGNED_OUT') {
         router.push('/login')
       } else if (event === 'SIGNED_IN') {
-        // Ved innlogging, sjekk profil
-        if (session) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', session.user.id)
-            .single()
+        // Sjekk profil ved innlogging
+        const checkProfile = async () => {
+          if (session) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', session.user.id)
+              .single()
 
-          if (profile) {
-            router.push('/dashboard')
-          } else {
-            router.push('/onboarding')
+            if (profile) {
+              router.push('/dashboard')
+            } else {
+              router.push('/onboarding')
+            }
           }
         }
+        checkProfile()
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [router])
 
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Laster...</div>
+  // Vis loading til auth er sjekket
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Initializing...</p>
+        </div>
+      </div>
+    )
   }
 
   return <Component {...pageProps} />
