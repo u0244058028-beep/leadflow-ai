@@ -9,7 +9,6 @@ export default async function handler(
   res: NextApiResponse
 ) {
   console.log('========== NOTIFY API START ==========')
-  console.log('1. Method:', req.method)
   
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -17,16 +16,16 @@ export default async function handler(
 
   const { lead, page, formData } = req.body
 
-  console.log('2. Received:', { leadId: lead?.id, pageId: page?.id, hasFormData: !!formData })
-
   if (!lead || !page || !formData) {
     return res.status(400).json({ error: 'Missing required fields' })
   }
 
   try {
-    console.log('3. Looking for owner with user_id:', page.user_id)
+    console.log('📧 Sending notification for lead:', lead.id)
+    console.log('👤 Lead email (the person who filled form):', lead.email)
+    console.log('👤 Page owner ID:', page.user_id)
 
-    // HENT EIERENS PROFIL
+    // HENT EIERENS PROFIL (den som eier landing page)
     const { data: owner, error: ownerError } = await supabase
       .from('profiles')
       .select('email, full_name')
@@ -34,24 +33,22 @@ export default async function handler(
       .maybeSingle()
 
     if (ownerError) {
-      console.error('4. ❌ Owner error:', ownerError)
+      console.error('❌ Owner error:', ownerError)
     }
 
     if (!owner) {
-      console.log('5. ⚠️ No owner found in profiles')
+      console.error('❌ No owner found for user_id:', page.user_id)
+      return res.status(404).json({ error: 'Owner not found' })
     }
 
-    // BESTEM EIERENS E-POST
-    const ownerEmail = owner?.email || 'tasnor@hotmail.com' // DIN e-post som fallback
-    const ownerName = owner?.full_name || 'Tor Arne'
+    console.log('✅ Owner found:', owner.email)
+    console.log('📧 Sending TO OWNER:', owner.email) // SKAL VÆRE EIERENS E-POST
+    console.log('📧 Lead email IS:', lead.email) // SKAL VÆRE LEADETS E-POST
 
-    console.log('6. Sending email to OWNER:', ownerEmail)
-    console.log('7. Lead email is:', lead.email)
-
-    // Send e-post til EIEREN (DEG)
+    // Send e-post til EIEREN (den som eier landing page)
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'LeadFlow <noreply@myleadassistant.com>',
-      to: [ownerEmail],
+      to: [owner.email], // ← VIKTIG: DETTE ER EIERENS E-POST
       subject: `🎉 New lead from your landing page!`,
       html: `
         <!DOCTYPE html>
@@ -67,7 +64,7 @@ export default async function handler(
             
             <div style="background: white; padding: 40px 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
               <p style="font-size: 18px; margin-bottom: 30px;">
-                <strong>${ownerName}</strong>, you have a new lead!
+                <strong>${owner.full_name || 'Hi'}</strong>, you have a new lead!
               </p>
               
               <div style="margin-bottom: 30px;">
@@ -77,6 +74,9 @@ export default async function handler(
                     `<li><strong>${key}:</strong> ${value}</li>`
                   ).join('')}
                 </ul>
+                <p style="margin-top: 10px; color: #666; font-size: 14px;">
+                  <strong>Lead email:</strong> ${lead.email} (this is the person who filled the form)
+                </p>
               </div>
               
               <div style="text-align: center; margin-top: 40px;">
@@ -92,11 +92,13 @@ export default async function handler(
     })
 
     if (emailError) {
-      console.error('8. ❌ Resend error:', emailError)
+      console.error('❌ Resend error:', emailError)
       return res.status(500).json({ error: 'Failed to send email' })
     }
 
-    console.log('9. ✅ Email sent to owner! ID:', emailData?.id)
+    console.log('✅ Email sent to owner! ID:', emailData?.id)
+    console.log('✅ Owner email:', owner.email)
+    console.log('✅ Lead email was:', lead.email)
 
     // Logg at varsel ble sendt
     await supabase.from('ai_activity_log').insert({
@@ -104,18 +106,22 @@ export default async function handler(
       lead_id: lead.id,
       action_type: 'notification_sent',
       description: `New lead notification sent to owner`,
-      metadata: { owner_email: ownerEmail, lead_email: lead.email }
+      metadata: { 
+        owner_email: owner.email,
+        lead_email: lead.email,
+        lead_name: lead.name
+      }
     })
 
     res.status(200).json({ 
       success: true, 
       message: 'Notification sent to owner',
-      emailId: emailData?.id,
-      sentTo: ownerEmail
+      sentTo: owner.email,
+      leadEmail: lead.email
     })
 
   } catch (error: any) {
-    console.error('10. ❌ Unexpected error:', error)
+    console.error('❌ Unexpected error:', error)
     res.status(500).json({ error: error.message })
   } finally {
     console.log('========== NOTIFY API END ==========')
