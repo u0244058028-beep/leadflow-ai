@@ -9,7 +9,7 @@ export default function App({ Component, pageProps }: AppProps) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const checkUserAndCreateProfile = async () => {
+    const ensureProfileExists = async () => {
       try {
         console.log('🔍 Checking user session...')
         const { data: { user }, error } = await supabase.auth.getUser()
@@ -21,21 +21,29 @@ export default function App({ Component, pageProps }: AppProps) {
         if (user) {
           console.log('✅ User found:', user.id, user.email)
           
-          // Sjekk om profilen finnes
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', user.id)
-            .maybeSingle()
-
-          if (profileError) {
-            console.error('❌ Profile check error:', profileError)
-          }
-
-          console.log('📋 Profile exists?', !!profile)
+          // PRØV GJENTATTE GANGER å opprette profil
+          let profile = null
+          let attempts = 0
+          const maxAttempts = 3
           
-          // Hvis ikke, opprett den automatisk!
-          if (!profile) {
+          while (!profile && attempts < maxAttempts) {
+            attempts++
+            console.log(`📋 Attempt ${attempts} to find/create profile...`)
+            
+            // Sjekk om profilen finnes
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', user.id)
+              .maybeSingle()
+            
+            if (existingProfile) {
+              profile = existingProfile
+              console.log('✅ Profile already exists')
+              break
+            }
+            
+            // Hvis ikke, opprett den!
             console.log('➕ Creating profile for user:', user.id)
             
             const fullName = user.user_metadata?.full_name || 
@@ -56,6 +64,7 @@ export default function App({ Component, pageProps }: AppProps) {
               console.error('❌ Profile creation error:', insertError)
             } else {
               console.log('✅ Profile created successfully!')
+              profile = { id: user.id } // Bare for å avslutte loopen
             }
           }
         } else {
@@ -68,7 +77,7 @@ export default function App({ Component, pageProps }: AppProps) {
       }
     }
 
-    checkUserAndCreateProfile()
+    ensureProfileExists()
   }, [])
 
   if (isLoading) {
