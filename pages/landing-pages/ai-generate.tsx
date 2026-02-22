@@ -26,50 +26,38 @@ export default function AIGeneratePage() {
         return
       }
 
-      const prompt = `You are an expert copywriter specializing in lead generation pages for a SaaS platform called LeadFlow (myleadassistant.com).
+     const prompt = `You are an expert copywriter helping users of LeadFlow (a SaaS platform) create their own landing pages.
 
-ABOUT LEADFLOW:
-LeadFlow is a SaaS platform that helps businesses capture and manage leads. Users can:
-- Create AI-generated landing pages to capture leads
-- Score and qualify leads automatically
-- Send follow-up emails
-- Track conversions
+IMPORTANT DISTINCTION:
+- YOU are helping a LeadFlow USER create a page for THEIR business
+- The page should be about THEIR product/service, NOT about LeadFlow
+- LeadFlow is just the tool they use to create the page
 
 THE USER'S REQUEST:
 "${description}"
 
 YOUR TASK:
-Create a lead capture page based on their request. The page should:
-1. Offer something valuable in exchange for their email (guide, demo, consultation, checklist, etc.)
-2. Be specific to their business/offer
-3. Include 2-3 compelling benefits
-4. Have a clear call-to-action
+Create a lead capture page for THEIR business based on their request.
+The page should promote THEIR offer, not LeadFlow.
 
-IMPORTANT: 
-- NEVER mention "free trial" unless they specifically ask for it
-- NEVER mention LeadFlow's features on their landing page
-- Focus on THEIR offer, not the platform
+For example:
+- If they write "Get 14 days free trial for myleadassistant.com" → Create a page promoting LeadFlow's free trial
+- If they write "Free eBook about email marketing" → Create a page about THAT eBook
+- If they write "Demo of my accounting software" → Create a page about THAT software
 
-Return EXACTLY this JSON format (NO OTHER TEXT):
+Return EXACTLY this JSON format:
 {
-  "title": "Compelling headline about THEIR offer (max 10 words)",
-  "subheadline": "Supporting line explaining the value to THEM (max 15 words)",
-  "description": "2 sentences about what THEY'LL get",
-  "offer": "The specific thing THEY'RE offering (e.g., 'Free Guide to SaaS Growth')",
-  "benefits": [
-    "Specific benefit 1 for THEIR audience",
-    "Specific benefit 2 for THEIR audience",
-    "Specific benefit 3 for THEIR audience"
-  ],
+  "title": "Headline about THEIR offer",
+  "subheadline": "Supporting line about THEIR value",
+  "description": "Description of THEIR offer",
+  "offer": "What THEY are offering",
+  "benefits": ["Benefit 1", "Benefit 2", "Benefit 3"],
   "fields": [
     { "type": "text", "label": "Full Name", "placeholder": "John Doe", "required": true },
     { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true }
   ],
-  "buttonText": "Get My [Offer] Now",
-  "trustElements": [
-    "No spam, unsubscribe anytime",
-    "We respect your privacy"
-  ]
+  "buttonText": "CTA about THEIR offer",
+  "trustElements": ["No spam", "Privacy guaranteed"]
 }`
 
       const response = await window.puter.ai.chat(prompt, {
