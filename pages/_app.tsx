@@ -11,29 +11,58 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     const checkUserAndCreateProfile = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        console.log('🔍 Checking user session...')
+        const { data: { user }, error } = await supabase.auth.getUser()
         
+        if (error) {
+          console.error('❌ Auth error:', error)
+        }
+
         if (user) {
+          console.log('✅ User found:', user.id, user.email)
+          
           // Sjekk om profilen finnes
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('id')
             .eq('id', user.id)
             .maybeSingle()
+
+          if (profileError) {
+            console.error('❌ Profile check error:', profileError)
+          }
+
+          console.log('📋 Profile exists?', !!profile)
           
           // Hvis ikke, opprett den automatisk!
           if (!profile) {
-            console.log('Creating profile for user:', user.id)
-            await supabase.from('profiles').insert({
-              id: user.id,
-              email: user.email,
-              full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-              avatar_url: user.user_metadata?.avatar_url || null
-            })
+            console.log('➕ Creating profile for user:', user.id)
+            
+            const fullName = user.user_metadata?.full_name || 
+                           user.user_metadata?.name || 
+                           user.email?.split('@')[0] || 
+                           'User'
+            
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: user.id,
+                email: user.email,
+                full_name: fullName,
+                avatar_url: user.user_metadata?.avatar_url || null
+              })
+
+            if (insertError) {
+              console.error('❌ Profile creation error:', insertError)
+            } else {
+              console.log('✅ Profile created successfully!')
+            }
           }
+        } else {
+          console.log('👤 No user logged in')
         }
       } catch (error) {
-        console.error('Error checking/creating profile:', error)
+        console.error('❌ Unexpected error:', error)
       } finally {
         setIsLoading(false)
       }
