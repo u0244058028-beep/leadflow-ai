@@ -19,28 +19,34 @@ export default async function handler(
   }
 
   try {
-    // Hent brukerens profil
-    const { data: user, error: userError } = await supabase
+    console.log('📧 Sending notification for lead:', lead.id)
+
+    // Hent eierens profil
+    const { data: owner, error: ownerError } = await supabase
       .from('profiles')
       .select('email, full_name')
       .eq('id', page.user_id)
       .single()
 
-    if (userError || !user) {
-      console.error('User not found:', userError)
-      return res.status(404).json({ error: 'User not found' })
+    if (ownerError || !owner) {
+      console.error('❌ Owner not found:', ownerError)
+      return res.status(404).json({ error: 'Owner not found' })
     }
+
+    console.log('👤 Owner:', owner.email)
 
     // Bygg HTML for e-post
     const formFieldsHtml = Object.entries(formData)
       .map(([key, value]) => `<li><strong>${key}:</strong> ${value}</li>`)
       .join('')
 
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://myleadassistant.com'
+
     // Send e-post via Resend
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'LeadFlow <notifications@myleadassistant.com>',
-      to: [user.email],
-      subject: `🎉 New lead from ${page.title}!`,
+      to: [owner.email],
+      subject: `🎉 New lead from "${page.title}"!`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -55,23 +61,23 @@ export default async function handler(
             
             <div style="background: white; padding: 40px 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
               <p style="font-size: 18px; margin-bottom: 30px;">
-                <strong>${user.full_name || 'Hi'}</strong>, you have a new lead from your landing page!
+                <strong>${owner.full_name || 'Hi'}</strong>, you have a new lead from your landing page!
               </p>
               
               <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
                 <p style="margin: 0 0 10px 0; font-weight: 600; font-size: 16px;">📄 Page: ${page.title}</p>
-                <p style="margin: 0; color: #6b7280; font-size: 14px;">leadflow.ai/${page.slug}</p>
+                <p style="margin: 0; color: #6b7280; font-size: 14px;">${siteUrl}/s/${page.slug}</p>
               </div>
               
               <div style="margin-bottom: 30px;">
-                <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">📋 Submitted Information:</h3>
+                <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">📋 Lead Information:</h3>
                 <ul style="list-style: none; padding: 0; margin: 0;">
                   ${formFieldsHtml}
                 </ul>
               </div>
               
               <div style="text-align: center; margin-top: 40px;">
-                <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://myleadassistant.com'}/leads/${lead.id}" 
+                <a href="${siteUrl}/leads/${lead.id}" 
                    style="display: inline-block; background: #3b82f6; color: white; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 500;">
                   View Lead in Dashboard →
                 </a>
@@ -80,7 +86,7 @@ export default async function handler(
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 40px 0 20px 0;">
               
               <p style="color: #6b7280; font-size: 12px; text-align: center;">
-                Sent via LeadFlow · <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://myleadassistant.com'}/settings" style="color: #6b7280;">Notification settings</a>
+                Sent via LeadFlow · <a href="${siteUrl}/settings" style="color: #6b7280;">Notification settings</a>
               </p>
             </div>
           </body>
@@ -89,9 +95,11 @@ export default async function handler(
     })
 
     if (emailError) {
-      console.error('Error sending email:', emailError)
+      console.error('❌ Resend error:', emailError)
       return res.status(500).json({ error: 'Failed to send email' })
     }
+
+    console.log('✅ Email sent:', emailData?.id)
 
     // Logg at varsel ble sendt
     await supabase.from('ai_activity_log').insert({
@@ -99,7 +107,7 @@ export default async function handler(
       lead_id: lead.id,
       action_type: 'notification_sent',
       description: `New lead notification sent for ${lead.name}`,
-      metadata: { page_title: page.title, email: user.email }
+      metadata: { page_title: page.title, email: owner.email }
     })
 
     res.status(200).json({ 
@@ -109,7 +117,7 @@ export default async function handler(
     })
 
   } catch (error: any) {
-    console.error('Unexpected error:', error)
+    console.error('❌ Unexpected error:', error)
     res.status(500).json({ 
       error: error.message || 'Internal server error'
     })
