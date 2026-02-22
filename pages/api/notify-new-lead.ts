@@ -9,6 +9,7 @@ export default async function handler(
   res: NextApiResponse
 ) {
   console.log('========== NOTIFY API START ==========')
+  console.log('1. Method:', req.method)
   
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -16,32 +17,38 @@ export default async function handler(
 
   const { lead, page, formData } = req.body
 
+  console.log('2. Received:', { leadId: lead?.id, pageId: page?.id, hasFormData: !!formData })
+
   if (!lead || !page || !formData) {
     return res.status(400).json({ error: 'Missing required fields' })
   }
 
   try {
-    console.log('📧 Sending notification for lead:', lead.id)
+    console.log('3. Looking for owner with user_id:', page.user_id)
 
-    // HENT BRUKERENS (eierens) profil
+    // HENT EIERENS PROFIL
     const { data: owner, error: ownerError } = await supabase
       .from('profiles')
       .select('email, full_name')
-      .eq('id', page.user_id) // page.user_id er brukerens ID
+      .eq('id', page.user_id)
       .maybeSingle()
 
     if (ownerError) {
-      console.error('❌ Owner error:', ownerError)
+      console.error('4. ❌ Owner error:', ownerError)
     }
 
-    // Bestem hvem som skal motta varsel
-    const ownerEmail = owner?.email || 'tasnor@hotmail.com' // fallback til din e-post
+    if (!owner) {
+      console.log('5. ⚠️ No owner found in profiles')
+    }
+
+    // BESTEM EIERENS E-POST
+    const ownerEmail = owner?.email || 'tasnor@hotmail.com' // DIN e-post som fallback
     const ownerName = owner?.full_name || 'Tor Arne'
 
-    console.log('📧 Sending notification to OWNER:', ownerEmail)
-    console.log('📧 Lead email is:', lead.email)
+    console.log('6. Sending email to OWNER:', ownerEmail)
+    console.log('7. Lead email is:', lead.email)
 
-    // Send e-post til EIEREN (deg)
+    // Send e-post til EIEREN (DEG)
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'LeadFlow <noreply@myleadassistant.com>',
       to: [ownerEmail],
@@ -85,11 +92,11 @@ export default async function handler(
     })
 
     if (emailError) {
-      console.error('❌ Resend error:', emailError)
+      console.error('8. ❌ Resend error:', emailError)
       return res.status(500).json({ error: 'Failed to send email' })
     }
 
-    console.log('✅ Email sent to owner! ID:', emailData?.id)
+    console.log('9. ✅ Email sent to owner! ID:', emailData?.id)
 
     // Logg at varsel ble sendt
     await supabase.from('ai_activity_log').insert({
@@ -97,17 +104,18 @@ export default async function handler(
       lead_id: lead.id,
       action_type: 'notification_sent',
       description: `New lead notification sent to owner`,
-      metadata: { owner_email: ownerEmail }
+      metadata: { owner_email: ownerEmail, lead_email: lead.email }
     })
 
     res.status(200).json({ 
       success: true, 
       message: 'Notification sent to owner',
-      emailId: emailData?.id 
+      emailId: emailData?.id,
+      sentTo: ownerEmail
     })
 
   } catch (error: any) {
-    console.error('❌ Unexpected error:', error)
+    console.error('10. ❌ Unexpected error:', error)
     res.status(500).json({ error: error.message })
   } finally {
     console.log('========== NOTIFY API END ==========')
