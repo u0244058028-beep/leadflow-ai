@@ -144,7 +144,7 @@ export default function LeadsPage() {
     }
   }
 
-  // 🎯 OPPDATERT AI-scoring med smart logikk
+  // 🎯 OPPDATERT AI-scoring med smart logikk (uten source)
   async function rescoreLead(leadId: string) {
     if (!leadId) {
       alert('Invalid lead ID')
@@ -186,7 +186,7 @@ export default function LeadsPage() {
       const taskCount = tasks?.length || 0
       const emailCount = emails?.length || 0
 
-      // 🎯 SMART PROMPT for lead-scoring
+      // 🎯 SMART PROMPT for lead-scoring (uten source)
       const prompt = `You are an expert B2B sales lead scorer. Score this lead 1-10 based on:
 
 JOB TITLE SCORING:
@@ -210,7 +210,6 @@ Name: ${lead?.name}
 Title: ${lead?.title || 'Not specified'}
 Company: ${lead?.company || 'Unknown'}
 Industry: ${lead?.industry || 'Unknown'}
-Source: ${lead?.source || 'Manual'}
 
 ENGAGEMENT METRICS:
 Notes count: ${notes?.length || 0}
