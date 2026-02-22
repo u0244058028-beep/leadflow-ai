@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Head from 'next/head'
 
+// Denne siden er PUBLIKK – ingen innlogging nødvendig!
 export default function PublicLandingPage() {
   const router = useRouter()
   const { slug, preview } = router.query
@@ -14,102 +15,69 @@ export default function PublicLandingPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    let isMounted = true
-    let timeoutId: NodeJS.Timeout
-
-    async function loadPage() {
-      if (!slug || typeof slug !== 'string') {
-        if (isMounted) {
-          setError('Invalid page URL')
-          setLoading(false)
-        }
-        return
-      }
-
-      // Timeout på 5 sekunder
-      timeoutId = setTimeout(() => {
-        if (isMounted) {
-          setError('Loading timed out. Please refresh the page.')
-          setLoading(false)
-        }
-      }, 5000)
-
-      try {
-        console.log('Loading page with slug:', slug)
-        
-        // Bygg query
-        let query = supabase
-          .from('landing_pages')
-          .select('*')
-          .eq('slug', slug)
-
-        // Hvis ikke preview, må siden være publisert
-        if (!preview) {
-          query = query.eq('is_published', true)
-        }
-
-        const { data: pageData, error: pageError } = await query.single()
-
-        if (pageError) {
-          console.error('Page error:', pageError)
-          throw new Error('Page not found')
-        }
-
-        if (!pageData) {
-          throw new Error('Page not found')
-        }
-
-        console.log('Page loaded:', pageData)
-
-        if (isMounted) {
-          setPage(pageData)
-
-          // Hent felter
-          const { data: fieldsData, error: fieldsError } = await supabase
-            .from('landing_page_fields')
-            .select('*')
-            .eq('landing_page_id', pageData.id)
-            .order('sort_order')
-
-          if (fieldsError) {
-            console.error('Fields error:', fieldsError)
-          }
-
-          setFields(fieldsData || [])
-          setLoading(false)
-          clearTimeout(timeoutId)
-        }
-        
-      } catch (err: any) {
-        console.error('Error loading page:', err)
-        if (isMounted) {
-          setError(err.message)
-          setLoading(false)
-          clearTimeout(timeoutId)
-        }
-      }
-    }
-
-    loadPage()
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeoutId)
+    if (slug) {
+      loadPage()
     }
   }, [slug, preview])
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function loadPage() {
     setLoading(true)
+    setError(null)
 
     try {
-      // Oppdater views
-      await supabase
-        .from('landing_pages')
-        .update({ views: (page.views || 0) + 1 })
-        .eq('id', page.id)
+      console.log('Loading page with slug:', slug)
 
-      // Opprett lead
+      // Bygg query – IKKE krev innlogging!
+      let query = supabase
+        .from('landing_pages')
+        .select('*')
+        .eq('slug', slug)
+
+      // Hvis ikke preview, må siden være publisert
+      if (!preview) {
+        query = query.eq('is_published', true)
+      }
+
+      const { data: pageData, error: pageError } = await query.single()
+
+      if (pageError) {
+        console.error('Page error:', pageError)
+        throw new Error('Page not found')
+      }
+
+      if (!pageData) {
+        throw new Error('Page not found')
+      }
+
+      console.log('Page loaded:', pageData)
+      setPage(pageData)
+
+      // Hent felter
+      const { data: fieldsData, error: fieldsError } = await supabase
+        .from('landing_page_fields')
+        .select('*')
+        .eq('landing_page_id', pageData.id)
+        .order('sort_order')
+
+      if (fieldsError) {
+        console.error('Fields error:', fieldsError)
+      }
+
+      setFields(fieldsData || [])
+      
+    } catch (err: any) {
+      console.error('Error loading page:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    
+    try {
+      // Opprett lead (uten å kreve innlogging fra besøkende!)
       const { data: newLead, error: leadError } = await supabase
         .from('leads')
         .insert({
@@ -117,14 +85,14 @@ export default function PublicLandingPage() {
           email: formData['Email Address'] || formData.email || null,
           phone: formData['Phone Number'] || formData.phone || null,
           status: 'new',
-          user_id: page.user_id
+          user_id: page.user_id // VIKTIG: tilhører side-eieren!
         })
         .select()
         .single()
 
       if (leadError) throw leadError
 
-      // Hent IP og user agent
+      // Hent IP og user agent via API
       const ipResponse = await fetch('/api/get-client-info')
       const { ipAddress, userAgent } = await ipResponse.json()
 
@@ -142,23 +110,32 @@ export default function PublicLandingPage() {
       // Oppdater konverteringer
       await supabase
         .from('landing_pages')
-        .update({ conversions: (page.conversions || 0) + 1 })
+        .update({ 
+          views: (page.views || 0) + 1,
+          conversions: (page.conversions || 0) + 1 
+        })
         .eq('id', page.id)
 
-      // Send varsel
+      // Send varsel til side-eieren (via API)
       await fetch('/api/notify-new-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead: newLead, page, formData })
+        body: JSON.stringify({ 
+          lead: newLead, 
+          page: {
+            id: page.id,
+            title: page.title,
+            user_id: page.user_id
+          }, 
+          formData 
+        })
       })
 
       setSubmitted(true)
       
     } catch (error: any) {
-      console.error('Error:', error)
-      alert('Something went wrong: ' + error.message)
-    } finally {
-      setLoading(false)
+      console.error('Error submitting form:', error)
+      alert('Something went wrong. Please try again.')
     }
   }
 
@@ -167,7 +144,7 @@ export default function PublicLandingPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading page...</p>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     )
@@ -176,31 +153,36 @@ export default function PublicLandingPage() {
   if (error || !page) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="text-6xl mb-4">😕</div>
           <h1 className="text-2xl font-bold mb-2">Page not found</h1>
-          <p className="text-gray-600 mb-4">{error || 'The page you\'re looking for doesn\'t exist'}</p>
-          <a href="/" className="text-blue-600 hover:underline">Go home</a>
+          <p className="text-gray-600 mb-4">
+            {error || 'The page you\'re looking for doesn\'t exist'}
+          </p>
+          <a href="/" className="text-blue-600 hover:underline">
+            Go to LeadFlow
+          </a>
         </div>
       </div>
     )
   }
 
-  // Hent settings fra AI-genererte sider
+  // Hent settings
   const settings = page.settings || {}
   const benefits = settings.benefits || []
   const trustElements = settings.trustElements || [
-    'No credit card required',
-    '14-day free trial',
-    'Cancel anytime'
+    'No spam, unsubscribe anytime',
+    'We respect your privacy'
   ]
   const buttonText = settings.buttonText || 'Submit'
+  const offer = settings.offer || ''
 
   return (
     <>
       <Head>
         <title>{page.title} | LeadFlow</title>
         <meta name="description" content={page.description || 'Landing page'} />
+        <meta name="robots" content="index, follow" />
       </Head>
 
       <div className="min-h-screen bg-gray-50 py-12 px-4">
@@ -210,7 +192,7 @@ export default function PublicLandingPage() {
           </div>
         )}
 
-        <div className="max-w-2xl mx-auto pt-8">
+        <div className="max-w-2xl mx-auto">
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
             <div className="p-8" style={{ backgroundColor: '#f9fafb' }}>
               {submitted ? (
@@ -221,15 +203,22 @@ export default function PublicLandingPage() {
                     </svg>
                   </div>
                   <h2 className="text-2xl font-bold mb-2">Thank You!</h2>
-                  <p className="text-gray-600">We'll be in touch soon.</p>
+                  <p className="text-gray-600">Check your inbox – we've sent you the {offer}.</p>
                 </div>
               ) : (
                 <>
                   <h1 className="text-3xl md:text-4xl font-bold mb-4" style={{ color: page.primary_color }}>
                     {page.title}
                   </h1>
+                  
                   {page.description && (
                     <p className="text-xl text-gray-600 mb-6">{page.description}</p>
+                  )}
+
+                  {offer && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8 text-center">
+                      <span className="text-lg font-semibold text-blue-800">🎁 {offer}</span>
+                    </div>
                   )}
 
                   {benefits.length > 0 && (
@@ -244,28 +233,18 @@ export default function PublicLandingPage() {
                   )}
 
                   <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 shadow-md">
-                    {fields.map(field => (
+                    {fields.map((field) => (
                       <div key={field.id} className="mb-4">
                         <label className="block text-sm font-medium mb-1">
                           {field.label} {field.required && <span className="text-red-500">*</span>}
                         </label>
-                        {field.field_type === 'textarea' ? (
-                          <textarea
-                            required={field.required}
-                            placeholder={field.placeholder}
-                            onChange={(e) => setFormData({...formData, [field.label]: e.target.value})}
-                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            rows={4}
-                          />
-                        ) : (
-                          <input
-                            type={field.field_type}
-                            required={field.required}
-                            placeholder={field.placeholder}
-                            onChange={(e) => setFormData({...formData, [field.label]: e.target.value})}
-                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        )}
+                        <input
+                          type={field.field_type}
+                          required={field.required}
+                          placeholder={field.placeholder}
+                          onChange={(e) => setFormData({...formData, [field.label]: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
                     ))}
 
