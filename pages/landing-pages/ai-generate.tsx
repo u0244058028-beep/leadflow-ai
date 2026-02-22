@@ -8,57 +8,14 @@ export default function AIGeneratePage() {
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'form' | 'generating' | 'preview'>('form')
   const [generatedPage, setGeneratedPage] = useState<any>(null)
-  
-  const [form, setForm] = useState({
-    businessName: '',
-    businessType: '',
-    targetAudience: '',
-    goal: 'collect-leads',
-    tone: 'professional',
-    colorPreference: 'blue',
-    offerType: 'template'
-  })
-
-  const goalOptions = [
-    { value: 'collect-leads', label: 'Collect leads', icon: '📋' },
-    { value: 'book-meeting', label: 'Book meetings', icon: '📅' },
-    { value: 'sell-product', label: 'Sell product', icon: '🛍️' },
-    { value: 'newsletter', label: 'Newsletter signup', icon: '📧' },
-    { value: 'webinar', label: 'Webinar registration', icon: '🎥' },
-    { value: 'demo', label: 'Request demo', icon: '🎯' }
-  ]
-
-  const offerTypes = [
-    { value: 'guide', label: 'Guide / eBook', icon: '📚' },
-    { value: 'checklist', label: 'Checklist', icon: '✅' },
-    { value: 'template', label: 'Template', icon: '📝' },
-    { value: 'webinar', label: 'Webinar', icon: '🎥' },
-    { value: 'demo', label: 'Demo', icon: '🎯' },
-    { value: 'consultation', label: 'Consultation', icon: '🤝' },
-    { value: 'case-study', label: 'Case Study', icon: '📊' },
-    { value: 'tool', label: 'Free Tool', icon: '🛠️' },
-    { value: 'assessment', label: 'Assessment', icon: '📋' },
-    { value: 'whitepaper', label: 'Whitepaper', icon: '📄' }
-  ]
-
-  const toneOptions = [
-    { value: 'professional', label: 'Professional', icon: '👔' },
-    { value: 'friendly', label: 'Friendly', icon: '😊' },
-    { value: 'enthusiastic', label: 'Enthusiastic', icon: '🔥' },
-    { value: 'minimal', label: 'Minimal', icon: '✨' },
-    { value: 'authoritative', label: 'Authoritative', icon: '👑' }
-  ]
-
-  const colorOptions = [
-    { value: 'blue', label: 'Blue', class: 'bg-blue-600' },
-    { value: 'purple', label: 'Purple', class: 'bg-purple-600' },
-    { value: 'green', label: 'Green', class: 'bg-green-600' },
-    { value: 'red', label: 'Red', class: 'bg-red-600' },
-    { value: 'orange', label: 'Orange', class: 'bg-orange-600' },
-    { value: 'teal', label: 'Teal', class: 'bg-teal-600' }
-  ]
+  const [description, setDescription] = useState('')
 
   async function generateWithAI() {
+    if (!description.trim()) {
+      alert('Please describe what you want to offer')
+      return
+    }
+
     setLoading(true)
     setStep('generating')
     
@@ -69,40 +26,31 @@ export default function AIGeneratePage() {
         return
       }
 
-      const selectedOffer = offerTypes.find(o => o.value === form.offerType)
-
+      // 🎯 ÉN ENKEL PROMPT – AI forstår alt
       const prompt = `You are an expert copywriter specializing in lead generation pages.
 
-Create a HIGH-CONVERTING lead capture page for:
+Create a high-converting lead capture page based on this description:
 
-BUSINESS DETAILS:
-- Name: ${form.businessName || form.businessType}
-- Type: ${form.businessType}
-- Target audience: ${form.targetAudience || 'professionals'}
-- Goal: ${goalOptions.find(g => g.value === form.goal)?.label}
-- Tone: ${form.tone}
-- Offer type: ${selectedOffer?.label || 'template'}
+"${description}"
 
 IMPORTANT RULES:
 1. This is a LEAD CAPTURE page - people give email to get something valuable
-2. The form should have REQUIRED fields (name, email) and OPTIONAL fields (job title, company, phone, industry)
-3. Optional fields help qualify leads without scaring them away
-4. Make it clear which fields are optional with "(optional)" in the label
+2. Create a compelling offer based on the description
+3. Include 2-3 specific benefits
+4. Form should have: Full Name (required), Email (required), and optional fields that make sense
+5. Button text should be action-oriented
+6. Tone should match the description
 
 Return EXACTLY this JSON format:
 {
-  "title": "COMPELLING HEADLINE about the benefit/offer",
+  "title": "Catchy headline (max 10 words)",
   "subheadline": "Supporting line explaining the value",
-  "description": "2-3 sentences about what they'll get",
-  "offer": "The specific free item",
+  "description": "2 sentences about what they'll get",
+  "offer": "The specific free item (e.g., 'Free Guide', 'Free Checklist', 'Demo')",
   "benefits": ["Benefit 1", "Benefit 2", "Benefit 3"],
   "fields": [
     { "type": "text", "label": "Full Name", "placeholder": "John Doe", "required": true },
-    { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true },
-    { "type": "text", "label": "Job Title (optional)", "placeholder": "e.g., CEO, Marketing Manager", "required": false },
-    { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false },
-    { "type": "tel", "label": "Phone (optional)", "placeholder": "+1 234 567 890", "required": false },
-    { "type": "text", "label": "Industry (optional)", "placeholder": "e.g., SaaS, Consulting", "required": false }
+    { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true }
   ],
   "buttonText": "Get My [Offer] Now",
   "trustElements": [
@@ -111,11 +59,11 @@ Return EXACTLY this JSON format:
   ]
 }
 
-Make the optional fields genuinely helpful for qualifying the lead, but not mandatory.`
+Make it specific to: "${description}"`
 
       const response = await window.puter.ai.chat(prompt, {
         model: 'google/gemini-3-flash-preview',
-        temperature: 0.9,
+        temperature: 0.8,
         max_tokens: 2000
       })
 
@@ -131,143 +79,22 @@ Make the optional fields genuinely helpful for qualifying the lead, but not mand
       } catch (e) {
         console.error('Error parsing AI response:', e)
         
-        // SMART FALLBACK med valgfrie felt
-        const offerType = form.offerType
-        const businessType = form.businessType
-        const audience = form.targetAudience || 'professionals'
-        
-        let offer = ''
-        let buttonText = ''
-        let title = ''
-        let benefits = []
-        
-        switch(offerType) {
-          case 'guide':
-            offer = `Free ${businessType} Lead Generation Guide`
-            buttonText = 'Get My Free Guide'
-            title = `Free Guide: How ${businessType} Companies Generate More Leads`
-            benefits = [
-              `Proven strategies specifically for ${businessType}`,
-              'Real-world examples and case studies',
-              'Actionable templates you can use today'
-            ]
-            break
-          case 'checklist':
-            offer = `The Ultimate ${businessType} Checklist`
-            buttonText = 'Get My Free Checklist'
-            title = `Free Checklist: 10 Steps to ${audience} Success`
-            benefits = [
-              'Step-by-step actionable items',
-              'Downloadable PDF format',
-              'Used by 1000+ professionals'
-            ]
-            break
-          case 'template':
-            offer = `Free ${businessType} Templates Pack`
-            buttonText = 'Download Templates'
-            title = `Ready-to-Use ${businessType} Templates for ${audience}`
-            benefits = [
-              'Professionally designed templates',
-              'Customizable for your needs',
-              'Save hours of work'
-            ]
-            break
-          case 'webinar':
-            offer = 'Free Webinar: Proven Strategies That Work'
-            buttonText = 'Save My Seat'
-            title = `Join Our Free Webinar: How to Master ${businessType}`
-            benefits = [
-              'Live training from experts',
-              'Q&A session included',
-              'Recording sent after'
-            ]
-            break
-          case 'demo':
-            offer = 'Free Personalized Demo'
-            buttonText = 'Book My Demo'
-            title = `See How Our ${businessType} Solution Can Help You`
-            benefits = [
-              'Tailored to your needs',
-              'See real results',
-              'No obligation'
-            ]
-            break
-          case 'consultation':
-            offer = 'Free 30-Minute Strategy Session'
-            buttonText = 'Book My Session'
-            title = `Book Your Free ${businessType} Strategy Call`
-            benefits = [
-              'Personalized advice',
-              'Actionable insights',
-              'No sales pitch'
-            ]
-            break
-          case 'case-study':
-            offer = `Case Study: How [Client] Achieved 3x Growth`
-            buttonText = 'Get Case Study'
-            title = `Real Results: ${businessType} Success Story`
-            benefits = [
-              'Real data and metrics',
-              'Proven methodology',
-              'Learn from their journey'
-            ]
-            break
-          case 'tool':
-            offer = `Free ${businessType} ROI Calculator`
-            buttonText = 'Calculate Now'
-            title = `Try Our Free Tool: Calculate Your Potential Savings`
-            benefits = [
-              'Instant results',
-              'No email required',
-              'See your potential'
-            ]
-            break
-          case 'assessment':
-            offer = 'Free Website Audit'
-            buttonText = 'Get My Audit'
-            title = `Free ${businessType} Assessment for ${audience}`
-            benefits = [
-              'Comprehensive analysis',
-              'Actionable recommendations',
-              'Delivered to your inbox'
-            ]
-            break
-          case 'whitepaper':
-            offer = `The State of ${businessType} 2025 Whitepaper`
-            buttonText = 'Download Whitepaper'
-            title = `Industry Report: ${businessType} Trends for 2025`
-            benefits = [
-              'Latest industry data',
-              'Expert predictions',
-              'Strategic insights'
-            ]
-            break
-          default:
-            offer = `Free ${businessType} Resource`
-            buttonText = 'Get Free Access'
-            title = `Free ${businessType} Guide for ${audience}`
-            benefits = [
-              `Proven strategies for ${businessType}`,
-              'Real-world examples',
-              'Actionable templates'
-            ]
-        }
-        
+        // Generisk fallback
         aiSuggestion = {
-          title: title,
-          subheadline: `The ultimate resource for ${audience} looking to grow their business`,
-          description: `Join thousands of satisfied ${businessType} professionals.`,
-          offer: offer,
-          benefits: benefits,
+          title: `Free Guide: How to Master ${description.split(' ').slice(0, 3).join(' ')}`,
+          subheadline: `The ultimate resource for professionals`,
+          description: `Learn the proven strategies that top performers use to succeed.`,
+          offer: `Free ${description.split(' ')[0]} Guide`,
+          benefits: [
+            'Save time with proven methods',
+            'Expert insights and tips',
+            'Practical templates included'
+          ],
           fields: [
             { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
-            { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true },
-            { type: 'text', label: 'Job Title (optional)', placeholder: 'e.g., CEO', required: false },
-            { type: 'text', label: 'Company (optional)', placeholder: 'e.g., Acme Inc', required: false },
-            { type: 'tel', label: 'Phone (optional)', placeholder: '+1 234 567 890', required: false },
-            { type: 'text', label: 'Industry (optional)', placeholder: 'e.g., SaaS', required: false }
+            { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true }
           ],
-          buttonText: buttonText,
+          buttonText: 'Get My Free Guide',
           trustElements: [
             'No spam, unsubscribe anytime',
             'We respect your privacy'
@@ -275,23 +102,19 @@ Make the optional fields genuinely helpful for qualifying the lead, but not mand
         }
       }
 
-      const colorMap = {
-        blue: '#3b82f6',
-        purple: '#8b5cf6',
-        green: '#10b981',
-        red: '#ef4444',
-        orange: '#f97316',
-        teal: '#14b8a6'
-      }
+      // Generer slug fra beskrivelsen
+      const slug = description
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 50)
 
       setGeneratedPage({
         ...aiSuggestion,
-        primaryColor: colorMap[form.colorPreference as keyof typeof colorMap],
-        template: form.tone === 'minimal' ? 'minimal' : 'modern',
-        slug: (form.businessName || form.businessType).toLowerCase()
-          .replace(/[^a-z0-9]/g, '-')
-          .replace(/-+/g, '-')
-          .replace(/^-|-$/g, '')
+        primaryColor: '#3b82f6', // Standard blå
+        template: 'modern',
+        slug: slug
       })
 
       setStep('preview')
@@ -352,7 +175,7 @@ Make the optional fields genuinely helpful for qualifying the lead, but not mand
 
       if (pageError) throw pageError
 
-      // Opprett feltene (med required/optional)
+      // Opprett feltene
       for (let i = 0; i < generatedPage.fields.length; i++) {
         const field = generatedPage.fields[i]
         await supabase
@@ -379,7 +202,7 @@ Make the optional fields genuinely helpful for qualifying the lead, but not mand
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         <div className="mb-6 flex items-center justify-between">
           <button 
             onClick={() => router.back()} 
@@ -406,170 +229,52 @@ Make the optional fields genuinely helpful for qualifying the lead, but not mand
         </div>
 
         {step === 'form' && (
-          <>
+          <div className="bg-white rounded-xl shadow-lg p-8">
             <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
               🤖 AI Landing Page Generator
             </h1>
             <p className="text-gray-600 mb-8">
-              Tell us about your offer, and our AI will create a high-converting lead capture page in seconds.
+              Describe what you want to offer – our AI will create a high-converting lead capture page in seconds.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Business name</label>
-                    <input
-                      type="text"
-                      value={form.businessName}
-                      onChange={(e) => setForm({...form, businessName: e.target.value})}
-                      className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g., LeadFlow, Acme Inc"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Business type *</label>
-                    <input
-                      type="text"
-                      value={form.businessType}
-                      onChange={(e) => setForm({...form, businessType: e.target.value})}
-                      className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g., SaaS, Consulting, E-commerce"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Target audience</label>
-                    <input
-                      type="text"
-                      value={form.targetAudience}
-                      onChange={(e) => setForm({...form, targetAudience: e.target.value})}
-                      className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g., Small business owners, Developers"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">What are you offering?</label>
-                    <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto p-1">
-                      {offerTypes.map(option => (
-                        <button
-                          key={option.value}
-                          onClick={() => setForm({...form, offerType: option.value})}
-                          className={`p-2 border rounded-lg text-left transition ${
-                            form.offerType === option.value
-                              ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
-                              : 'hover:border-gray-400'
-                          }`}
-                        >
-                          <span className="text-xl mb-1 block">{option.icon}</span>
-                          <span className="text-xs font-medium">{option.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Goal</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {goalOptions.map(option => (
-                        <button
-                          key={option.value}
-                          onClick={() => setForm({...form, goal: option.value})}
-                          className={`p-3 border rounded-lg text-left transition ${
-                            form.goal === option.value
-                              ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
-                              : 'hover:border-gray-400'
-                          }`}
-                        >
-                          <span className="text-2xl mb-1 block">{option.icon}</span>
-                          <span className="text-sm font-medium">{option.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Tone</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {toneOptions.map(option => (
-                        <button
-                          key={option.value}
-                          onClick={() => setForm({...form, tone: option.value})}
-                          className={`p-3 border rounded-lg text-left transition ${
-                            form.tone === option.value
-                              ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
-                              : 'hover:border-gray-400'
-                          }`}
-                        >
-                          <span className="text-2xl mb-1 block">{option.icon}</span>
-                          <span className="text-sm font-medium">{option.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Primary color</label>
-                    <div className="flex gap-3">
-                      {colorOptions.map(option => (
-                        <button
-                          key={option.value}
-                          onClick={() => setForm({...form, colorPreference: option.value})}
-                          className={`w-10 h-10 rounded-full transition-all ${
-                            form.colorPreference === option.value
-                              ? 'ring-2 ring-offset-2 ring-gray-400 scale-110'
-                              : 'hover:scale-105'
-                          } ${option.class}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={generateWithAI}
-                    disabled={!form.businessType}
-                    className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 text-lg"
-                  >
-                    <span>✨</span>
-                    Generate Landing Page
-                  </button>
-                </div>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  What are you offering? <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g., A free guide about social media marketing, a demo of our SaaS product, a consultation for small business owners, a webinar about AI tools..."
+                  className="w-full border border-gray-300 rounded-lg p-4 h-32 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Be as specific as you want – the AI will understand and create the perfect page.
+                </p>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-8">
-                <h3 className="font-semibold text-lg mb-4">✨ What you'll get</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Your landing page will have required fields (name, email) and optional fields to qualify leads:
-                </p>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="text-red-500">*</span> Full Name (required)
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-red-500">*</span> Email Address (required)
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-600">
-                    <span className="text-gray-400">⭕</span> Job Title (optional)
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-600">
-                    <span className="text-gray-400">⭕</span> Company (optional)
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-600">
-                    <span className="text-gray-400">⭕</span> Phone (optional)
-                  </li>
-                  <li className="flex items-center gap-2 text-gray-600">
-                    <span className="text-gray-400">⭕</span> Industry (optional)
-                  </li>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-medium text-blue-800 mb-2">✨ Examples</h3>
+                <ul className="space-y-2 text-sm text-blue-700">
+                  <li>"Free eBook about email marketing for e-commerce stores"</li>
+                  <li>"Personalized demo of our project management software"</li>
+                  <li>"30-minute strategy session for real estate agents"</li>
+                  <li>"Checklist for launching a successful podcast"</li>
+                  <li>"Webinar about AI tools for small businesses"</li>
                 </ul>
-                <p className="text-xs text-gray-500 mt-4">
-                  Optional fields help you score leads better without scaring them away.
-                </p>
               </div>
+
+              <button
+                onClick={generateWithAI}
+                disabled={!description.trim()}
+                className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2 text-lg"
+              >
+                <span>✨</span>
+                Generate Landing Page
+              </button>
             </div>
-          </>
+          </div>
         )}
 
         {step === 'generating' && (
