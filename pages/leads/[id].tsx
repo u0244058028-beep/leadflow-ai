@@ -6,6 +6,8 @@ import TaskForm from '@/components/TaskForm'
 import AIActivityLog from '@/components/AIActivityLog'
 import BookingModal from '@/components/BookingModal'
 import { Lead, Task, Note } from '@/types'
+import FileUpload from '@/components/FileUpload'
+import FileList from '@/components/FileList'
 
 export default function LeadDetail() {
   const router = useRouter()
