@@ -13,6 +13,7 @@ export default function PublicLandingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null) // NY: for feilmelding uten dialog
 
   useEffect(() => {
     if (slug) {
@@ -25,7 +26,7 @@ export default function PublicLandingPage() {
     setError(null)
 
     try {
-      console.log('Loading page with slug:', slug)
+      console.log('🚀 Loading page with slug:', slug)
 
       let query = supabase
         .from('landing_pages')
@@ -39,7 +40,7 @@ export default function PublicLandingPage() {
       const { data: pageData, error: pageError } = await query.single()
 
       if (pageError) {
-        console.error('Page error:', pageError)
+        console.error('❌ Page error:', pageError)
         throw new Error('Page not found')
       }
 
@@ -47,10 +48,12 @@ export default function PublicLandingPage() {
         throw new Error('Page not found')
       }
 
-      console.log('Page loaded:', pageData)
+      console.log('✅ Page loaded:', pageData)
       setPage(pageData)
 
       // Hent felter
+      console.log('📋 Loading fields for page:', pageData.id)
+      
       const { data: fieldsData, error: fieldsError } = await supabase
         .from('landing_page_fields')
         .select('*')
@@ -58,13 +61,14 @@ export default function PublicLandingPage() {
         .order('sort_order')
 
       if (fieldsError) {
-        console.error('Fields error:', fieldsError)
+        console.error('❌ Fields error:', fieldsError)
       }
 
       if (fieldsData && fieldsData.length > 0) {
+        console.log('✅ Fields loaded:', fieldsData.length)
         setFields(fieldsData)
       } else {
-        // Default fields
+        console.log('⚠️ No fields found, using defaults')
         setFields([
           {
             id: 'default-name',
@@ -84,7 +88,7 @@ export default function PublicLandingPage() {
       }
       
     } catch (err: any) {
-      console.error('Error loading page:', err)
+      console.error('❌ Error loading page:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -94,31 +98,34 @@ export default function PublicLandingPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
+    setSubmitError(null) // Nullstill feilmelding
     
     try {
-      console.log('Form submitted:', formData)
+      console.log('📝 Form submitted with data:', formData)
 
-      // Sjekk at vi har nødvendig data
-      if (!formData['Full Name'] && !formData['Email Address']) {
-        throw new Error('Please fill in required fields')
+      // Valider at vi har epost
+      const email = formData['Email Address'] || formData.email
+      if (!email) {
+        throw new Error('Email is required')
       }
 
-      // Opprett lead
+      // Forbered lead data
       const leadData = {
         name: formData['Full Name'] || formData.name || 'Lead from landing page',
-        email: formData['Email Address'] || formData.email,
+        email: email,
         title: formData['Job Title'] || null,
         company: formData['Company'] || null,
         phone: formData['Phone'] || null,
         industry: formData['Industry'] || null,
         company_size: formData['Company Size'] || null,
         status: 'new',
-        user_id: page.user_id, // VIKTIG: tilhører side-eieren!
+        user_id: page.user_id,
         source: `landing_page_${page.slug}`
       }
 
-      console.log('Creating lead:', leadData)
+      console.log('💾 Attempting to create lead:', leadData)
 
+      // 1. Opprett lead
       const { data: newLead, error: leadError } = await supabase
         .from('leads')
         .insert(leadData)
@@ -126,17 +133,32 @@ export default function PublicLandingPage() {
         .single()
 
       if (leadError) {
-        console.error('Lead error details:', leadError)
+        console.error('❌ Lead creation error details:', {
+          message: leadError.message,
+          details: leadError.details,
+          hint: leadError.hint,
+          code: leadError.code
+        })
         throw new Error('Could not save your information. Please try again.')
       }
 
-      console.log('Lead created:', newLead)
+      console.log('✅ Lead created successfully:', newLead)
 
-      // Hent IP og user agent via API
-      const ipResponse = await fetch('/api/get-client-info')
-      const { ipAddress, userAgent } = await ipResponse.json()
+      // 2. Hent IP og user agent
+      let ipAddress = 'Unknown'
+      let userAgent = 'Unknown'
+      
+      try {
+        const ipResponse = await fetch('/api/get-client-info')
+        const ipData = await ipResponse.json()
+        ipAddress = ipData.ipAddress || 'Unknown'
+        userAgent = ipData.userAgent || 'Unknown'
+        console.log('🌐 Client info:', { ipAddress, userAgent })
+      } catch (ipError) {
+        console.error('⚠️ Could not get client info:', ipError)
+      }
 
-      // Lagre form-data
+      // 3. Lagre landing page lead data
       const { error: formError } = await supabase
         .from('landing_page_leads')
         .insert({
@@ -148,12 +170,14 @@ export default function PublicLandingPage() {
         })
 
       if (formError) {
-        console.error('Form data error:', formError)
+        console.error('⚠️ Form data storage error:', formError)
         // Ikke kritisk, fortsett
+      } else {
+        console.log('✅ Landing page lead data saved')
       }
 
-      // Oppdater konverteringer
-      await supabase
+      // 4. Oppdater views og conversions
+      const { error: updateError } = await supabase
         .from('landing_pages')
         .update({ 
           views: (page.views || 0) + 1,
@@ -161,7 +185,13 @@ export default function PublicLandingPage() {
         })
         .eq('id', page.id)
 
-      // Send varsel til side-eieren (fire and forget)
+      if (updateError) {
+        console.error('⚠️ Could not update page stats:', updateError)
+      } else {
+        console.log('✅ Page stats updated')
+      }
+
+      // 5. Send varsel (fire and forget)
       fetch('/api/notify-new-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -174,13 +204,15 @@ export default function PublicLandingPage() {
           }, 
           formData 
         })
-      }).catch(err => console.error('Notification error:', err))
+      }).catch(err => console.error('⚠️ Notification error:', err))
 
+      console.log('🎉 All done! Redirecting to thank you page...')
       setSubmitted(true)
       
     } catch (error: any) {
-      console.error('Error submitting form:', error)
-      alert(error.message || 'Something went wrong. Please try again.')
+      console.error('❌ Submit error:', error)
+      // Vis feilmelding i UI i stedet for alert
+      setSubmitError(error.message || 'Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -278,6 +310,13 @@ export default function PublicLandingPage() {
                     </div>
                   )}
 
+                  {/* Feilmelding – vises uten dialogboks */}
+                  {submitError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                      ⚠️ {submitError}
+                    </div>
+                  )}
+
                   <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 shadow-md">
                     {fields.map((field) => (
                       <div key={field.id} className="mb-4">
@@ -291,6 +330,7 @@ export default function PublicLandingPage() {
                           value={formData[field.label] || ''}
                           onChange={(e) => setFormData({...formData, [field.label]: e.target.value})}
                           className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          disabled={submitting}
                         />
                       </div>
                     ))}
@@ -298,10 +338,17 @@ export default function PublicLandingPage() {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full py-3 text-white rounded-lg font-medium transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full py-3 text-white rounded-lg font-medium transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       style={{ backgroundColor: page.primary_color }}
                     >
-                      {submitting ? 'Sending...' : buttonText}
+                      {submitting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          Sending...
+                        </>
+                      ) : (
+                        buttonText
+                      )}
                     </button>
                   </form>
 
