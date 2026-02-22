@@ -5,9 +5,9 @@ import Layout from '@/components/Layout'
 import TaskForm from '@/components/TaskForm'
 import AIActivityLog from '@/components/AIActivityLog'
 import BookingModal from '@/components/BookingModal'
-import { Lead, Task, Note } from '@/types'
 import FileUpload from '@/components/FileUpload'
 import FileList from '@/components/FileList'
+import { Lead, Task, Note } from '@/types'
 
 export default function LeadDetail() {
   const router = useRouter()
@@ -20,7 +20,7 @@ export default function LeadDetail() {
   const [generatedMessage, setGeneratedMessage] = useState('')
   const [loadingAI, setLoadingAI] = useState(false)
   const [userName, setUserName] = useState('')
-const [fileListKey, setFileListKey] = useState(0)
+  const [fileListKey, setFileListKey] = useState(0)
   
   // E-post states
   const [showEmailForm, setShowEmailForm] = useState(false)
@@ -207,7 +207,6 @@ const [fileListKey, setFileListKey] = useState(0)
 
     setShowBookingModal(true)
 
-    // Logg at booking ble foreslått
     await supabase.from('ai_activity_log').insert({
       user_id: user.id,
       lead_id: lead.id,
@@ -237,8 +236,9 @@ const [fileListKey, setFileListKey] = useState(0)
       <h1 className="text-2xl font-bold mb-4">{lead.name}</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Kolonne 1: Detaljer og notater */}
+        {/* Kolonne 1: Detaljer, notater og FILER */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Details Card */}
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-lg font-semibold mb-4">Details</h2>
             <p><span className="font-medium">Company:</span> {lead.company || '–'}</p>
@@ -263,6 +263,7 @@ const [fileListKey, setFileListKey] = useState(0)
             )}
           </div>
 
+          {/* Notes Card */}
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-lg font-semibold mb-4">Notes</h2>
             <div className="space-y-3 mb-4">
@@ -286,10 +287,29 @@ const [fileListKey, setFileListKey] = useState(0)
               </button>
             </div>
           </div>
+
+          {/* Files Card */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h2 className="text-lg font-semibold mb-4">📎 Files</h2>
+            
+            <FileUpload 
+              leadId={lead.id} 
+              onUploadComplete={() => setFileListKey(prev => prev + 1)} 
+            />
+            
+            <div className="mt-4">
+              <FileList 
+                key={fileListKey}
+                leadId={lead.id} 
+                onFileDeleted={() => setFileListKey(prev => prev + 1)} 
+              />
+            </div>
+          </div>
         </div>
 
         {/* Kolonne 2: Oppgaver, AI og Activity Log */}
         <div className="space-y-6">
+          {/* Tasks Card */}
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Tasks</h2>
@@ -332,6 +352,7 @@ const [fileListKey, setFileListKey] = useState(0)
             </ul>
           </div>
 
+          {/* AI Assistant Card */}
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-lg font-semibold mb-4">AI Assistant</h2>
             <button
@@ -384,7 +405,7 @@ const [fileListKey, setFileListKey] = useState(0)
                       className="mt-1 block w-full border border-gray-300 rounded-md p-2 font-mono text-sm"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Available placeholders: {'{{lead_name}}'}, {'{{user_name}}'}, {'{{company_name}}'}
+                      Placeholders: {'{{lead_name}}'}, {'{{user_name}}'}, {'{{company_name}}'}
                     </p>
                   </div>
                   
@@ -424,6 +445,7 @@ const [fileListKey, setFileListKey] = useState(0)
             </div>
           </div>
 
+          {/* AI Activity Log */}
           <div className="mt-6">
             <AIActivityLog leadId={lead.id} />
           </div>
