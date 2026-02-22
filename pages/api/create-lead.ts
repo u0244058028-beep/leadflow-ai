@@ -3,13 +3,22 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Bruk service role (har full tilgang)
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Sett CORS-headere for å tillate alle
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -18,10 +27,18 @@ export default async function handler(
     const { leadData, pageId, formData } = req.body
 
     if (!leadData || !pageId || !formData) {
-      return res.status(400).json({ error: 'Missing required fields' })
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        received: { leadData: !!leadData, pageId: !!pageId, formData: !!formData }
+      })
     }
 
-    console.log('Creating lead with admin client:', leadData)
+    console.log('📥 API received:', JSON.stringify({ leadData, pageId }, null, 2))
+
+    // VALIDERING: Sjekk at user_id finnes
+    if (!leadData.user_id) {
+      return res.status(400).json({ error: 'Missing user_id' })
+    }
 
     // Opprett lead med admin-privilegier
     const { data: newLead, error: leadError } = await supabaseAdmin
@@ -31,11 +48,15 @@ export default async function handler(
       .single()
 
     if (leadError) {
-      console.error('Lead creation error:', leadError)
-      throw leadError
+      console.error('❌ Supabase insert error:', leadError)
+      return res.status(500).json({ 
+        error: 'Database error',
+        details: leadError.message,
+        code: leadError.code
+      })
     }
 
-    console.log('Lead created:', newLead)
+    console.log('✅ Lead created:', newLead)
 
     // Lagre skjemadata
     const { error: formError } = await supabaseAdmin
@@ -47,9 +68,20 @@ export default async function handler(
       })
 
     if (formError) {
-      console.error('Form data error:', formError)
+      console.error('⚠️ Form data error:', formError)
       // Ikke kritisk, fortsett
     }
+
+    // Send varsel (fire and forget)
+    fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/notify-new-lead`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        lead: newLead, 
+        page: { id: pageId, user_id: leadData.user_id }, 
+        formData 
+      })
+    }).catch(err => console.error('⚠️ Notification error:', err))
 
     res.status(200).json({ 
       success: true, 
@@ -57,7 +89,7 @@ export default async function handler(
     })
 
   } catch (error: any) {
-    console.error('API error:', error)
+    console.error('❌ API error:', error)
     res.status(500).json({ 
       error: error.message || 'Failed to create lead' 
     })
