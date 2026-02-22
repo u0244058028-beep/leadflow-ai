@@ -13,7 +13,7 @@ export default function PublicLandingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null) // NY: for feilmelding uten dialog
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (slug) {
@@ -98,7 +98,7 @@ export default function PublicLandingPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
-    setSubmitError(null) // Nullstill feilmelding
+    setSubmitError(null)
     
     try {
       console.log('📝 Form submitted with data:', formData)
@@ -123,61 +123,32 @@ export default function PublicLandingPage() {
         source: `landing_page_${page.slug}`
       }
 
-      console.log('💾 Attempting to create lead:', leadData)
+      console.log('💾 Sending to API:', { leadData, pageId: page.id, formData })
 
-      // 1. Opprett lead
-      const { data: newLead, error: leadError } = await supabase
-        .from('leads')
-        .insert(leadData)
-        .select()
-        .single()
-
-      if (leadError) {
-        console.error('❌ Lead creation error details:', {
-          message: leadError.message,
-          details: leadError.details,
-          hint: leadError.hint,
-          code: leadError.code
+      // BRUK API-ET i stedet for direkte Supabase-kall
+      const response = await fetch('/api/create-lead', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          leadData,
+          pageId: page.id,
+          formData
         })
-        throw new Error('Could not save your information. Please try again.')
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('❌ API error response:', result)
+        throw new Error(result.error || result.details || 'Failed to save lead')
       }
 
-      console.log('✅ Lead created successfully:', newLead)
+      console.log('✅ Lead created via API:', result)
 
-      // 2. Hent IP og user agent
-      let ipAddress = 'Unknown'
-      let userAgent = 'Unknown'
-      
-      try {
-        const ipResponse = await fetch('/api/get-client-info')
-        const ipData = await ipResponse.json()
-        ipAddress = ipData.ipAddress || 'Unknown'
-        userAgent = ipData.userAgent || 'Unknown'
-        console.log('🌐 Client info:', { ipAddress, userAgent })
-      } catch (ipError) {
-        console.error('⚠️ Could not get client info:', ipError)
-      }
-
-      // 3. Lagre landing page lead data
-      const { error: formError } = await supabase
-        .from('landing_page_leads')
-        .insert({
-          landing_page_id: page.id,
-          lead_id: newLead.id,
-          form_data: formData,
-          ip_address: ipAddress,
-          user_agent: userAgent
-        })
-
-      if (formError) {
-        console.error('⚠️ Form data storage error:', formError)
-        // Ikke kritisk, fortsett
-      } else {
-        console.log('✅ Landing page lead data saved')
-      }
-
-      // 4. Oppdater views og conversions
-      const { error: updateError } = await supabase
+      // Oppdater views og conversions
+      await supabase
         .from('landing_pages')
         .update({ 
           views: (page.views || 0) + 1,
@@ -185,33 +156,10 @@ export default function PublicLandingPage() {
         })
         .eq('id', page.id)
 
-      if (updateError) {
-        console.error('⚠️ Could not update page stats:', updateError)
-      } else {
-        console.log('✅ Page stats updated')
-      }
-
-      // 5. Send varsel (fire and forget)
-      fetch('/api/notify-new-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          lead: newLead, 
-          page: {
-            id: page.id,
-            title: page.title,
-            user_id: page.user_id
-          }, 
-          formData 
-        })
-      }).catch(err => console.error('⚠️ Notification error:', err))
-
-      console.log('🎉 All done! Redirecting to thank you page...')
       setSubmitted(true)
       
     } catch (error: any) {
       console.error('❌ Submit error:', error)
-      // Vis feilmelding i UI i stedet for alert
       setSubmitError(error.message || 'Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)
