@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
 import Link from 'next/link'
@@ -7,54 +7,71 @@ export default function LandingPages() {
   const [pages, setPages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [initialLoad, setInitialLoad] = useState(true)
 
-  useEffect(() => {
-    loadPages()
-  }, [])
-
-  async function loadPages() {
-    setLoading(true)
-    setError(null)
+  // Bruk useCallback for å unngå at funksjonen gjenopprettes
+  const loadPages = useCallback(async () => {
+    // Unngå å laste hvis allerede laster
+    if (loading && !initialLoad) return
     
     try {
-      // Sjekk at bruker er logget inn
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      setError(null)
       
-      if (userError) {
-        throw new Error('Authentication error: ' + userError.message)
-      }
+      const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
-        setError('You must be logged in to view pages')
+        setError('Please log in to view your pages')
         setLoading(false)
+        setInitialLoad(false)
         return
       }
 
-      console.log('Loading pages for user:', user.id)
-
-      // Hent pages
       const { data, error: pagesError } = await supabase
         .from('landing_pages')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
+        .timeout(10000) // 10 sekunders timeout
 
-      if (pagesError) {
-        console.error('Supabase error:', pagesError)
-        throw new Error('Failed to load pages: ' + pagesError.message)
-      }
-
-      console.log('Pages loaded:', data)
+      if (pagesError) throw pagesError
 
       setPages(data || [])
       
     } catch (err: any) {
       console.error('Error loading pages:', err)
-      setError(err.message || 'An unknown error occurred')
+      setError(err?.message || 'Failed to load pages')
     } finally {
       setLoading(false)
+      setInitialLoad(false)
     }
-  }
+  }, []) // Tom avhengighetsliste = kjører bare én gang
+
+  useEffect(() => {
+    let isMounted = true
+    let timeoutId: NodeJS.Timeout
+
+    const loadWithTimeout = async () => {
+      // Timeout på 5 sekunder – hvis ikke ferdig, vis feil
+      timeoutId = setTimeout(() => {
+        if (isMounted && loading) {
+          setError('Loading timed out. Please try again.')
+          setLoading(false)
+          setInitialLoad(false)
+        }
+      }, 5000)
+
+      await loadPages()
+    }
+
+    if (initialLoad) {
+      loadWithTimeout()
+    }
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
+  }, [initialLoad, loadPages])
 
   async function togglePublish(pageId: string, current: boolean) {
     try {
@@ -68,8 +85,8 @@ export default function LandingPages() {
 
       if (error) throw error
       
-      // Oppdater lokal state
-      setPages(pages.map(p => 
+      // Oppdater lokal state – unngår ny innlasting
+      setPages(prev => prev.map(p => 
         p.id === pageId ? { ...p, is_published: !current } : p
       ))
       
@@ -89,7 +106,8 @@ export default function LandingPages() {
 
       if (error) throw error
       
-      setPages(pages.filter(p => p.id !== pageId))
+      // Fjern fra lokal state
+      setPages(prev => prev.filter(p => p.id !== pageId))
       
     } catch (err: any) {
       alert('Failed to delete: ' + err.message)
@@ -103,7 +121,7 @@ export default function LandingPages() {
     window.open(url, '_blank')
   }
 
-  // Vis loading-state
+  // Vis loading med timeout-indikator
   if (loading) {
     return (
       <Layout>
@@ -111,23 +129,28 @@ export default function LandingPages() {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-500">Loading your landing pages...</p>
+            <p className="text-xs text-gray-400 mt-2">This should only take a few seconds</p>
           </div>
         </div>
       </Layout>
     )
   }
 
-  // Vis feilmelding
+  // Vis feilmelding med retry-knapp
   if (error) {
     return (
       <Layout>
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="text-center max-w-md">
             <div className="text-red-600 text-4xl mb-4">⚠️</div>
-            <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
+            <h2 className="text-xl font-bold mb-2">Could not load pages</h2>
             <p className="text-gray-600 mb-4">{error}</p>
             <button
-              onClick={() => loadPages()}
+              onClick={() => {
+                setLoading(true)
+                setError(null)
+                setInitialLoad(true)
+              }}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
               Try again
