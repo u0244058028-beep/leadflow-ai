@@ -17,7 +17,6 @@ export default function LeadsPage() {
   const [filterLoading, setFilterLoading] = useState(false)
   const [error, setError] = useState('')
   
-  // Søk og filtrering state
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [scoreFilter, setScoreFilter] = useState<string>('all')
@@ -31,7 +30,6 @@ export default function LeadsPage() {
   const statusOptions = ['all', 'new', 'contacted', 'qualified', 'converted', 'lost']
   const scoreOptions = ['all', 'high', 'medium', 'low', 'unscored']
 
-  // Hent leads med timeout
   async function loadLeads() {
     setLoading(true)
     setError('')
@@ -44,25 +42,18 @@ export default function LeadsPage() {
         return
       }
 
-      // Timeout på 10 sekunder
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout - please try again')), 10000)
-      )
-
-      const fetchPromise = supabase
+      const { data, error } = await supabase
         .from('leads')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any
 
       if (error) throw error
       setLeads(data || [])
       
     } catch (error: any) {
       console.error('Error loading leads:', error)
-      setError(error.message || 'Failed to load leads')
+      setError(error.message)
     } finally {
       setLoading(false)
     }
@@ -72,7 +63,6 @@ export default function LeadsPage() {
     loadLeads()
   }, [])
 
-  // Filtrering og sortering
   const filteredLeads = useMemo(() => {
     if (!leads.length) return []
     
@@ -113,10 +103,8 @@ export default function LeadsPage() {
     filtered.sort((a, b) => {
       let aValue: any = a[sortField]
       let bValue: any = b[sortField]
-
       if (aValue === null || aValue === undefined) aValue = ''
       if (bValue === null || bValue === undefined) bValue = ''
-
       if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1
       if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1
       return 0
@@ -130,7 +118,6 @@ export default function LeadsPage() {
     setCurrentPage(1)
   }, [debouncedSearchTerm, statusFilter, scoreFilter, sortField, sortOrder])
 
-  // Opprett nytt lead
   async function handleCreateLead(leadData: Partial<Lead>) {
     try {
       const user = (await supabase.auth.getUser()).data.user
@@ -157,7 +144,7 @@ export default function LeadsPage() {
     }
   }
 
-  // Score lead
+  // 🎯 NY: AI-scoring med Puter.js
   async function rescoreLead(leadId: string) {
     if (!leadId) {
       alert('Invalid lead ID')
@@ -181,24 +168,55 @@ export default function LeadsPage() {
         .limit(10)
 
       const notesText = notes?.map(n => n.content).join(' ') || ''
+      const lead = leads.find(l => l.id === leadId)
 
-      const response = await fetch('/api/score-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId: leadId,
-          notes: notesText,
-          userId: user.id,
-        }),
+      // 🎯 BRUK PUTER.JS – helt gratis AI!
+      console.log('Scoring lead with Puter.ai...')
+      
+      const response = await window.puter.ai.chat(
+        `Score this sales lead from 1-10. Return only a number between 1-10.
+        
+        Name: ${lead?.name}
+        Company: ${lead?.company || 'Unknown'}
+        Status: ${lead?.status}
+        Notes: ${notesText}
+        
+        Score:`,
+        { 
+          model: 'google/gemini-2.5-flash',
+          temperature: 0.3,
+          max_tokens: 5
+        }
+      )
+
+      console.log('Puter response:', response)
+
+      const score = parseInt(response.replace(/[^0-9]/g, '')) || 5
+      const finalScore = Math.min(10, Math.max(1, score))
+
+      // Oppdater i databasen
+      const { error: updateError } = await supabase
+        .from('leads')
+        .update({ ai_score: finalScore })
+        .eq('id', leadId)
+
+      if (updateError) throw updateError
+
+      // Logg aktivitet
+      await supabase.from('ai_activity_log').insert({
+        user_id: user.id,
+        lead_id: leadId,
+        action_type: 'score_updated',
+        description: `Puter.ai scored lead ${finalScore}/10`,
+        metadata: { 
+          score: finalScore,
+          model: 'google/gemini-2.5-flash',
+          provider: 'puter'
+        }
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to score lead')
-      }
-
       await loadLeads()
+      alert(`Lead scored ${finalScore}/10!`)
       
     } catch (error: any) {
       console.error('Error scoring lead:', error)
@@ -226,7 +244,6 @@ export default function LeadsPage() {
     }
   }
 
-  // Paginering
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage)
   const paginatedLeads = filteredLeads.slice(
     (currentPage - 1) * itemsPerPage,
@@ -247,7 +264,6 @@ export default function LeadsPage() {
     return <span className="text-blue-600 ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
   }
 
-  // Hvis det er en feil, vis den
   if (error) {
     return (
       <Layout>
@@ -307,12 +323,7 @@ export default function LeadsPage() {
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               {filterLoading && (
                 <div className="absolute right-3 top-2.5">
@@ -472,9 +483,16 @@ export default function LeadsPage() {
                               rescoreLead(lead.id)
                             }}
                             disabled={scoringLead === lead.id}
-                            className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full hover:bg-purple-200 transition disabled:opacity-50"
+                            className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full hover:bg-purple-200 transition disabled:opacity-50 flex items-center gap-1"
                           >
-                            {scoringLead === lead.id ? 'Scoring...' : 'Get score'}
+                            {scoringLead === lead.id ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-2 border-purple-800 border-t-transparent"></div>
+                                Scoring...
+                              </>
+                            ) : (
+                              '🤖 Get AI score'
+                            )}
                           </button>
                         )}
                       </div>
