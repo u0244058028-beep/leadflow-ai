@@ -8,13 +8,19 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  console.log('📧 NOTIFY API STARTED')
+  console.log('Method:', req.method)
+  console.log('Body:', JSON.stringify(req.body, null, 2))
+
   if (req.method !== 'POST') {
+    console.log('❌ Wrong method:', req.method)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   const { lead, page, formData } = req.body
 
   if (!lead || !page || !formData) {
+    console.log('❌ Missing fields:', { lead: !!lead, page: !!page, formData: !!formData })
     return res.status(400).json({ error: 'Missing required fields' })
   }
 
@@ -42,9 +48,12 @@ export default async function handler(
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://myleadassistant.com'
 
+    console.log('📤 Attempting to send via Resend...')
+    console.log('Resend API Key exists:', !!process.env.RESEND_API_KEY)
+
     // Send e-post via Resend
     const { data: emailData, error: emailError } = await resend.emails.send({
-      from: 'LeadFlow <notifications@myleadassistant.com>',
+      from: 'LeadFlow <noreply@myleadassistant.com>',
       to: [owner.email],
       subject: `🎉 New lead from "${page.title}"!`,
       html: `
@@ -96,10 +105,10 @@ export default async function handler(
 
     if (emailError) {
       console.error('❌ Resend error:', emailError)
-      return res.status(500).json({ error: 'Failed to send email' })
+      return res.status(500).json({ error: 'Failed to send email', details: emailError })
     }
 
-    console.log('✅ Email sent:', emailData?.id)
+    console.log('✅ Email sent successfully! ID:', emailData?.id)
 
     // Logg at varsel ble sendt
     await supabase.from('ai_activity_log').insert({
