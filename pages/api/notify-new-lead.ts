@@ -37,7 +37,13 @@ export default async function handler(
       return res.status(404).json({ error: 'User not found in auth' })
     }
 
+    // SIKRER AT VI HAR EN STRING (ikke undefined)
     const ownerEmail = user.email
+    if (!ownerEmail) {
+      console.error('❌ User has no email address')
+      return res.status(400).json({ error: 'User has no email address' })
+    }
+
     const ownerName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
 
     console.log('✅ Owner found in auth:', ownerEmail)
@@ -55,7 +61,7 @@ export default async function handler(
     // Send e-post til EIEREN
     const { error: emailError } = await resend.emails.send({
       from: 'LeadFlow <noreply@myleadassistant.com>',
-      to: [ownerEmail],
+      to: [ownerEmail], // Nå er ownerEmail garantert en string
       subject: `🎉 New lead from your landing page!`,
       html: `
         <!DOCTYPE html>
