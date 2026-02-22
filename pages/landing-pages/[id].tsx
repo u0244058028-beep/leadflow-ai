@@ -15,7 +15,7 @@ interface Field {
 export default function EditLandingPage() {
   const router = useRouter()
   const { id } = router.query
-  const [activeTab, setActiveTab] = useState<'settings' | 'preview' | 'fields'>('fields')
+  const [activeTab, setActiveTab] = useState<'settings' | 'fields' | 'preview'>('fields')
   const [page, setPage] = useState<any>(null)
   const [fields, setFields] = useState<Field[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,31 +32,44 @@ export default function EditLandingPage() {
   }, [id])
 
   async function loadData() {
-    const { data: pageData } = await supabase
-      .from('landing_pages')
-      .select('*')
-      .eq('id', id)
-      .single()
+    setLoading(true)
+    try {
+      // Hent page data
+      const { data: pageData, error: pageError } = await supabase
+        .from('landing_pages')
+        .select('*')
+        .eq('id', id)
+        .single()
 
-    if (!pageData) {
-      router.push('/landing-pages')
-      return
+      if (pageError || !pageData) {
+        console.error('Page error:', pageError)
+        router.push('/landing-pages')
+        return
+      }
+
+      setPage(pageData)
+      setTitle(pageData.title || '')
+      setDescription(pageData.description || '')
+      setPrimaryColor(pageData.primary_color || '#3b82f6')
+      setTemplate(pageData.template || 'modern')
+
+      // Hent fields
+      const { data: fieldsData, error: fieldsError } = await supabase
+        .from('landing_page_fields')
+        .select('*')
+        .eq('landing_page_id', id)
+        .order('sort_order')
+
+      if (fieldsError) {
+        console.error('Fields error:', fieldsError)
+      }
+
+      setFields(fieldsData || [])
+    } catch (error) {
+      console.error('Error loading data:', error)
+    } finally {
+      setLoading(false)
     }
-
-    setPage(pageData)
-    setTitle(pageData.title)
-    setDescription(pageData.description || '')
-    setPrimaryColor(pageData.primary_color || '#3b82f6')
-    setTemplate(pageData.template || 'modern')
-
-    const { data: fieldsData } = await supabase
-      .from('landing_page_fields')
-      .select('*')
-      .eq('landing_page_id', id)
-      .order('sort_order')
-
-    setFields(fieldsData || [])
-    setLoading(false)
   }
 
   async function addField() {
@@ -69,30 +82,40 @@ export default function EditLandingPage() {
       sort_order: fields.length
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('landing_page_fields')
       .insert(newField)
       .select()
       .single()
 
-    setFields([...fields, data])
+    if (!error && data) {
+      setFields([...fields, data])
+    }
   }
 
   async function updateField(fieldId: string, updates: Partial<Field>) {
-    await supabase
+    const { error } = await supabase
       .from('landing_page_fields')
       .update(updates)
       .eq('id', fieldId)
 
-    setFields(fields.map(f => 
-      f.id === fieldId ? { ...f, ...updates } : f
-    ))
+    if (!error) {
+      setFields(fields.map(f => 
+        f.id === fieldId ? { ...f, ...updates } : f
+      ))
+    }
   }
 
   async function deleteField(fieldId: string) {
     if (!confirm('Delete this field?')) return
-    await supabase.from('landing_page_fields').delete().eq('id', fieldId)
-    setFields(fields.filter(f => f.id !== fieldId))
+    const { error } = await supabase
+      .from('landing_page_fields')
+      .delete()
+      .eq('id', fieldId)
+
+    if (!error) {
+      setFields(fields.filter(f => f.id !== fieldId))
+    }
   }
 
   async function moveField(index: number, direction: 'up' | 'down') {
@@ -101,48 +124,85 @@ export default function EditLandingPage() {
 
     const newFields = [...fields]
     const swapIndex = direction === 'up' ? index - 1 : index + 1
+    
+    // Swap i UI
     ;[newFields[index], newFields[swapIndex]] = [newFields[swapIndex], newFields[index]]
+    
+    // Oppdater sort_order i UI
+    newFields.forEach((f, i) => f.sort_order = i)
+    setFields(newFields)
 
-    // Oppdater sort_order i databasen
+    // Oppdater i databasen
     await Promise.all([
       supabase.from('landing_page_fields').update({ sort_order: swapIndex }).eq('id', fields[index].id),
       supabase.from('landing_page_fields').update({ sort_order: index }).eq('id', fields[swapIndex].id)
     ])
-
-    setFields(newFields)
   }
 
   async function saveSettings() {
     setSaving(true)
-    await supabase
+    const { error } = await supabase
       .from('landing_pages')
-      .update({ title, description, primary_color: primaryColor, template })
+      .update({ 
+        title, 
+        description, 
+        primary_color: primaryColor, 
+        template 
+      })
       .eq('id', id)
+
+    if (!error) {
+      alert('Settings saved!')
+    }
     setSaving(false)
-    alert('Settings saved!')
   }
 
-  if (loading || !page) return <Layout>Loading...</Layout>
+  if (loading) {
+    return (
+      <Layout>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-500">Loading page editor...</p>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
+  if (!page) {
+    return (
+      <Layout>
+        <div className="text-center py-12">
+          <p className="text-gray-500">Page not found</p>
+          <button
+            onClick={() => router.push('/landing-pages')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md"
+          >
+            Back to Pages
+          </button>
+        </div>
+      </Layout>
+    )
+  }
 
   return (
     <Layout>
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <button 
-          onClick={() => router.back()} 
+          onClick={() => router.push('/landing-pages')} 
           className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
         >
           ← Back to Pages
         </button>
-        <div className="flex gap-2">
-          <button
-            onClick={saveSettings}
-            disabled={saving}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
+        <button
+          onClick={saveSettings}
+          disabled={saving}
+          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
       </div>
 
       {/* Tabs */}
@@ -284,11 +344,15 @@ export default function EditLandingPage() {
                       className="flex-1 text-sm border rounded p-1"
                       placeholder="Field label"
                     />
-                    <label className="flex items-center gap-1 text-sm">
+                    <label className="flex items-center gap-1 text-sm cursor-pointer">
                       <input
                         type="checkbox"
                         checked={field.required}
-                        onChange={(e) => updateField(field.id!, { required: e.target.checked })}
+                        onChange={(e) => {
+                          console.log('Checkbox clicked:', e.target.checked)
+                          updateField(field.id!, { required: e.target.checked })
+                        }}
+                        className="cursor-pointer"
                       />
                       Required
                     </label>
