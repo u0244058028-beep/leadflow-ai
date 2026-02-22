@@ -7,22 +7,39 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [userName, setUserName] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+  const [loading, setLoading] = useState(true)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    let mounted = true
+
     const getUser = async () => {
-      const user = (await supabase.auth.getUser()).data.user
-      if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single()
-        if (data) setUserName(data.full_name)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user && mounted) {
+          const { data } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single()
+          
+          if (data) setUserName(data.full_name)
+        }
+      } catch (error) {
+        console.error('Error loading user:', error)
+      } finally {
+        if (mounted) setLoading(false)
       }
     }
+
     getUser()
 
+    return () => { mounted = false }
+  }, [])
+
+  // Lukk dropdown når man klikker utenfor
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowDropdown(false)
@@ -41,12 +58,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return router.pathname === path || router.pathname.startsWith(path + '/')
   }
 
+  // Ikke vis Layout på landing page, login, onboarding
+  if (router.pathname === '/' || router.pathname === '/login' || router.pathname === '/onboarding') {
+    return <>{children}</>
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            {/* Venstre side – logo og navigasjon */}
             <div className="flex items-center">
               <Link href="/" className="flex items-center font-semibold text-gray-900">
                 <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -54,7 +75,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </span>
               </Link>
               
-              {/* Navigasjonsmeny */}
               <div className="ml-10 flex items-center space-x-1">
                 <Link 
                   href="/dashboard" 
@@ -109,28 +129,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             
-            {/* Høyre side – brukermeny (uendret) */}
             <div className="relative" ref={dropdownRef}>
-              {/* ... resten av brukermenyen er uendret ... */}
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 transition"
-              >
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
-                  {userName ? userName.charAt(0).toUpperCase() : 'U'}
-                </div>
-                <span className="text-sm font-medium text-gray-700 hidden sm:block">
-                  {userName || 'User'}
-                </span>
-                <svg 
-                  className={`w-4 h-4 text-gray-500 transition-transform ${showDropdown ? 'rotate-180' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
+              {!loading && (
+                <button
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 transition"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
+                    {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 hidden sm:block">
+                    {userName || 'User'}
+                  </span>
+                  <svg 
+                    className={`w-4 h-4 text-gray-500 transition-transform ${showDropdown ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              )}
 
               {showDropdown && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-1 z-50 border border-gray-200">
