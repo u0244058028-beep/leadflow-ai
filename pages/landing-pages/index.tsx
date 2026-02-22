@@ -26,12 +26,12 @@ export default function LandingPages() {
         return
       }
 
+      // Fjernet .timeout() – vi håndterer timeout i useEffect i stedet
       const { data, error: pagesError } = await supabase
         .from('landing_pages')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .timeout(10000) // 10 sekunders timeout
 
       if (pagesError) throw pagesError
 
