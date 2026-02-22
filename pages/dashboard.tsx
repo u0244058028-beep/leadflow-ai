@@ -251,7 +251,10 @@ export default function Dashboard() {
               View reports →
             </Link>
           </div>
-          
+          // Etter AI Activity Log, legg til:
+<div className="mt-6">
+  <AutoFollowup />
+</div>
           {stats.recentActivity.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-8">No AI activity yet</p>
           ) : (
