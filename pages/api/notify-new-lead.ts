@@ -8,8 +8,6 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  console.log('========== NOTIFY API START ==========')
-  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -21,34 +19,29 @@ export default async function handler(
   }
 
   try {
-    console.log('📧 Looking up owner with ID:', page.user_id)
+    console.log('🔍 Looking for owner with ID:', page.user_id)
 
-    // HENT BRUKERENS PROFIL (den som eier landing page)
+    // HENT BRUKERENS PROFIL (må finnes!)
     const { data: owner, error: ownerError } = await supabase
       .from('profiles')
       .select('email, full_name')
       .eq('id', page.user_id)
-      .maybeSingle()
+      .single()
 
-    if (ownerError) {
-      console.error('❌ Database error:', ownerError)
-      return res.status(500).json({ error: 'Database error' })
-    }
-
-    if (!owner) {
-      console.error('❌ No profile found for user:', page.user_id)
-      console.error('💡 You must create a profile in Supabase first!')
+    if (ownerError || !owner) {
+      console.error('❌ Profile missing for user:', page.user_id)
+      // Dette bør aldri skje hvis profil opprettes automatisk
       return res.status(404).json({ 
         error: 'Owner profile not found',
-        hint: 'Run INSERT INTO profiles (id, email, full_name) VALUES (...)'
+        hint: 'Profile should be created automatically on signup'
       })
     }
 
     console.log('✅ Owner found:', owner.email)
-    console.log('📧 Sending email to owner:', owner.email)
+    console.log('📧 Sending email to:', owner.email)
 
     // Send e-post til EIEREN
-    const { data: emailData, error: emailError } = await resend.emails.send({
+    await resend.emails.send({
       from: 'LeadFlow <noreply@myleadassistant.com>',
       to: [owner.email],
       subject: `🎉 New lead from your landing page!`,
@@ -93,23 +86,11 @@ export default async function handler(
       `
     })
 
-    if (emailError) {
-      console.error('❌ Resend error:', emailError)
-      return res.status(500).json({ error: 'Failed to send email' })
-    }
-
-    console.log('✅ Email sent! ID:', emailData?.id)
-
-    res.status(200).json({ 
-      success: true, 
-      message: 'Notification sent to owner',
-      sentTo: owner.email
-    })
+    console.log('✅ Email sent!')
+    res.status(200).json({ success: true })
 
   } catch (error: any) {
-    console.error('❌ Unexpected error:', error)
+    console.error('❌ Error:', error)
     res.status(500).json({ error: error.message })
-  } finally {
-    console.log('========== NOTIFY API END ==========')
   }
 }
