@@ -55,7 +55,10 @@ export default function LandingPages() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">Loading...</div>
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading pages...</p>
+        </div>
       ) : pages.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow">
           <p className="text-gray-500 mb-4">You haven't created any landing pages yet.</p>
@@ -71,13 +74,20 @@ export default function LandingPages() {
           {pages.map(page => (
             <div key={page.id} className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <h3 className="font-semibold text-lg">{page.title}</h3>
                   <p className="text-sm text-gray-500">
-                    leadflow.ai/{page.slug} • {page.views} views • {page.conversions} conversions
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                      myleadassistant.com/s/{page.slug}
+                    </span>
                   </p>
+                  <div className="flex gap-4 mt-2 text-sm text-gray-600">
+                    <span>👁️ {page.views || 0} views</span>
+                    <span>✓ {page.conversions || 0} conversions</span>
+                    <span>📅 {new Date(page.created_at).toLocaleDateString()}</span>
+                  </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 ml-4">
                   <button
                     onClick={() => togglePublish(page.id, page.is_published)}
                     className={`px-3 py-1 rounded-md text-sm ${
@@ -94,12 +104,23 @@ export default function LandingPages() {
                   >
                     Edit
                   </Link>
-                  <Link
-                    href={`/landing-pages/stats/${page.id}`}
-                    className="px-3 py-1 bg-purple-100 text-purple-700 rounded-md text-sm hover:bg-purple-200"
+                  <button
+                    onClick={() => {
+                      if (page.is_published) {
+                        window.open(`https://myleadassistant.com/s/${page.slug}`, '_blank')
+                      } else {
+                        alert('Publish the page first to view it')
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-md text-sm ${
+                      page.is_published
+                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                    disabled={!page.is_published}
                   >
-                    Stats
-                  </Link>
+                    View
+                  </button>
                   <button
                     onClick={() => deletePage(page.id)}
                     className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-sm hover:bg-red-200"
