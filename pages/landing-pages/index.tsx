@@ -42,6 +42,11 @@ export default function LandingPages() {
     loadPages()
   }
 
+  // Funksjon for å åpne forhåndsvisning
+  const openPreview = (slug: string) => {
+    window.open(`/s/${slug}`, '_blank')
+  }
+
   return (
     <Layout>
       <div className="flex justify-between items-center mb-6">
@@ -88,11 +93,11 @@ export default function LandingPages() {
       ) : (
         <div className="grid gap-4">
           {pages.map(page => (
-            <div key={page.id} className="bg-white rounded-lg shadow p-4">
+            <div key={page.id} className="bg-white rounded-lg shadow p-4 hover:shadow-md transition">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <h3 className="font-semibold text-lg">{page.title}</h3>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 mt-1">
                     <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
                       myleadassistant.com/s/{page.slug}
                     </span>
@@ -104,9 +109,10 @@ export default function LandingPages() {
                   </div>
                 </div>
                 <div className="flex gap-2 ml-4">
+                  {/* Publiseringsknapp */}
                   <button
                     onClick={() => togglePublish(page.id, page.is_published)}
-                    className={`px-3 py-1 rounded-md text-sm ${
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition ${
                       page.is_published
                         ? 'bg-green-100 text-green-700 hover:bg-green-200'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -114,32 +120,35 @@ export default function LandingPages() {
                   >
                     {page.is_published ? 'Published' : 'Draft'}
                   </button>
+
+                  {/* Edit-knapp */}
                   <Link
                     href={`/landing-pages/${page.id}`}
-                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200"
+                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200 transition"
                   >
                     Edit
                   </Link>
+
+                  {/* View/Preview-knapp – ALLTID klikkbar! */}
                   <button
                     onClick={() => {
                       if (page.is_published) {
+                        // Åpne publisert side i ny fane
                         window.open(`https://myleadassistant.com/s/${page.slug}`, '_blank')
                       } else {
-                        alert('Publish the page first to view it')
+                        // Åpne forhåndsvisning (samme side, men med draft-status)
+                        window.open(`/s/${page.slug}?preview=true`, '_blank')
                       }
                     }}
-                    className={`px-3 py-1 rounded-md text-sm ${
-                      page.is_published
-                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    }`}
-                    disabled={!page.is_published}
+                    className="px-3 py-1 bg-purple-100 text-purple-700 rounded-md text-sm hover:bg-purple-200 transition"
                   >
-                    View
+                    {page.is_published ? 'View' : 'Preview'}
                   </button>
+
+                  {/* Slett-knapp */}
                   <button
                     onClick={() => deletePage(page.id)}
-                    className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-sm hover:bg-red-200"
+                    className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-sm hover:bg-red-200 transition"
                   >
                     Delete
                   </button>
