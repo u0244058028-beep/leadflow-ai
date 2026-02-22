@@ -14,7 +14,7 @@ export default async function handler(
     const twoDaysAgo = new Date()
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
 
-    const { data: leads } = await supabase
+    const { data: leads, error: leadsError } = await supabase
       .from('leads')
       .select(`
         *,
@@ -23,6 +23,11 @@ export default async function handler(
       .in('status', ['new', 'contacted'])
       .lt('last_contacted', twoDaysAgo.toISOString())
       .limit(10)
+
+    if (leadsError) {
+      console.error('Error fetching leads:', leadsError)
+      return res.status(500).json({ error: 'Failed to fetch leads' })
+    }
 
     if (!leads || leads.length === 0) {
       return res.json({ success: true, message: 'No leads need followup' })
@@ -39,7 +44,7 @@ export default async function handler(
         
         Email:`
 
-        const followup = await fetch('https://api.puter.com/v1/ai/chat', {
+        const followupResponse = await fetch('https://api.puter.com/v1/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -50,7 +55,12 @@ export default async function handler(
           })
         })
 
-        const followupText = await followup.text()
+        if (!followupResponse.ok) {
+          throw new Error(`Puter API error: ${followupResponse.status}`)
+        }
+
+        const followupData = await followupResponse.json()
+        const followupText = followupData.choices?.[0]?.message?.content || ''
 
         // Send e-post via Resend
         const emailRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/send-email`, {
@@ -77,12 +87,15 @@ export default async function handler(
           emailSent: emailRes.ok
         })
 
-      } catch (error) {
-        console.error(`Error processing lead ${lead.id}:`, error)
+      } catch (error: any) {
+        // ✅ Fikset: type-casting for error
+        const errorMessage = error?.message || 'Unknown error occurred'
+        console.error(`Error processing lead ${lead.id}:`, errorMessage)
+        
         results.push({
           leadId: lead.id,
           success: false,
-          error: error.message
+          error: errorMessage
         })
       }
     }
@@ -94,7 +107,9 @@ export default async function handler(
     })
 
   } catch (error: any) {
-    console.error('Auto-followup error:', error)
-    res.status(500).json({ error: error.message })
+    // ✅ Fikset: type-casting for error
+    const errorMessage = error?.message || 'Unknown error occurred'
+    console.error('Auto-followup error:', errorMessage)
+    res.status(500).json({ error: errorMessage })
   }
 }
