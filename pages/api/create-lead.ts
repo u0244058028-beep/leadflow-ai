@@ -1,3 +1,4 @@
+import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseAdmin = createClient(
@@ -5,13 +6,22 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY! // Bruk service role (har full tilgang)
 )
 
-export default async function handler(req, res) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
     const { leadData, pageId, formData } = req.body
+
+    if (!leadData || !pageId || !formData) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    console.log('Creating lead with admin client:', leadData)
 
     // Opprett lead med admin-privilegier
     const { data: newLead, error: leadError } = await supabaseAdmin
@@ -20,10 +30,15 @@ export default async function handler(req, res) {
       .select()
       .single()
 
-    if (leadError) throw leadError
+    if (leadError) {
+      console.error('Lead creation error:', leadError)
+      throw leadError
+    }
+
+    console.log('Lead created:', newLead)
 
     // Lagre skjemadata
-    await supabaseAdmin
+    const { error: formError } = await supabaseAdmin
       .from('landing_page_leads')
       .insert({
         landing_page_id: pageId,
@@ -31,9 +46,20 @@ export default async function handler(req, res) {
         form_data: formData
       })
 
-    res.json({ success: true, lead: newLead })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: error.message })
+    if (formError) {
+      console.error('Form data error:', formError)
+      // Ikke kritisk, fortsett
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      lead: newLead 
+    })
+
+  } catch (error: any) {
+    console.error('API error:', error)
+    res.status(500).json({ 
+      error: error.message || 'Failed to create lead' 
+    })
   }
 }
