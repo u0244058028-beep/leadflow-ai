@@ -16,7 +16,7 @@ export default function AIGeneratePage() {
     goal: 'collect-leads',
     tone: 'professional',
     colorPreference: 'blue',
-    offerType: 'guide' // NY: for å variere tilbudet
+    offerType: 'guide'
   })
 
   const goalOptions = [
@@ -28,7 +28,6 @@ export default function AIGeneratePage() {
     { value: 'demo', label: 'Request demo', icon: '🎯' }
   ]
 
-  // NY: Ulike typer tilbud som AI kan velge mellom
   const offerTypes = [
     { value: 'guide', label: 'Guide / eBook', icon: '📚' },
     { value: 'checklist', label: 'Checklist', icon: '✅' },
@@ -70,10 +69,8 @@ export default function AIGeneratePage() {
         return
       }
 
-      // Finn valgt tilbudstype
       const selectedOffer = offerTypes.find(o => o.value === form.offerType)
 
-      // 🎯 NY PROMPT med mye mer variasjon
       const prompt = `You are an expert copywriter specializing in lead generation pages.
 
 Create a HIGH-CONVERTING lead capture page for:
@@ -133,13 +130,12 @@ Make it specific, compelling, and focused on the ${selectedOffer?.label} offer.`
 
       const response = await window.puter.ai.chat(prompt, {
         model: 'google/gemini-3-flash-preview',
-        temperature: 0.9, // Høyere temperatur = mer variasjon
+        temperature: 0.9,
         max_tokens: 2000
       })
 
       console.log('AI response:', response)
 
-      // Parse JSON fra responsen
       let aiSuggestion
       try {
         const jsonMatch = response.match(/\{[\s\S]*\}/)
@@ -151,12 +147,10 @@ Make it specific, compelling, and focused on the ${selectedOffer?.label} offer.`
       } catch (e) {
         console.error('Error parsing AI response:', e)
         
-        // 🎯 SMART FALLBACK basert på valgt offerType
         const offerType = form.offerType
         const businessType = form.businessType
         const audience = form.targetAudience || 'professionals'
         
-        // Generer variert tilbud basert på type
         let offer = ''
         let buttonText = ''
         let title = ''
@@ -292,7 +286,6 @@ Make it specific, compelling, and focused on the ${selectedOffer?.label} offer.`
         }
       }
 
-      // Legg til farge basert på brukerens valg
       const colorMap = {
         blue: '#3b82f6',
         purple: '#8b5cf6',
@@ -323,11 +316,63 @@ Make it specific, compelling, and focused on the ${selectedOffer?.label} offer.`
     }
   }
 
-  // Resten av JSX-en (samme som før, men med ny offerType-selector)
+  // 🎯 VIKTIG: savePage-funksjonen som manglet!
+  async function savePage() {
+    if (!generatedPage) return
+    
+    setLoading(true)
+    try {
+      const user = (await supabase.auth.getUser()).data.user
+      
+      const { data: page, error: pageError } = await supabase
+        .from('landing_pages')
+        .insert({
+          title: generatedPage.title,
+          description: generatedPage.subheadline,
+          primary_color: generatedPage.primaryColor,
+          template: generatedPage.template,
+          user_id: user?.id,
+          slug: generatedPage.slug,
+          is_published: false,
+          settings: {
+            benefits: generatedPage.benefits,
+            trustElements: generatedPage.trustElements,
+            offer: generatedPage.offer,
+            buttonText: generatedPage.buttonText
+          }
+        })
+        .select()
+        .single()
+
+      if (pageError) throw pageError
+
+      for (let i = 0; i < generatedPage.fields.length; i++) {
+        const field = generatedPage.fields[i]
+        await supabase
+          .from('landing_page_fields')
+          .insert({
+            landing_page_id: page.id,
+            field_type: field.type,
+            label: field.label,
+            placeholder: field.placeholder,
+            required: true,
+            sort_order: i
+          })
+      }
+
+      router.push(`/landing-pages/${page.id}`)
+      
+    } catch (error: any) {
+      console.error('Error saving page:', error)
+      alert('Failed to save page: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <button 
             onClick={() => router.back()} 
@@ -363,7 +408,6 @@ Make it specific, compelling, and focused on the ${selectedOffer?.label} offer.`
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Form */}
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="space-y-5">
                   <div>
@@ -400,7 +444,6 @@ Make it specific, compelling, and focused on the ${selectedOffer?.label} offer.`
                     />
                   </div>
 
-                  {/* NY: Offer type selector */}
                   <div>
                     <label className="block text-sm font-medium mb-2">What are you offering?</label>
                     <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto p-1">
@@ -489,7 +532,6 @@ Make it specific, compelling, and focused on the ${selectedOffer?.label} offer.`
                 </div>
               </div>
 
-              {/* Preview/Info */}
               <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-8">
                 <h3 className="font-semibold text-lg mb-4">✨ Choose your offer type</h3>
                 <p className="text-sm text-gray-600 mb-4">
@@ -513,7 +555,6 @@ Make it specific, compelling, and focused on the ${selectedOffer?.label} offer.`
           </>
         )}
 
-        {/* Generating og preview-seksjoner (samme som før) */}
         {step === 'generating' && (
           <div className="min-h-[60vh] flex items-center justify-center">
             <div className="text-center">
@@ -533,7 +574,6 @@ Make it specific, compelling, and focused on the ${selectedOffer?.label} offer.`
           <div>
             <h2 className="text-2xl font-bold mb-6">Preview your AI-generated page</h2>
             
-            {/* Preview innhold (samme som før) */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden border">
               <div className="p-8" style={{ backgroundColor: '#f9fafb' }}>
                 <div className="max-w-2xl mx-auto">
