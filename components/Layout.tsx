@@ -23,7 +23,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
     getUser()
 
-    // Lukk dropdown når man klikker utenfor
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowDropdown(false)
@@ -38,7 +37,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     router.push('/login')
   }
 
-  // Funksjon for å sjekke om en lenke er aktiv
   const isActive = (path: string) => {
     return router.pathname === path || router.pathname.startsWith(path + '/')
   }
@@ -58,6 +56,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               
               {/* Navigasjonsmeny */}
               <div className="ml-10 flex items-center space-x-1">
+                <Link 
+                  href="/dashboard" 
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition ${
+                    isActive('/dashboard')
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  Dashboard
+                </Link>
                 <Link 
                   href="/leads" 
                   className={`px-3 py-2 rounded-md text-sm font-medium transition ${
@@ -79,6 +87,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   Tasks
                 </Link>
                 <Link 
+                  href="/landing-pages" 
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition ${
+                    isActive('/landing-pages')
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  Pages
+                </Link>
+                <Link 
                   href="/reports" 
                   className={`px-3 py-2 rounded-md text-sm font-medium transition ${
                     isActive('/reports')
@@ -91,8 +109,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             
-            {/* Høyre side – brukermeny */}
+            {/* Høyre side – brukermeny (uendret) */}
             <div className="relative" ref={dropdownRef}>
+              {/* ... resten av brukermenyen er uendret ... */}
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
                 className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 transition"
@@ -113,7 +132,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </svg>
               </button>
 
-              {/* Dropdown-meny */}
               {showDropdown && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-1 z-50 border border-gray-200">
                   <div className="px-4 py-3 border-b border-gray-100">
@@ -131,19 +149,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       Your Profile
-                    </div>
-                  </Link>
-                  
-                  <Link
-                    href="/dashboard"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
-                    onClick={() => setShowDropdown(false)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                      </svg>
-                      Dashboard
                     </div>
                   </Link>
                   
@@ -167,12 +172,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      {/* Hovedinnhold */}
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {children}
       </main>
 
-      {/* Enkel footer for innloggede sider (valgfritt) */}
       <footer className="border-t border-gray-200 mt-12">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <p className="text-sm text-gray-500 text-center">
