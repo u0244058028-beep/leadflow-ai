@@ -51,56 +51,84 @@ export default function AIGeneratePage() {
         return
       }
 
-      // 🎯 OPPDATERT PROMPT for lead capture – DETTE ER DEN ENESTE prompt KONSTANTEN
-      const prompt = `You are an expert in creating HIGH-CONVERTING lead generation pages.
+      // 🎯 ULTRA-DETALJERT PROMPT for lead capture
+      const prompt = `You are the world's best copywriter specializing in lead generation pages.
 
-Create a landing page specifically designed to CAPTURE LEADS for a business.
+Create a HIGH-CONVERTING lead capture page for:
 
-Business details:
+BUSINESS DETAILS:
 - Name: ${form.businessName || form.businessType}
 - Type: ${form.businessType}
-- Target audience: ${form.targetAudience}
+- Target audience: ${form.targetAudience || 'professionals'}
 - Goal: ${goalOptions.find(g => g.value === form.goal)?.label}
+- Tone: ${form.tone}
 
-IMPORTANT RULES:
-1. This is for LEAD GENERATION, not selling a product
-2. NO mentions of "free trial", "credit card", or "pricing"
-3. NO mentions of money or payment
-4. Focus on getting visitors to SUBMIT THEIR INFORMATION
-5. Offer something valuable in exchange (e-book, guide, consultation, demo, checklist, webinar)
-6. The CTA should be about getting the free offer, not about buying
-7. Keep it professional and trustworthy
+CRITICAL RULES - READ CAREFULLY:
+1. This is a LEAD CAPTURE page - people give email to get something valuable
+2. NEVER mention "free trial", "credit card", "pricing", "money", "payment"
+3. NEVER use "14-day free trial" or anything about trials
+4. Offer something SPECIFIC and VALUABLE in exchange for their email:
+   - For collect-leads: offer "Free Guide", "Case Study", "Checklist", "Template"
+   - For book-meeting: offer "Free Consultation", "Strategy Session"
+   - For sell-product: offer "Product Demo", "Sample"
+   - For newsletter: offer "Weekly Tips", "Exclusive Content"
 
-Return a JSON object with this exact format:
+5. The headline must be about what they GET, not what you sell
+6. Benefits should be specific outcomes, not generic features
+7. Trust elements must be about privacy and value, not about trials
+
+Return EXACTLY this JSON format (no other text):
 {
-  "title": "Benefit-driven headline about what they'll get (e.g., 'Free Guide: How to Double Your Leads in 30 Days')",
-  "subheadline": "Brief explanation of the value they'll receive by downloading",
-  "description": "What they'll learn or get by submitting their information",
-  "offer": "What they get in exchange (e.g., 'Free eBook', 'Expert Consultation', 'Case Study')",
+  "title": "BENEFIT-DRIVEN HEADLINE about what they'll get (max 10 words)",
+  "subheadline": "Supporting line explaining the value (max 15 words)",
+  "description": "2-3 sentences about the specific value they'll receive",
+  "offer": "The specific free item (e.g., 'Free Guide: How to Generate 50% More Leads')",
   "benefits": [
-    "Specific benefit 1 of the offer",
-    "Specific benefit 2 of the offer", 
-    "Specific benefit 3 of the offer"
+    "Specific outcome 1 they'll achieve",
+    "Specific outcome 2 they'll achieve", 
+    "Specific outcome 3 they'll achieve"
   ],
   "fields": [
     { "type": "text", "label": "Full Name", "placeholder": "John Doe" },
     { "type": "email", "label": "Email Address", "placeholder": "john@company.com" }
   ],
-  "buttonText": "Get My Free Guide",
+  "buttonText": "Get My Free [Offer] Now",
   "trustElements": [
     "No spam, unsubscribe anytime",
     "We respect your privacy"
   ]
 }
 
-Make it compelling and focused on LEAD GENERATION, not sales.`
+Example for a SaaS company:
+{
+  "title": "Free Guide: How SaaS Companies Double Their Leads in 30 Days",
+  "subheadline": "Proven strategies from 100+ successful B2B companies",
+  "description": "Learn the exact tactics that top performers use to consistently generate qualified leads. This comprehensive guide includes real-world examples and actionable templates.",
+  "offer": "Free 50-Page Lead Generation Guide",
+  "benefits": [
+    "Generate 2x more qualified leads",
+    "Reduce cost per lead by 40%",
+    "Implement proven strategies in days, not months"
+  ],
+  "fields": [
+    { "type": "text", "label": "Full Name", "placeholder": "John Doe" },
+    { "type": "email", "label": "Email Address", "placeholder": "john@company.com" }
+  ],
+  "buttonText": "Get My Free Guide Now",
+  "trustElements": [
+    "No spam, unsubscribe anytime",
+    "We respect your privacy"
+  ]
+}
+
+Now create one for ${form.businessType} targeting ${form.targetAudience || 'professionals'} with a ${form.tone} tone.`
 
       console.log('Sending prompt to Puter.ai...')
 
       const response = await window.puter.ai.chat(prompt, {
         model: 'google/gemini-3-flash-preview',
-        temperature: 0.7,
-        max_tokens: 1500
+        temperature: 0.8,
+        max_tokens: 2000
       })
 
       console.log('AI response:', response)
@@ -112,23 +140,67 @@ Make it compelling and focused on LEAD GENERATION, not sales.`
         if (jsonMatch) {
           aiSuggestion = JSON.parse(jsonMatch[0])
         } else {
-          throw new Error('No JSON found in response')
+          throw new Error('No JSON found')
         }
       } catch (e) {
         console.error('Error parsing AI response:', e)
-        // Fallback til default
+        
+        // 🎯 SMART FALLBACK basert på business type og goal
+        const goal = form.goal
+        const businessType = form.businessType
+        const audience = form.targetAudience || 'professionals'
+        
+        // Generer relevant offer basert på goal
+        let offer = ''
+        let buttonText = ''
+        let title = ''
+        
+        switch(goal) {
+          case 'collect-leads':
+            offer = `Free ${businessType} Lead Generation Guide`
+            buttonText = 'Get My Free Guide'
+            title = `Free Guide: How ${businessType} Companies Generate More Leads`
+            break
+          case 'book-meeting':
+            offer = 'Free 30-Minute Strategy Session'
+            buttonText = 'Book My Free Session'
+            title = `Schedule Your Free ${businessType} Strategy Call`
+            break
+          case 'sell-product':
+            offer = 'Free Product Demo'
+            buttonText = 'Get My Free Demo'
+            title = `See How Our ${businessType} Solution Can Help You`
+            break
+          case 'newsletter':
+            offer = 'Weekly Tips & Insights'
+            buttonText = 'Subscribe for Free'
+            title = `Get Weekly ${businessType} Tips Direct to Your Inbox`
+            break
+          default:
+            offer = `Free ${businessType} Resource`
+            buttonText = 'Get Free Access'
+            title = `Free ${businessType} Guide for ${audience}`
+        }
+        
         aiSuggestion = {
-          title: `Get Your Free ${form.businessType} Guide`,
-          subheadline: `The ultimate resource for ${form.targetAudience || 'professionals'}`,
-          description: `Learn the proven strategies that top performers use to succeed.`,
-          offer: 'Free eBook',
-          benefits: ['Save time', 'Expert insights', 'Practical tips'],
+          title: title,
+          subheadline: `The ultimate resource for ${audience} looking to grow their business`,
+          description: `Join thousands of satisfied ${businessType} professionals who have already transformed their results with our proven strategies and expert insights.`,
+          offer: offer,
+          benefits: [
+            `Proven strategies specifically for ${businessType}`,
+            'Real-world examples and case studies',
+            'Actionable templates you can use today'
+          ],
           fields: [
             { type: 'text', label: 'Full Name', placeholder: 'John Doe' },
             { type: 'email', label: 'Email Address', placeholder: 'john@company.com' }
           ],
-          buttonText: 'Get My Free Guide',
-          trustElements: ['No spam', 'Unsubscribe anytime']
+          buttonText: buttonText,
+          trustElements: [
+            'No spam, unsubscribe anytime',
+            'We respect your privacy'
+          ]
         }
       }
 
@@ -145,8 +217,10 @@ Make it compelling and focused on LEAD GENERATION, not sales.`
         ...aiSuggestion,
         primaryColor: colorMap[form.colorPreference as keyof typeof colorMap],
         template: form.tone === 'minimal' ? 'minimal' : 'modern',
-        slug: form.businessName?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 
-              form.businessType.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        slug: (form.businessName || form.businessType).toLowerCase()
+          .replace(/[^a-z0-9]/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '')
       })
 
       setStep('preview')
@@ -215,6 +289,7 @@ Make it compelling and focused on LEAD GENERATION, not sales.`
     }
   }
 
+  // Resten av JSX-en er uendret (samme som før)
   return (
     <Layout>
       <div className="max-w-7xl mx-auto">
@@ -401,9 +476,13 @@ Make it compelling and focused on LEAD GENERATION, not sales.`
                 </ul>
 
                 <div className="mt-8 p-4 bg-white rounded-lg border">
-                  <p className="text-xs text-gray-500 mb-2">Example:</p>
+                  <p className="text-xs text-gray-500 mb-2">Example for SaaS:</p>
                   <p className="text-sm italic">
-                    "Create a landing page for a <strong>SaaS company</strong> targeting <strong>small business owners</strong> offering a <strong>free guide</strong>."
+                    "Free Guide: How SaaS Companies Double Their Leads in 30 Days"
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">instead of</p>
+                  <p className="text-sm italic text-gray-400">
+                    "The easiest way to collect leads"
                   </p>
                 </div>
               </div>
@@ -446,7 +525,7 @@ Make it compelling and focused on LEAD GENERATION, not sales.`
                   <p className="text-xl text-gray-600 mb-6">{generatedPage.subheadline}</p>
                   <p className="text-gray-700 mb-8">{generatedPage.description}</p>
 
-                  {/* Offer */}
+                  {/* Offer - NY! */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8 text-center">
                     <span className="text-lg font-semibold text-blue-800">🎁 {generatedPage.offer}</span>
                   </div>
