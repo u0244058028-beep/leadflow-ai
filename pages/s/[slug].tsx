@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Head from 'next/head'
 
-// Denne siden er PUBLIKK – ingen innlogging nødvendig!
 export default function PublicLandingPage() {
   const router = useRouter()
   const { slug, preview } = router.query
@@ -27,13 +26,12 @@ export default function PublicLandingPage() {
     try {
       console.log('Loading page with slug:', slug)
 
-      // Bygg query – IKKE krev innlogging!
+      // Hent side
       let query = supabase
         .from('landing_pages')
         .select('*')
         .eq('slug', slug)
 
-      // Hvis ikke preview, må siden være publisert
       if (!preview) {
         query = query.eq('is_published', true)
       }
@@ -52,7 +50,9 @@ export default function PublicLandingPage() {
       console.log('Page loaded:', pageData)
       setPage(pageData)
 
-      // Hent felter
+      // Hent felter - MED BEDRE FEILHÅNDTERING
+      console.log('Loading fields for page:', pageData.id)
+      
       const { data: fieldsData, error: fieldsError } = await supabase
         .from('landing_page_fields')
         .select('*')
@@ -61,9 +61,35 @@ export default function PublicLandingPage() {
 
       if (fieldsError) {
         console.error('Fields error:', fieldsError)
+        // Ikke throw, bare logg
       }
 
-      setFields(fieldsData || [])
+      console.log('Fields loaded:', fieldsData)
+
+      // Hvis ingen felter finnes, bruk default fields
+      if (!fieldsData || fieldsData.length === 0) {
+        console.log('No fields found, using defaults')
+        setFields([
+          {
+            id: 'default-name',
+            field_type: 'text',
+            label: 'Full Name',
+            placeholder: 'John Doe',
+            required: true,
+            sort_order: 0
+          },
+          {
+            id: 'default-email',
+            field_type: 'email',
+            label: 'Email Address',
+            placeholder: 'john@company.com',
+            required: true,
+            sort_order: 1
+          }
+        ])
+      } else {
+        setFields(fieldsData)
+      }
       
     } catch (err: any) {
       console.error('Error loading page:', err)
@@ -77,27 +103,39 @@ export default function PublicLandingPage() {
     e.preventDefault()
     
     try {
-      // Opprett lead (uten å kreve innlogging fra besøkende!)
+      console.log('Form submitted:', formData)
+
+      // Opprett lead
       const { data: newLead, error: leadError } = await supabase
         .from('leads')
         .insert({
           name: formData['Full Name'] || formData.name || 'Lead from landing page',
           email: formData['Email Address'] || formData.email || null,
-          phone: formData['Phone Number'] || formData.phone || null,
+          title: formData['Job Title'] || null,
+          company: formData['Company'] || null,
+          phone: formData['Phone'] || null,
+          industry: formData['Industry'] || null,
+          company_size: formData['Company Size'] || null,
           status: 'new',
-          user_id: page.user_id // VIKTIG: tilhører side-eieren!
+          user_id: page.user_id,
+          source: `landing_page_${page.slug}`
         })
         .select()
         .single()
 
-      if (leadError) throw leadError
+      if (leadError) {
+        console.error('Lead error:', leadError)
+        throw leadError
+      }
+
+      console.log('Lead created:', newLead)
 
       // Hent IP og user agent via API
       const ipResponse = await fetch('/api/get-client-info')
       const { ipAddress, userAgent } = await ipResponse.json()
 
       // Lagre form-data
-      await supabase
+      const { error: formError } = await supabase
         .from('landing_page_leads')
         .insert({
           landing_page_id: page.id,
@@ -106,6 +144,10 @@ export default function PublicLandingPage() {
           ip_address: ipAddress,
           user_agent: userAgent
         })
+
+      if (formError) {
+        console.error('Form data error:', formError)
+      }
 
       // Oppdater konverteringer
       await supabase
@@ -116,8 +158,8 @@ export default function PublicLandingPage() {
         })
         .eq('id', page.id)
 
-      // Send varsel til side-eieren (via API)
-      await fetch('/api/notify-new-lead', {
+      // Send varsel til side-eieren (fire and forget)
+      fetch('/api/notify-new-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -129,7 +171,7 @@ export default function PublicLandingPage() {
           }, 
           formData 
         })
-      })
+      }).catch(err => console.error('Notification error:', err))
 
       setSubmitted(true)
       
@@ -232,21 +274,26 @@ export default function PublicLandingPage() {
                     </div>
                   )}
 
+                  {/* SKJEMA – dette er det viktige! */}
                   <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 shadow-md">
-                    {fields.map((field) => (
-                      <div key={field.id} className="mb-4">
-                        <label className="block text-sm font-medium mb-1">
-                          {field.label} {field.required && <span className="text-red-500">*</span>}
-                        </label>
-                        <input
-                          type={field.field_type}
-                          required={field.required}
-                          placeholder={field.placeholder}
-                          onChange={(e) => setFormData({...formData, [field.label]: e.target.value})}
-                          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    ))}
+                    {fields.length === 0 ? (
+                      <p className="text-center text-gray-500 py-4">No form fields configured</p>
+                    ) : (
+                      fields.map((field) => (
+                        <div key={field.id} className="mb-4">
+                          <label className="block text-sm font-medium mb-1">
+                            {field.label} {field.required && <span className="text-red-500">*</span>}
+                          </label>
+                          <input
+                            type={field.field_type}
+                            required={field.required}
+                            placeholder={field.placeholder}
+                            onChange={(e) => setFormData({...formData, [field.label]: e.target.value})}
+                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      ))
+                    )}
 
                     <button
                       type="submit"
