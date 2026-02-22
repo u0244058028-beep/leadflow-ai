@@ -56,7 +56,7 @@ export default async function handler(
       })
     }
 
-    console.log('✅ Lead created:', newLead)
+    console.log('✅ Lead created:', JSON.stringify(newLead, null, 2))
 
     // Lagre skjemadata
     const { error: formError } = await supabaseAdmin
@@ -72,16 +72,33 @@ export default async function handler(
       // Ikke kritisk, fortsett
     }
 
-    // Send varsel (fire and forget)
-    fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/notify-new-lead`, {
+    // Send varsel (fire and forget) – med riktig URL-håndtering
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'
+    const notifyUrl = `${siteUrl}/api/notify-new-lead`
+    
+    console.log('📤 Sending notification to:', notifyUrl)
+
+    fetch(notifyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         lead: newLead, 
-        page: { id: pageId, user_id: leadData.user_id }, 
+        page: { 
+          id: pageId, 
+          title: pageId, // Vi har ikke title her, men det fikses i notify-endpoint
+          user_id: leadData.user_id 
+        }, 
         formData 
       })
-    }).catch(err => console.error('⚠️ Notification error:', err))
+    })
+    .then(response => {
+      if (!response.ok) {
+        console.error('⚠️ Notification response not OK:', response.status)
+      } else {
+        console.log('✅ Notification sent successfully')
+      }
+    })
+    .catch(err => console.error('⚠️ Notification fetch error:', err))
 
     res.status(200).json({ 
       success: true, 
