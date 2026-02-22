@@ -144,7 +144,7 @@ export default function LeadsPage() {
     }
   }
 
-  // 🎯 VIKTIG: rescoreLead må være INNE i komponenten
+  // 🎯 OPPDATERT AI-scoring med smart logikk
   async function rescoreLead(leadId: string) {
     if (!leadId) {
       alert('Invalid lead ID')
@@ -161,11 +161,9 @@ export default function LeadsPage() {
         return
       }
 
-      // Hent ALL relevant data om leadet
+      // Hent ALLE data om leadet
       const lead = leads.find(l => l.id === leadId)
       
-      console.log('Scoring lead:', lead)
-
       const { data: notes } = await supabase
         .from('notes')
         .select('content')
@@ -184,75 +182,103 @@ export default function LeadsPage() {
         .eq('lead_id', leadId)
         .eq('action_type', 'email_sent')
 
-      const notesText = notes?.map(n => n.content).join('\n') || 'No notes'
+      const notesText = notes?.map(n => n.content).join('\n') || ''
       const taskCount = tasks?.length || 0
       const emailCount = emails?.length || 0
 
-      // 🎯 PROMPT for lead-scoring
-      const prompt = `You are an expert B2B sales lead scorer. Analyze this lead and return a score 1-10.
+      // 🎯 SMART PROMPT for lead-scoring
+      const prompt = `You are an expert B2B sales lead scorer. Score this lead 1-10 based on:
 
-SCORING CRITERIA:
-- 9-10: Decision maker (CEO/Founder/Director), active need, budget available (HOT)
-- 7-8: Manager level, interested, has influence, engaged (WARM)
-- 4-6: Individual contributor, some interest but no urgency (LUKEWARM)
-- 1-3: Cold contact, no engagement, wrong industry (COLD)
+JOB TITLE SCORING:
+- CEO/Founder/Director/Vice President/C-level = +4 points
+- Manager/Head of = +2 points
+- Individual contributor = +1 point
+- No title = 0 points
+
+INDUSTRY RELEVANCE:
+- SaaS/Technology/Software/AI = +3 points
+- Consulting/Professional Services/Marketing = +2 points
+- Other industries = +1 point
+
+ENGAGEMENT SCORING:
+- Each note = +1 point (max +3)
+- Each task = +1 point (max +2)
+- Each email = +1 point (max +2)
 
 LEAD DATA:
-Name: ${lead?.name || 'Unknown'}
+Name: ${lead?.name}
 Title: ${lead?.title || 'Not specified'}
 Company: ${lead?.company || 'Unknown'}
 Industry: ${lead?.industry || 'Unknown'}
-Company Size: ${lead?.company_size || 'Unknown'}
-Status: ${lead?.status || 'new'}
+Source: ${lead?.source || 'Manual'}
 
 ENGAGEMENT METRICS:
-- Total notes: ${notes?.length || 0}
-- Tasks created: ${taskCount}
-- Emails sent: ${emailCount}
+Notes count: ${notes?.length || 0}
+Tasks count: ${taskCount}
+Emails sent: ${emailCount}
 
 RECENT NOTES:
-${notesText}
+${notesText || 'No notes'}
 
+Calculate the total score based on the criteria above. 
+Start from 1 (cold) and add points based on the scoring guide.
 Return ONLY a number between 1-10.`
+
+      console.log('Scoring lead with prompt:', prompt)
 
       const response = await window.puter.ai.chat(prompt, {
         model: 'google/gemini-2.5-flash',
-        temperature: 0.3,
+        temperature: 0.2,
         max_tokens: 5
       })
 
-      // Håndter respons
+      console.log('Raw AI response:', response)
+
+      // Ekstraher score
       let scoreText = '5'
       if (typeof response === 'string') {
         scoreText = response
       } else if (response?.message?.content) {
         scoreText = response.message.content
+      } else if (response?.choices?.[0]?.message?.content) {
+        scoreText = response.choices[0].message.content
       }
 
       const scoreMatch = scoreText.match(/\d+/)
       const score = scoreMatch ? parseInt(scoreMatch[0]) : 5
       const finalScore = Math.min(10, Math.max(1, score))
 
-      // Generer forklaring
-      const reasonPrompt = `Based on this lead data, explain in ONE SENTENCE why they scored ${finalScore}/10.
-      Lead: ${lead?.title || 'No title'} at ${lead?.company || 'unknown company'}
-      Explanation:`
-
-      const reasonResponse = await window.puter.ai.chat(reasonPrompt, {
-        model: 'google/gemini-2.5-flash',
-        temperature: 0.3,
-        max_tokens: 50
-      })
-
+      // Generer forklaring basert på data
       let reason = 'Score updated'
-      if (typeof reasonResponse === 'string') {
-        reason = reasonResponse
-      } else if (reasonResponse?.message?.content) {
-        reason = reasonResponse.message.content
+      
+      if (lead?.title?.toLowerCase().includes('ceo') || lead?.title?.toLowerCase().includes('founder')) {
+        reason = 'Decision maker with budget authority'
+      } else if (lead?.title?.toLowerCase().includes('manager') || lead?.title?.toLowerCase().includes('head')) {
+        reason = 'Manager with influence but may need approval'
+      } else if (lead?.industry?.toLowerCase().includes('saas') || lead?.industry?.toLowerCase().includes('tech')) {
+        reason = 'In relevant industry with potential for growth'
+      } else if (notes?.length && notes.length > 0) {
+        reason = 'Engaged through conversations and follow-ups'
+      } else {
+        const reasonPrompt = `Explain in one sentence why this lead scored ${finalScore}/10.
+        Focus on the most important factor: title (${lead?.title || 'none'}), industry (${lead?.industry || 'unknown'}), or engagement (${notes?.length || 0} notes).
+        Keep it concise and professional.`
+
+        const reasonResponse = await window.puter.ai.chat(reasonPrompt, {
+          model: 'google/gemini-2.5-flash',
+          temperature: 0.3,
+          max_tokens: 30
+        })
+
+        if (typeof reasonResponse === 'string') {
+          reason = reasonResponse
+        } else if (reasonResponse?.message?.content) {
+          reason = reasonResponse.message.content
+        }
       }
 
-      // Oppdater i databasen
-      await supabase
+      // Oppdater lead i databasen
+      const { error: updateError } = await supabase
         .from('leads')
         .update({ 
           ai_score: finalScore,
@@ -261,11 +287,21 @@ Return ONLY a number between 1-10.`
         })
         .eq('id', leadId)
 
+      if (updateError) throw updateError
+
+      // Logg aktivitet
       await supabase.from('ai_activity_log').insert({
         user_id: user.id,
         lead_id: leadId,
         action_type: 'score_updated',
-        description: `Lead scored ${finalScore}/10 - ${reason}`
+        description: `Lead scored ${finalScore}/10 - ${reason}`,
+        metadata: { 
+          score: finalScore,
+          reason,
+          title: lead?.title,
+          industry: lead?.industry,
+          notes_count: notes?.length
+        }
       })
 
       await loadLeads()
@@ -512,11 +548,15 @@ Return ONLY a number between 1-10.`
                     <div className="px-4 py-4 grid grid-cols-12 gap-4 items-center">
                       <div className="col-span-3">
                         <p className="text-sm font-medium text-blue-600 truncate">{lead.name}</p>
-                        {lead.title && <p className="text-xs text-gray-500 truncate">{lead.title}</p>}
+                        {lead.title && (
+                          <p className="text-xs text-gray-500 truncate">{lead.title}</p>
+                        )}
                       </div>
                       <div className="col-span-2">
                         <p className="text-sm text-gray-500 truncate">{lead.company || '—'}</p>
-                        {lead.industry && <p className="text-xs text-gray-400 truncate">{lead.industry}</p>}
+                        {lead.industry && (
+                          <p className="text-xs text-gray-400 truncate">{lead.industry}</p>
+                        )}
                       </div>
                       <div className="col-span-2">
                         <p className="text-sm text-gray-500 truncate">{lead.email || '—'}</p>
