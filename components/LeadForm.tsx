@@ -69,6 +69,7 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
             placeholder="e.g., CEO, Marketing Manager"
             disabled={isSubmitting}
           />
+          <p className="text-xs text-gray-500 mt-1">CEO/Founder = høyere score</p>
         </div>
 
         <div>
@@ -93,6 +94,7 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
             placeholder="e.g., SaaS, Consulting, E-commerce"
             disabled={isSubmitting}
           />
+          <p className="text-xs text-gray-500 mt-1">SaaS/Tech = høyere score</p>
         </div>
 
         <div>
