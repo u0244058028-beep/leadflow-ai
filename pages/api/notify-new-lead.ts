@@ -9,7 +9,6 @@ export default async function handler(
   res: NextApiResponse
 ) {
   console.log('========== NOTIFY API START ==========')
-  console.log('Time:', new Date().toISOString())
   
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -24,34 +23,28 @@ export default async function handler(
   try {
     console.log('📧 Sending notification for lead:', lead.id)
 
-    // BRUK maybeSingle() i stedet for single()
-    const { data: profile, error: profileError } = await supabase
+    // HENT BRUKERENS (eierens) profil
+    const { data: owner, error: ownerError } = await supabase
       .from('profiles')
       .select('email, full_name')
-      .eq('id', page.user_id)
+      .eq('id', page.user_id) // page.user_id er brukerens ID
       .maybeSingle()
 
-    if (profileError) {
-      console.error('❌ Profile error:', profileError)
+    if (ownerError) {
+      console.error('❌ Owner error:', ownerError)
     }
 
-    // Bestem hvem som skal motta e-post
-    const recipientEmail = 'tasnor@hotmail.com' // DIN e-post
-    const recipientName = 'Tor Arne'
+    // Bestem hvem som skal motta varsel
+    const ownerEmail = owner?.email || 'tasnor@hotmail.com' // fallback til din e-post
+    const ownerName = owner?.full_name || 'Tor Arne'
 
-    console.log('📧 Sending email to:', recipientEmail)
+    console.log('📧 Sending notification to OWNER:', ownerEmail)
+    console.log('📧 Lead email is:', lead.email)
 
-    // Bygg HTML
-    const formFieldsHtml = Object.entries(formData)
-      .map(([key, value]) => `<li><strong>${key}:</strong> ${value}</li>`)
-      .join('')
-
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'
-
-    // Send e-post
+    // Send e-post til EIEREN (deg)
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'LeadFlow <noreply@myleadassistant.com>',
-      to: [recipientEmail],
+      to: [ownerEmail],
       subject: `🎉 New lead from your landing page!`,
       html: `
         <!DOCTYPE html>
@@ -67,18 +60,20 @@ export default async function handler(
             
             <div style="background: white; padding: 40px 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
               <p style="font-size: 18px; margin-bottom: 30px;">
-                <strong>${recipientName}</strong>, you have a new lead!
+                <strong>${ownerName}</strong>, you have a new lead!
               </p>
               
               <div style="margin-bottom: 30px;">
                 <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">📋 Lead Information:</h3>
                 <ul style="list-style: none; padding: 0; margin: 0;">
-                  ${formFieldsHtml}
+                  ${Object.entries(formData).map(([key, value]) => 
+                    `<li><strong>${key}:</strong> ${value}</li>`
+                  ).join('')}
                 </ul>
               </div>
               
               <div style="text-align: center; margin-top: 40px;">
-                <a href="${siteUrl}/leads/${lead.id}" 
+                <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'}/leads/${lead.id}" 
                    style="display: inline-block; background: #3b82f6; color: white; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 500;">
                   View Lead in Dashboard →
                 </a>
@@ -94,11 +89,20 @@ export default async function handler(
       return res.status(500).json({ error: 'Failed to send email' })
     }
 
-    console.log('✅ Email sent successfully! ID:', emailData?.id)
+    console.log('✅ Email sent to owner! ID:', emailData?.id)
+
+    // Logg at varsel ble sendt
+    await supabase.from('ai_activity_log').insert({
+      user_id: page.user_id,
+      lead_id: lead.id,
+      action_type: 'notification_sent',
+      description: `New lead notification sent to owner`,
+      metadata: { owner_email: ownerEmail }
+    })
 
     res.status(200).json({ 
       success: true, 
-      message: 'Notification sent',
+      message: 'Notification sent to owner',
       emailId: emailData?.id 
     })
 
