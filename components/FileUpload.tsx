@@ -55,16 +55,17 @@ export default function FileUpload({ leadId, onUploadComplete }: Props) {
 
         if (dbError) throw dbError
 
-        // Simuler progresjon (Supabase støtter ikke progress enda)
         setUploadProgress(100)
         setTimeout(() => {
           setUploadProgress(0)
           onUploadComplete()
         }, 1000)
 
-      } catch (error) {
-        console.error('Upload error:', error)
-        alert('Failed to upload file: ' + error.message)
+      } catch (error: any) {
+        // Løsning: type-casting for å håndtere error.message
+        const errorMessage = error?.message || 'Unknown error occurred'
+        console.error('Upload error:', errorMessage)
+        alert('Failed to upload file: ' + errorMessage)
       } finally {
         setUploading(false)
       }
