@@ -21,10 +21,9 @@ export default async function handler(
   }
 
   try {
-    console.log('📧 Sending notification for lead:', lead.id)
-    console.log('👤 Page owner ID:', page.user_id)
+    console.log('📧 Looking up owner with ID:', page.user_id)
 
-    // HENT EIERENS PROFIL (den som eier landing page)
+    // HENT BRUKERENS PROFIL (den som eier landing page)
     const { data: owner, error: ownerError } = await supabase
       .from('profiles')
       .select('email, full_name')
@@ -32,18 +31,21 @@ export default async function handler(
       .maybeSingle()
 
     if (ownerError) {
-      console.error('❌ Owner error:', ownerError)
+      console.error('❌ Database error:', ownerError)
+      return res.status(500).json({ error: 'Database error' })
     }
 
     if (!owner) {
-      console.error('❌ No owner found in database for user_id:', page.user_id)
-      console.error('💡 You need to create a profile for this user in Supabase!')
-      return res.status(404).json({ error: 'Owner not found in database' })
+      console.error('❌ No profile found for user:', page.user_id)
+      console.error('💡 You must create a profile in Supabase first!')
+      return res.status(404).json({ 
+        error: 'Owner profile not found',
+        hint: 'Run INSERT INTO profiles (id, email, full_name) VALUES (...)'
+      })
     }
 
     console.log('✅ Owner found:', owner.email)
-    console.log('📧 Sending TO OWNER:', owner.email)
-    console.log('📧 Lead email IS:', lead.email)
+    console.log('📧 Sending email to owner:', owner.email)
 
     // Send e-post til EIEREN
     const { data: emailData, error: emailError } = await resend.emails.send({
@@ -96,14 +98,12 @@ export default async function handler(
       return res.status(500).json({ error: 'Failed to send email' })
     }
 
-    console.log('✅ Email sent to owner! ID:', emailData?.id)
-    console.log('✅ Owner email:', owner.email)
+    console.log('✅ Email sent! ID:', emailData?.id)
 
     res.status(200).json({ 
       success: true, 
       message: 'Notification sent to owner',
-      sentTo: owner.email,
-      leadEmail: lead.email
+      sentTo: owner.email
     })
 
   } catch (error: any) {
