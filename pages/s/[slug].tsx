@@ -13,7 +13,6 @@ export default function PublicLandingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (slug) {
@@ -26,8 +25,6 @@ export default function PublicLandingPage() {
     setError(null)
 
     try {
-      console.log('🚀 Loading page with slug:', slug)
-
       let query = supabase
         .from('landing_pages')
         .select('*')
@@ -39,36 +36,23 @@ export default function PublicLandingPage() {
 
       const { data: pageData, error: pageError } = await query.single()
 
-      if (pageError) {
-        console.error('❌ Page error:', pageError)
+      if (pageError || !pageData) {
         throw new Error('Page not found')
       }
 
-      if (!pageData) {
-        throw new Error('Page not found')
-      }
-
-      console.log('✅ Page loaded:', pageData)
       setPage(pageData)
 
       // Hent felter
-      console.log('📋 Loading fields for page:', pageData.id)
-      
-      const { data: fieldsData, error: fieldsError } = await supabase
+      const { data: fieldsData } = await supabase
         .from('landing_page_fields')
         .select('*')
         .eq('landing_page_id', pageData.id)
         .order('sort_order')
 
-      if (fieldsError) {
-        console.error('❌ Fields error:', fieldsError)
-      }
-
       if (fieldsData && fieldsData.length > 0) {
-        console.log('✅ Fields loaded:', fieldsData.length)
         setFields(fieldsData)
       } else {
-        console.log('⚠️ No fields found, using defaults')
+        // Default fields
         setFields([
           {
             id: 'default-name',
@@ -88,7 +72,6 @@ export default function PublicLandingPage() {
       }
       
     } catch (err: any) {
-      console.error('❌ Error loading page:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -98,18 +81,14 @@ export default function PublicLandingPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
-    setSubmitError(null)
     
     try {
-      console.log('📝 Form submitted with data:', formData)
-
-      // Valider at vi har epost
       const email = formData['Email Address'] || formData.email
       if (!email) {
         throw new Error('Email is required')
       }
 
-      // Forbered lead data
+      // Opprett lead
       const leadData = {
         name: formData['Full Name'] || formData.name || 'Lead from landing page',
         email: email,
@@ -123,31 +102,17 @@ export default function PublicLandingPage() {
         source: `landing_page_${page.slug}`
       }
 
-      console.log('💾 Sending to API:', { leadData, pageId: page.id, formData })
-
-      // BRUK API-ET i stedet for direkte Supabase-kall
       const response = await fetch('/api/create-lead', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          leadData,
-          pageId: page.id,
-          formData
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadData, pageId: page.id, formData })
       })
 
-      const result = await response.json()
-
       if (!response.ok) {
-        console.error('❌ API error response:', result)
-        throw new Error(result.error || result.details || 'Failed to save lead')
+        throw new Error('Could not save your information')
       }
 
-      console.log('✅ Lead created via API:', result)
-
-      // Oppdater views og conversions
+      // Oppdater side-statistikk
       await supabase
         .from('landing_pages')
         .update({ 
@@ -159,40 +124,15 @@ export default function PublicLandingPage() {
       setSubmitted(true)
       
     } catch (error: any) {
-      console.error('❌ Submit error:', error)
-      setSubmitError(error.message || 'Something went wrong. Please try again.')
+      console.error('Submit error:', error)
+      alert(error.message || 'Something went wrong')
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !page) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">😕</div>
-          <h1 className="text-2xl font-bold mb-2">Page not found</h1>
-          <p className="text-gray-600 mb-4">
-            {error || 'The page you\'re looking for doesn\'t exist'}
-          </p>
-          <a href="/" className="text-blue-600 hover:underline">
-            Go to LeadFlow
-          </a>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+  if (error || !page) return <div className="min-h-screen flex items-center justify-center">Page not found</div>
 
   const settings = page.settings || {}
   const benefits = settings.benefits || []
@@ -208,13 +148,12 @@ export default function PublicLandingPage() {
       <Head>
         <title>{page.title} | LeadFlow</title>
         <meta name="description" content={page.description || 'Landing page'} />
-        <meta name="robots" content="index, follow" />
       </Head>
 
       <div className="min-h-screen bg-gray-50 py-12 px-4">
         {preview && !page.is_published && (
           <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-white text-center py-2 text-sm z-50">
-            ⚡ Preview mode – this page is not published yet
+            ⚡ Preview mode
           </div>
         )}
 
@@ -222,6 +161,7 @@ export default function PublicLandingPage() {
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
             <div className="p-8" style={{ backgroundColor: '#f9fafb' }}>
               {submitted ? (
+                // 🎯 RIKTIG TAKK-SIDE – ingen "filer sendt" tull!
                 <div className="text-center py-12">
                   <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -229,7 +169,14 @@ export default function PublicLandingPage() {
                     </svg>
                   </div>
                   <h2 className="text-2xl font-bold mb-2">Thank You!</h2>
-                  <p className="text-gray-600">Check your inbox – we've sent you the {offer}.</p>
+                  <p className="text-gray-600 mb-4">
+                    {offer 
+                      ? `We've sent "${offer}" to your inbox.` 
+                      : "Please check your email for confirmation."}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    You'll hear from us within 24 hours.
+                  </p>
                 </div>
               ) : (
                 <>
@@ -258,13 +205,6 @@ export default function PublicLandingPage() {
                     </div>
                   )}
 
-                  {/* Feilmelding – vises uten dialogboks */}
-                  {submitError && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-                      ⚠️ {submitError}
-                    </div>
-                  )}
-
                   <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 shadow-md">
                     {fields.map((field) => (
                       <div key={field.id} className="mb-4">
@@ -286,17 +226,10 @@ export default function PublicLandingPage() {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full py-3 text-white rounded-lg font-medium transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className="w-full py-3 text-white rounded-lg font-medium transition hover:opacity-90 disabled:opacity-50"
                       style={{ backgroundColor: page.primary_color }}
                     >
-                      {submitting ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                          Sending...
-                        </>
-                      ) : (
-                        buttonText
-                      )}
+                      {submitting ? 'Sending...' : buttonText}
                     </button>
                   </form>
 
