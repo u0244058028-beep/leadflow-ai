@@ -8,17 +8,29 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  console.log('📧 NOTIFY API STARTED')
-  console.log('Method:', req.method)
-  console.log('Body:', JSON.stringify(req.body, null, 2))
+  // Logg absolutt ALT
+  console.log('========== NOTIFY API START ==========')
+  console.log('1. Time:', new Date().toISOString())
+  console.log('2. Method:', req.method)
+  console.log('3. Headers:', JSON.stringify(req.headers, null, 2))
+  console.log('4. Body raw:', req.body)
+  console.log('5. Body parsed:', JSON.stringify(req.body, null, 2))
+  console.log('6. RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY)
+  console.log('7. NEXT_PUBLIC_SITE_URL:', process.env.NEXT_PUBLIC_SITE_URL)
 
   if (req.method !== 'POST') {
+    console.log('8. Wrong method, returning 405')
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   const { lead, page, formData } = req.body
 
+  console.log('9. Extracted lead:', lead ? 'yes' : 'no')
+  console.log('10. Extracted page:', page ? 'yes' : 'no')
+  console.log('11. Extracted formData:', formData ? 'yes' : 'no')
+
   if (!lead || !page || !formData) {
+    console.log('12. Missing fields, returning 400')
     return res.status(400).json({ 
       error: 'Missing required fields',
       received: { lead: !!lead, page: !!page, formData: !!formData }
@@ -26,53 +38,35 @@ export default async function handler(
   }
 
   try {
-    console.log('📧 Sending notification for lead:', lead.id)
-    console.log('👤 Looking for user with id:', page.user_id)
+    console.log('13. Lead ID:', lead.id)
+    console.log('14. Page ID:', page.id)
+    console.log('15. User ID:', page.user_id)
 
-    // PRØV Å HENTE EIEREN PÅ FLERE MÅTER
-    let ownerEmail = null
-    let ownerName = null
-
-    // Metode 1: Prøv å hente fra profiles
+    // PRØV Å HENTE EIEREN
+    console.log('16. Attempting to fetch profile from Supabase...')
+    
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('email, full_name')
       .eq('id', page.user_id)
       .maybeSingle()
 
-    if (profileError) {
-      console.error('❌ Profile error:', profileError)
-    }
+    console.log('17. Profile query result:', { profile, profileError })
+
+    let ownerEmail = null
+    let ownerName = null
 
     if (profile) {
-      console.log('✅ Profile found:', profile)
+      console.log('18. Profile found!')
       ownerEmail = profile.email
       ownerName = profile.full_name
-    }
-
-    // Metode 2: Hvis ikke, prøv å hente fra auth.users via service role
-    if (!ownerEmail) {
-      console.log('⚠️ Profile not found, trying auth.users')
-      
-      const { data: user, error: userError } = await supabase.auth.admin.getUserById(
-        page.user_id
-      )
-
-      if (!userError && user?.user) {
-        console.log('✅ Auth user found:', user.user.email)
-        ownerEmail = user.user.email
-        ownerName = user.user.user_metadata?.full_name || 'User'
-      }
-    }
-
-    // Metode 3: Fallback til hardkodet e-post
-    if (!ownerEmail) {
-      console.log('⚠️ No user found, using fallback email')
-      ownerEmail = 'tasnor@hotmail.com' // Din e-post
+    } else {
+      console.log('19. No profile found, using fallback')
+      ownerEmail = 'tasnor@hotmail.com'
       ownerName = 'LeadFlow Owner'
     }
 
-    console.log('📧 Sending email to:', ownerEmail)
+    console.log('20. Final recipient:', ownerEmail)
 
     // Bygg HTML for e-post
     const formFieldsHtml = Object.entries(formData)
@@ -81,8 +75,11 @@ export default async function handler(
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'
 
+    console.log('21. Site URL:', siteUrl)
+    console.log('22. Attempting to send via Resend...')
+
     // Send e-post via Resend
-    const { data: emailData, error: emailError } = await resend.emails.send({
+    const emailPayload = {
       from: 'LeadFlow <noreply@myleadassistant.com>',
       to: [ownerEmail],
       subject: `🎉 New lead from "${page.title || 'landing page'}"!`,
@@ -100,12 +97,11 @@ export default async function handler(
             
             <div style="background: white; padding: 40px 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
               <p style="font-size: 18px; margin-bottom: 30px;">
-                <strong>${ownerName || 'Hi'}</strong>, you have a new lead from your landing page!
+                <strong>${ownerName || 'Hi'}</strong>, you have a new lead!
               </p>
               
               <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
                 <p style="margin: 0 0 10px 0; font-weight: 600; font-size: 16px;">📄 Page: ${page.title || 'Landing Page'}</p>
-                <p style="margin: 0; color: #6b7280; font-size: 14px;">${siteUrl}/s/${page.slug || ''}</p>
               </div>
               
               <div style="margin-bottom: 30px;">
@@ -121,37 +117,23 @@ export default async function handler(
                   View Lead in Dashboard →
                 </a>
               </div>
-              
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 40px 0 20px 0;">
-              
-              <p style="color: #6b7280; font-size: 12px; text-align: center;">
-                Sent via LeadFlow
-              </p>
             </div>
           </body>
         </html>
       `
-    })
+    }
+
+    console.log('23. Email payload:', JSON.stringify(emailPayload, null, 2))
+
+    const { data: emailData, error: emailError } = await resend.emails.send(emailPayload)
 
     if (emailError) {
-      console.error('❌ Resend error:', emailError)
+      console.error('24. ❌ Resend error:', JSON.stringify(emailError, null, 2))
       return res.status(500).json({ error: 'Failed to send email', details: emailError })
     }
 
-    console.log('✅ Email sent successfully! ID:', emailData?.id)
-
-    // Logg at varsel ble sendt (prøv, men ikke kritisk)
-    try {
-      await supabase.from('ai_activity_log').insert({
-        user_id: page.user_id,
-        lead_id: lead.id,
-        action_type: 'notification_sent',
-        description: `New lead notification sent for ${lead.name}`,
-        metadata: { page_title: page.title, email: ownerEmail }
-      })
-    } catch (logError) {
-      console.warn('⚠️ Could not log activity:', logError)
-    }
+    console.log('25. ✅ Email sent successfully! ID:', emailData?.id)
+    console.log('26. Email data:', JSON.stringify(emailData, null, 2))
 
     res.status(200).json({ 
       success: true, 
@@ -161,9 +143,13 @@ export default async function handler(
     })
 
   } catch (error: any) {
-    console.error('❌ Unexpected error:', error)
+    console.error('27. ❌ Unexpected error:', error)
+    console.error('28. Error stack:', error.stack)
     res.status(500).json({ 
-      error: error.message || 'Internal server error'
+      error: error.message || 'Internal server error',
+      stack: error.stack
     })
+  } finally {
+    console.log('========== NOTIFY API END ==========')
   }
 }
