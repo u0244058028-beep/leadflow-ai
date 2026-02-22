@@ -12,6 +12,7 @@ export default function PublicLandingPage() {
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (slug) {
@@ -26,7 +27,6 @@ export default function PublicLandingPage() {
     try {
       console.log('Loading page with slug:', slug)
 
-      // Hent side
       let query = supabase
         .from('landing_pages')
         .select('*')
@@ -50,9 +50,7 @@ export default function PublicLandingPage() {
       console.log('Page loaded:', pageData)
       setPage(pageData)
 
-      // Hent felter - MED BEDRE FEILHÅNDTERING
-      console.log('Loading fields for page:', pageData.id)
-      
+      // Hent felter
       const { data: fieldsData, error: fieldsError } = await supabase
         .from('landing_page_fields')
         .select('*')
@@ -61,34 +59,28 @@ export default function PublicLandingPage() {
 
       if (fieldsError) {
         console.error('Fields error:', fieldsError)
-        // Ikke throw, bare logg
       }
 
-      console.log('Fields loaded:', fieldsData)
-
-      // Hvis ingen felter finnes, bruk default fields
-      if (!fieldsData || fieldsData.length === 0) {
-        console.log('No fields found, using defaults')
+      if (fieldsData && fieldsData.length > 0) {
+        setFields(fieldsData)
+      } else {
+        // Default fields
         setFields([
           {
             id: 'default-name',
             field_type: 'text',
             label: 'Full Name',
             placeholder: 'John Doe',
-            required: true,
-            sort_order: 0
+            required: true
           },
           {
             id: 'default-email',
             field_type: 'email',
             label: 'Email Address',
             placeholder: 'john@company.com',
-            required: true,
-            sort_order: 1
+            required: true
           }
         ])
-      } else {
-        setFields(fieldsData)
       }
       
     } catch (err: any) {
@@ -101,31 +93,41 @@ export default function PublicLandingPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setSubmitting(true)
     
     try {
       console.log('Form submitted:', formData)
 
+      // Sjekk at vi har nødvendig data
+      if (!formData['Full Name'] && !formData['Email Address']) {
+        throw new Error('Please fill in required fields')
+      }
+
       // Opprett lead
+      const leadData = {
+        name: formData['Full Name'] || formData.name || 'Lead from landing page',
+        email: formData['Email Address'] || formData.email,
+        title: formData['Job Title'] || null,
+        company: formData['Company'] || null,
+        phone: formData['Phone'] || null,
+        industry: formData['Industry'] || null,
+        company_size: formData['Company Size'] || null,
+        status: 'new',
+        user_id: page.user_id, // VIKTIG: tilhører side-eieren!
+        source: `landing_page_${page.slug}`
+      }
+
+      console.log('Creating lead:', leadData)
+
       const { data: newLead, error: leadError } = await supabase
         .from('leads')
-        .insert({
-          name: formData['Full Name'] || formData.name || 'Lead from landing page',
-          email: formData['Email Address'] || formData.email || null,
-          title: formData['Job Title'] || null,
-          company: formData['Company'] || null,
-          phone: formData['Phone'] || null,
-          industry: formData['Industry'] || null,
-          company_size: formData['Company Size'] || null,
-          status: 'new',
-          user_id: page.user_id,
-          source: `landing_page_${page.slug}`
-        })
+        .insert(leadData)
         .select()
         .single()
 
       if (leadError) {
-        console.error('Lead error:', leadError)
-        throw leadError
+        console.error('Lead error details:', leadError)
+        throw new Error('Could not save your information. Please try again.')
       }
 
       console.log('Lead created:', newLead)
@@ -147,6 +149,7 @@ export default function PublicLandingPage() {
 
       if (formError) {
         console.error('Form data error:', formError)
+        // Ikke kritisk, fortsett
       }
 
       // Oppdater konverteringer
@@ -177,7 +180,9 @@ export default function PublicLandingPage() {
       
     } catch (error: any) {
       console.error('Error submitting form:', error)
-      alert('Something went wrong. Please try again.')
+      alert(error.message || 'Something went wrong. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -209,7 +214,6 @@ export default function PublicLandingPage() {
     )
   }
 
-  // Hent settings
   const settings = page.settings || {}
   const benefits = settings.benefits || []
   const trustElements = settings.trustElements || [
@@ -274,33 +278,30 @@ export default function PublicLandingPage() {
                     </div>
                   )}
 
-                  {/* SKJEMA – dette er det viktige! */}
                   <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 shadow-md">
-                    {fields.length === 0 ? (
-                      <p className="text-center text-gray-500 py-4">No form fields configured</p>
-                    ) : (
-                      fields.map((field) => (
-                        <div key={field.id} className="mb-4">
-                          <label className="block text-sm font-medium mb-1">
-                            {field.label} {field.required && <span className="text-red-500">*</span>}
-                          </label>
-                          <input
-                            type={field.field_type}
-                            required={field.required}
-                            placeholder={field.placeholder}
-                            onChange={(e) => setFormData({...formData, [field.label]: e.target.value})}
-                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      ))
-                    )}
+                    {fields.map((field) => (
+                      <div key={field.id} className="mb-4">
+                        <label className="block text-sm font-medium mb-1">
+                          {field.label} {field.required && <span className="text-red-500">*</span>}
+                        </label>
+                        <input
+                          type={field.field_type}
+                          required={field.required}
+                          placeholder={field.placeholder}
+                          value={formData[field.label] || ''}
+                          onChange={(e) => setFormData({...formData, [field.label]: e.target.value})}
+                          className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    ))}
 
                     <button
                       type="submit"
-                      className="w-full py-3 text-white rounded-lg font-medium transition hover:opacity-90"
+                      disabled={submitting}
+                      className="w-full py-3 text-white rounded-lg font-medium transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ backgroundColor: page.primary_color }}
                     >
-                      {buttonText}
+                      {submitting ? 'Sending...' : buttonText}
                     </button>
                   </form>
 
