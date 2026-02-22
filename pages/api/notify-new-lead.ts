@@ -9,6 +9,7 @@ export default async function handler(
   res: NextApiResponse
 ) {
   console.log('========== NOTIFY API START ==========')
+  console.log('Time:', new Date().toISOString())
   
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -22,7 +23,6 @@ export default async function handler(
 
   try {
     console.log('📧 Sending notification for lead:', lead.id)
-    console.log('👤 Looking for user with id:', page.user_id)
 
     // BRUK maybeSingle() i stedet for single()
     const { data: profile, error: profileError } = await supabase
@@ -36,31 +36,23 @@ export default async function handler(
     }
 
     // Bestem hvem som skal motta e-post
-    let recipientEmail = 'tasnor@hotmail.com' // DIN e-post som fallback
-    let recipientName = 'LeadFlow Owner'
-
-    if (profile) {
-      console.log('✅ Profile found:', profile)
-      recipientEmail = profile.email
-      recipientName = profile.full_name
-    } else {
-      console.log('⚠️ No profile found, using fallback email')
-    }
+    const recipientEmail = 'tasnor@hotmail.com' // DIN e-post
+    const recipientName = 'Tor Arne'
 
     console.log('📧 Sending email to:', recipientEmail)
 
-    // Bygg HTML for e-post
+    // Bygg HTML
     const formFieldsHtml = Object.entries(formData)
       .map(([key, value]) => `<li><strong>${key}:</strong> ${value}</li>`)
       .join('')
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'
 
-    // Send e-post via Resend
+    // Send e-post
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'LeadFlow <noreply@myleadassistant.com>',
       to: [recipientEmail],
-      subject: `🎉 New lead from "${page.title || 'landing page'}"!`,
+      subject: `🎉 New lead from your landing page!`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -77,10 +69,6 @@ export default async function handler(
               <p style="font-size: 18px; margin-bottom: 30px;">
                 <strong>${recipientName}</strong>, you have a new lead!
               </p>
-              
-              <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-                <p style="margin: 0 0 10px 0; font-weight: 600; font-size: 16px;">📄 Page: ${page.title || 'Landing Page'}</p>
-              </div>
               
               <div style="margin-bottom: 30px;">
                 <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">📋 Lead Information:</h3>
@@ -107,19 +95,6 @@ export default async function handler(
     }
 
     console.log('✅ Email sent successfully! ID:', emailData?.id)
-
-    // Prøv å logge, men ikke kritisk
-    try {
-      await supabase.from('ai_activity_log').insert({
-        user_id: page.user_id,
-        lead_id: lead.id,
-        action_type: 'notification_sent',
-        description: `New lead notification sent`,
-        metadata: { email: recipientEmail }
-      })
-    } catch (logError) {
-      console.warn('⚠️ Could not log activity:', logError)
-    }
 
     res.status(200).json({ 
       success: true, 
