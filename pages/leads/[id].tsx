@@ -20,6 +20,7 @@ export default function LeadDetail() {
   const [generatedMessage, setGeneratedMessage] = useState('')
   const [loadingAI, setLoadingAI] = useState(false)
   const [userName, setUserName] = useState('')
+const [fileListKey, setFileListKey] = useState(0)
   
   // E-post states
   const [showEmailForm, setShowEmailForm] = useState(false)
