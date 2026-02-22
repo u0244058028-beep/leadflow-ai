@@ -10,10 +10,17 @@ interface Props {
 export default function FileUpload({ leadId, onUploadComplete }: Props) {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const user = (await supabase.auth.getUser()).data.user
-    if (!user) return
+    if (!user) {
+      alert('You must be logged in to upload files')
+      return
+    }
+
+    console.log('Starting upload for files:', acceptedFiles.map(f => f.name))
+    setUploadError(null)
 
     for (const file of acceptedFiles) {
       setUploading(true)
@@ -25,6 +32,8 @@ export default function FileUpload({ leadId, onUploadComplete }: Props) {
         const fileName = `${leadId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
         const filePath = `${user.id}/${fileName}`
 
+        console.log('Uploading to path:', filePath)
+
         // Last opp til Supabase Storage
         const { error: uploadError, data } = await supabase.storage
           .from('lead-files')
@@ -33,38 +42,72 @@ export default function FileUpload({ leadId, onUploadComplete }: Props) {
             upsert: false
           })
 
-        if (uploadError) throw uploadError
+        if (uploadError) {
+          console.error('Storage upload error:', uploadError)
+          throw uploadError
+        }
+
+        console.log('Upload successful:', data)
 
         // Hent public URL
         const { data: { publicUrl } } = supabase.storage
           .from('lead-files')
           .getPublicUrl(filePath)
 
-        // Lagre metadata i databasen
-        const { error: dbError } = await supabase
-          .from('lead_files')
-          .insert({
-            lead_id: leadId,
-            user_id: user.id,
-            file_name: file.name,
-            file_size: file.size,
-            file_type: file.type,
-            storage_path: filePath,
-            is_image: file.type.startsWith('image/')
-          })
+        console.log('Public URL:', publicUrl)
 
-        if (dbError) throw dbError
+        // Sjekk om lead_files-tabellen finnes
+        const { error: tableCheckError } = await supabase
+          .from('lead_files')
+          .select('count')
+          .limit(1)
+
+        if (tableCheckError) {
+          console.error('Table check error:', tableCheckError)
+          throw new Error('Database table "lead_files" not found. Run the SQL setup first.')
+        }
+
+        // Lagre metadata i databasen
+        const fileData = {
+          lead_id: leadId,
+          user_id: user.id,
+          file_name: file.name,
+          file_size: file.size,
+          file_type: file.type,
+          storage_path: filePath,
+          is_image: file.type.startsWith('image/')
+        }
+
+        console.log('Inserting file metadata:', fileData)
+
+        const { error: dbError, data: dbData } = await supabase
+          .from('lead_files')
+          .insert(fileData)
+          .select()
+
+        if (dbError) {
+          console.error('Database insert error:', dbError)
+          throw dbError
+        }
+
+        console.log('Database insert successful:', dbData)
 
         setUploadProgress(100)
+        
+        // Gi beskjed til parent-komponenten
         setTimeout(() => {
           setUploadProgress(0)
           onUploadComplete()
-        }, 1000)
+          alert('File uploaded successfully!')
+        }, 500)
 
       } catch (error: any) {
-        // Løsning: type-casting for å håndtere error.message
         const errorMessage = error?.message || 'Unknown error occurred'
-        console.error('Upload error:', errorMessage)
+        console.error('Upload error details:', {
+          message: errorMessage,
+          error: error
+        })
+        setUploadError(errorMessage)
         alert('Failed to upload file: ' + errorMessage)
       } finally {
         setUploading(false)
@@ -109,6 +152,12 @@ export default function FileUpload({ leadId, onUploadComplete }: Props) {
           </>
         )}
       </div>
+      
+      {uploadError && (
+        <div className="mt-2 p-2 bg-red-50 text-red-700 text-sm rounded">
+          Error: {uploadError}
+        </div>
+      )}
     </div>
   )
 }
