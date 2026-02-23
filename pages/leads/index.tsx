@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Lead } from '@/types'
 import { useDebounce } from '@/hooks/useDebounce'
 
-type SortField = 'name' | 'company' | 'status' | 'ai_score' | 'created_at'
+type SortField = 'name' | 'company' | 'status' | 'ai_score' | 'created_at' | 'potential_value'
 type SortOrder = 'asc' | 'desc'
 
 export default function LeadsPage() {
@@ -371,10 +371,9 @@ Return ONLY a number between 1-10.`
         </div>
       )}
 
-      {/* Søk og filter-seksjon – mobilvennlig */}
+      {/* Søk og filter-seksjon */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="space-y-4">
-          {/* Søkefelt - full bredde på mobil */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
             <div className="relative">
@@ -401,7 +400,6 @@ Return ONLY a number between 1-10.`
             </div>
           </div>
 
-          {/* Filtere i grid – 2 kolonner på mobil */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -435,7 +433,6 @@ Return ONLY a number between 1-10.`
           </div>
         </div>
 
-        {/* Aktive filtre (samme som før) */}
         {(searchTerm || statusFilter !== 'all' || scoreFilter !== 'all') && (
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="text-sm text-gray-500">Active filters:</span>
@@ -507,7 +504,7 @@ Return ONLY a number between 1-10.`
           </div>
         ) : (
           <>
-            {/* MOBILVISNING – kort for hvert lead (vises på mobil, skjules på desktop) */}
+            {/* MOBILVISNING */}
             <div className="block sm:hidden divide-y divide-gray-200">
               {paginatedLeads.map((lead) => (
                 <div key={lead.id} className="p-4 hover:bg-gray-50">
@@ -526,6 +523,12 @@ Return ONLY a number between 1-10.`
                       <div>
                         <span className="text-xs text-gray-400">Company</span>
                         <p className="truncate">{lead.company || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400">Value</span>
+                        <p className="truncate font-medium text-green-600">
+                          {lead.potential_value ? `$${lead.potential_value.toLocaleString()}` : '—'}
+                        </p>
                       </div>
                       <div>
                         <span className="text-xs text-gray-400">Email</span>
@@ -566,7 +569,7 @@ Return ONLY a number between 1-10.`
               ))}
             </div>
 
-            {/* DESKTOPVISNING – tabell (vises på desktop, skjules på mobil) */}
+            {/* DESKTOPVISNING */}
             <div className="hidden sm:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -579,6 +582,9 @@ Return ONLY a number between 1-10.`
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Contact
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700" onClick={() => handleSort('potential_value')}>
+                      Value <SortIcon field="potential_value" />
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700" onClick={() => handleSort('status')}>
                       Status <SortIcon field="status" />
@@ -610,6 +616,15 @@ Return ONLY a number between 1-10.`
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {lead.email || '—'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {lead.potential_value ? (
+                          <span className="font-medium text-green-600">
+                            ${lead.potential_value.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(lead.status)}`}>
@@ -649,7 +664,7 @@ Return ONLY a number between 1-10.`
               </table>
             </div>
 
-            {/* Paginering (mobilvennlig) */}
+            {/* Paginering */}
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-700">
