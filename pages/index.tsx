@@ -122,7 +122,7 @@ export default function LandingPage() {
                 description: 'Keep track of tasks for each lead. Get reminders and see what needs attention.',
                 icon: '✅',
               },
-            ]}.map((feature, i) => (
+            ].map((feature, i) => (
               <div key={i} className="p-6 border border-gray-100 rounded-xl hover:shadow-lg transition">
                 <div className="text-4xl mb-4">{feature.icon}</div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">{feature.title}</h3>
@@ -161,7 +161,7 @@ export default function LandingPage() {
                 title: 'Let AI help',
                 description: 'Score leads, send follow-ups, and track pipeline value automatically.',
               },
-            ]}.map((item) => (
+            ].map((item) => (
               <div key={item.step} className="text-center">
                 <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
                   {item.step}
