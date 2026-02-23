@@ -18,7 +18,7 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
     phone: initialData?.phone || '',
     website: initialData?.website || '',
     linkedin_url: initialData?.linkedin_url || '',
-    potential_value: initialData?.potential_value || '',
+    potential_value: initialData?.potential_value?.toString() || '',
     status: initialData?.status || 'new',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -34,11 +34,21 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
     setIsSubmitting(true)
     
     try {
-      // Konverter potential_value til tall hvis det finnes
-      const submitData = {
-        ...form,
-        potential_value: form.potential_value ? Number(form.potential_value) : null
+      // Konverter potential_value til tall hvis det finnes, ellers undefined
+      const submitData: Partial<Lead> = {
+        name: form.name,
+        title: form.title || undefined,
+        company: form.company || undefined,
+        industry: form.industry || undefined,
+        company_size: form.company_size || undefined,
+        email: form.email || undefined,
+        phone: form.phone || undefined,
+        website: form.website || undefined,
+        linkedin_url: form.linkedin_url || undefined,
+        status: form.status as Lead['status'],
+        potential_value: form.potential_value ? Number(form.potential_value) : undefined
       }
+      
       await onSubmit(submitData)
     } catch (error) {
       console.error('Error submitting form:', error)
