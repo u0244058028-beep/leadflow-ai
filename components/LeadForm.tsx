@@ -18,6 +18,7 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
     phone: initialData?.phone || '',
     website: initialData?.website || '',
     linkedin_url: initialData?.linkedin_url || '',
+    potential_value: initialData?.potential_value || '',
     status: initialData?.status || 'new',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -33,7 +34,12 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
     setIsSubmitting(true)
     
     try {
-      await onSubmit(form)
+      // Konverter potential_value til tall hvis det finnes
+      const submitData = {
+        ...form,
+        potential_value: form.potential_value ? Number(form.potential_value) : null
+      }
+      await onSubmit(submitData)
     } catch (error) {
       console.error('Error submitting form:', error)
       alert('Failed to save lead. Please try again.')
@@ -160,6 +166,22 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
             placeholder="https://linkedin.com/in/username"
             disabled={isSubmitting}
           />
+        </div>
+
+        {/* NYTT FELT: Potensiell verdi */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Potential Deal Value ($)</label>
+          <input
+            type="number"
+            value={form.potential_value}
+            onChange={(e) => setForm({ ...form, potential_value: e.target.value })}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="e.g., 5000"
+            disabled={isSubmitting}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Estimated contract value if this lead converts
+          </p>
         </div>
 
         <div className="md:col-span-2">
