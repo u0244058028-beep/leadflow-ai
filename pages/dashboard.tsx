@@ -17,6 +17,7 @@ interface DashboardStats {
   pageViews: number
   pageConversions: number
   recentLeads: any[]
+  pipelineValue: number
 }
 
 export default function Dashboard() {
@@ -66,7 +67,7 @@ export default function Dashboard() {
         
         supabase
           .from('leads')
-          .select('id, name, company, ai_score, status, created_at, title, industry, email')
+          .select('id, name, company, ai_score, status, created_at, title, industry, email, potential_value')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
         
@@ -99,6 +100,31 @@ export default function Dashboard() {
         ?.sort((a, b) => (b.ai_score || 0) - (a.ai_score || 0))
         ?.slice(0, 5) || []
 
+      // NY: Beregn pipeline-verdi
+      const pipelineValue = leadsData?.reduce((sum, lead) => {
+        // Hvis bruker har satt egen verdi, bruk den
+        if (lead.potential_value && lead.potential_value > 0) {
+          return sum + lead.potential_value
+        }
+        
+        // Ellers bruk estimat basert på status og score
+        let estimatedValue = 0
+        switch (lead.status) {
+          case 'converted': estimatedValue = 5000; break
+          case 'qualified': estimatedValue = 3000; break
+          case 'contacted': estimatedValue = 1000; break
+          case 'new': estimatedValue = 500; break
+          default: estimatedValue = 0
+        }
+        
+        // Juster basert på score (høyere score = høyere sannsynlighet)
+        if (lead.ai_score) {
+          estimatedValue = estimatedValue * (lead.ai_score / 5)
+        }
+        
+        return sum + estimatedValue
+      }, 0) || 0
+
       // Nylige leads (siste 5)
       const recentLeads = leadsData?.slice(0, 5) || []
 
@@ -119,7 +145,8 @@ export default function Dashboard() {
         pageCount,
         pageViews,
         pageConversions,
-        recentLeads
+        recentLeads,
+        pipelineValue
       })
 
     } catch (error: any) {
@@ -145,7 +172,6 @@ export default function Dashboard() {
 
       if (error) throw error
       
-      // Last data på nytt
       await loadDashboardData()
       
     } catch (error: any) {
@@ -195,7 +221,7 @@ export default function Dashboard() {
         <p className="text-sm text-gray-500 mt-1">Welcome back! Here's your overview.</p>
       </div>
       
-      {/* KPI-kort – 3 kolonner for bedre proporsjoner */}
+      {/* KPI-kort – 3 kolonner */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
@@ -225,6 +251,22 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Pipeline Value – NYTT KORT */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg shadow-lg mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium opacity-90">Total Pipeline Value</p>
+            <p className="text-4xl font-bold mt-2">${stats.pipelineValue.toLocaleString()}</p>
+            <p className="text-xs opacity-75 mt-1">
+              {stats.pipelineValue > 0 
+                ? 'Based on deal values and lead scores' 
+                : 'Add deal values to your leads for accurate pipeline'}
+            </p>
+          </div>
+          <span className="text-5xl opacity-50">💰</span>
+        </div>
+      </div>
+
       {/* Lead Score Oversikt */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-red-50 p-4 rounded-lg border border-red-200">
@@ -241,7 +283,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Nylige Leads med Slett-knapp */}
+      {/* Nylige Leads med Verdi */}
       <div className="bg-white rounded-lg shadow mb-8">
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-semibold">📋 Recent Leads</h2>
@@ -262,6 +304,7 @@ export default function Dashboard() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -280,6 +323,15 @@ export default function Dashboard() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {lead.title || '—'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {lead.potential_value ? (
+                        <span className="font-medium text-green-600">
+                          ${lead.potential_value.toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {lead.ai_score ? (
@@ -332,7 +384,6 @@ export default function Dashboard() {
 
       {/* Topp 5 leads og Landing Pages */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Topp 5 leads */}
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">🔥 Top 5 Hot Leads</h2>
@@ -354,13 +405,20 @@ export default function Dashboard() {
                       </Link>
                       <p className="text-xs text-gray-500">{lead.company || 'No company'}</p>
                     </div>
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      lead.ai_score >= 8 ? 'bg-red-100 text-red-800' :
-                      lead.ai_score >= 5 ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {lead.ai_score}/10
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {lead.potential_value && (
+                        <span className="text-xs font-medium text-green-600">
+                          ${lead.potential_value.toLocaleString()}
+                        </span>
+                      )}
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        lead.ai_score >= 8 ? 'bg-red-100 text-red-800' :
+                        lead.ai_score >= 5 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {lead.ai_score}/10
+                      </span>
+                    </div>
                   </div>
                 </li>
               ))}
@@ -368,7 +426,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Landing Pages */}
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">📄 Landing Pages</h2>
