@@ -21,7 +21,7 @@ export default async function handler(
     const twoDaysAgo = new Date()
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
 
-    const { data: leads } = await supabase
+    const { data: leads, error: leadsError } = await supabase
       .from('leads')
       .select(`
         *,
@@ -31,6 +31,11 @@ export default async function handler(
       .in('status', ['new', 'contacted'])
       .or(`last_contacted.is.null,last_contacted.lt.${twoDaysAgo.toISOString()}`)
       .limit(20)
+
+    if (leadsError) {
+      console.error('Error fetching leads:', leadsError)
+      return res.status(500).json({ error: 'Failed to fetch leads' })
+    }
 
     if (!leads || leads.length === 0) {
       return res.json({ message: 'No leads need followup', results: [] })
@@ -85,6 +90,10 @@ Max 150 words.`
             max_tokens: 300
           })
         })
+
+        if (!aiResponse.ok) {
+          throw new Error(`AI API error: ${aiResponse.status}`)
+        }
 
         const aiData = await aiResponse.json()
         const message = aiData.choices?.[0]?.message?.content || ''
@@ -146,13 +155,13 @@ Max 150 words.`
           type: followupType
         })
 
-      } catch (error) {
+      } catch (error: any) {  // ← VIKTIG: Bruk 'any' for å kunne lese error.message
         console.error(`Error processing lead ${lead.id}:`, error)
         results.push({
           leadId: lead.id,
           name: lead.name,
           success: false,
-          error: error.message
+          error: error?.message || 'Unknown error occurred'
         })
       }
     }
@@ -163,8 +172,8 @@ Max 150 words.`
       results 
     })
 
-  } catch (error: any) {
+  } catch (error: any) {  // ← VIKTIG: Bruk 'any' her også
     console.error('Auto-followup error:', error)
-    res.status(500).json({ error: error.message })
+    res.status(500).json({ error: error?.message || 'Internal server error' })
   }
 }
