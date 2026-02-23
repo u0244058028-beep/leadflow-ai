@@ -23,18 +23,17 @@ export default async function handler(
       return res.status(400).json({ error: 'Missing userId' })
     }
 
-    // Hent leads som trenger oppfølging (uten join)
+    // Hent leads som trenger oppfølging
     const twoDaysAgo = new Date()
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
     console.log('Two days ago:', twoDaysAgo.toISOString())
 
     const { data: leads, error: leadsError } = await supabase
       .from('leads')
-      .select('*')  // IKKE join med profiles
+      .select('*')
       .eq('user_id', userId)
       .in('status', ['new', 'contacted'])
-      .or(`last_contacted.is.null,last_contacted.lt.${twoDaysAgo.toISOString()}`)
-      .limit(20)
+      .limit(20)  // Midlertidig uten last_contacted-filter
 
     if (leadsError) {
       console.error('Error fetching leads:', leadsError)
@@ -54,7 +53,7 @@ export default async function handler(
       try {
         console.log(`Processing lead: ${lead.id} - ${lead.name}`)
 
-        // Bestem type oppfølging
+        // Bestem type oppfølging basert på score
         let followupType = 'standard'
         let customPrompt = ''
 
@@ -69,24 +68,17 @@ export default async function handler(
           customPrompt = `This is a COLD lead (score ${lead.ai_score}/10). Keep it light and offer value.`
         }
 
-        if (!lead.last_contacted) {
-          followupType = 'welcome'
-          customPrompt = `This is their first contact. Welcome them and deliver the offer.`
-        }
-
         // Generer melding med Puter.ai
-        const prompt = `Write a short, friendly follow-up email to ${lead.name} from a company.
+        const prompt = `Write a short, friendly follow-up email to ${lead.name}.
         
 Lead context:
 - Score: ${lead.ai_score || 'Not scored yet'}/10
-- Last contacted: ${lead.last_contacted ? new Date(lead.last_contacted).toLocaleDateString() : 'Never'}
 - Status: ${lead.status}
 - Type: ${followupType} lead
 
 ${customPrompt}
 
 Keep it warm and professional. Include a question to encourage response.
-Make it personal and specific to their situation.
 Max 150 words.`
 
         console.log('Calling Puter.ai...')
@@ -136,8 +128,8 @@ Max 150 words.`
           from: 'LeadFlow <followup@myleadassistant.com>',
           to: [lead.email],
           subject: followupType === 'hot' 
-            ? `Quick question, ${lead.name}?` 
-            : `Following up, ${lead.name}`,
+            ? `Quick question, ${lead.name.split(' ')[0]}?` 
+            : `Following up, ${lead.name.split(' ')[0]}`,
           html: htmlContent
         })
 
@@ -148,21 +140,31 @@ Max 150 words.`
 
         console.log('Email sent! ID:', emailData?.id)
 
-        // Oppdater last_contacted
-        await supabase
-          .from('leads')
-          .update({ 
-            last_contacted: new Date().toISOString(),
-            status: lead.status === 'new' ? 'contacted' : lead.status
-          })
-          .eq('id', lead.id)
+        // Oppdater lead (hvis last_contacted finnes)
+        if (lead.last_contacted !== undefined) {
+          await supabase
+            .from('leads')
+            .update({ 
+              last_contacted: new Date().toISOString(),
+              status: lead.status === 'new' ? 'contacted' : lead.status
+            })
+            .eq('id', lead.id)
+        } else {
+          // Bare oppdater status hvis last_contacted mangler
+          await supabase
+            .from('leads')
+            .update({ 
+              status: lead.status === 'new' ? 'contacted' : lead.status
+            })
+            .eq('id', lead.id)
+        }
 
         // Logg aktiviteten
         await supabase.from('ai_activity_log').insert({
           user_id: userId,
           lead_id: lead.id,
           action_type: 'followup_sent',
-          description: `${followupType} follow-up sent to ${lead.name} (score ${lead.ai_score}/10)`,
+          description: `${followupType} follow-up sent to ${lead.name}`,
           metadata: {
             type: followupType,
             score: lead.ai_score,
