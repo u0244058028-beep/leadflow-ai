@@ -217,15 +217,15 @@ export default function LeadDetail() {
   }
 
   async function updateValue() {
-    if (!lead) return
-    const newValue = tempValue ? parseInt(tempValue) : null
-    await supabase
-      .from('leads')
-      .update({ potential_value: newValue })
-      .eq('id', lead.id)
-    setLead({ ...lead, potential_value: newValue })
-    setEditingValue(false)
-  }
+  if (!lead) return
+  const newValue = tempValue ? parseInt(tempValue) : undefined
+  await supabase
+    .from('leads')
+    .update({ potential_value: newValue })
+    .eq('id', lead.id)
+  setLead({ ...lead, potential_value: newValue })
+  setEditingValue(false)
+}
 
   function getScoreColor(score: number | null) {
     if (!score) return 'bg-gray-100 text-gray-800'
