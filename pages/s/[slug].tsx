@@ -1,10 +1,7 @@
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { Resend } from 'resend'
 import Head from 'next/head'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 export default function PublicLandingPage() {
   const router = useRouter()
@@ -60,31 +57,6 @@ export default function PublicLandingPage() {
     }
   }
 
-  async function sendConfirmationEmail(leadEmail: string, leadName: string, offerName: string) {
-    try {
-      await resend.emails.send({
-        from: 'LeadFlow <notifications@myleadassistant.com>',
-        to: [leadEmail],
-        subject: `Thanks for your interest, ${leadName}!`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #3b82f6;">Thank You!</h1>
-            <p>Hi ${leadName},</p>
-            <p>We've received your request for "${offerName}".</p>
-            <p>You'll hear from us within 24 hours.</p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-            <p style="font-size: 12px; color: #6b7280;">
-              This is a confirmation email – no action needed.
-            </p>
-          </div>
-        `
-      })
-      console.log('✅ Confirmation email sent to:', leadEmail)
-    } catch (error) {
-      console.error('❌ Failed to send confirmation email:', error)
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
@@ -113,12 +85,16 @@ export default function PublicLandingPage() {
 
       if (!response.ok) throw new Error('Could not save your information')
 
-      // Send bekreftelses-e-post til leadet
-      await sendConfirmationEmail(
-        email, 
-        leadData.name, 
-        page.settings?.offer || 'Free Resource'
-      )
+      // Send bekreftelses-e-post via API (ikke direkte)
+      await fetch('/api/send-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email, 
+          name: leadData.name, 
+          offer: page.settings?.offer || 'Free Resource' 
+        })
+      })
 
       // Oppdater statistikk
       await supabase
@@ -166,7 +142,6 @@ export default function PublicLandingPage() {
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
             <div className="p-8" style={{ backgroundColor: '#f9fafb' }}>
               {submitted ? (
-                // ✅ RIKTIG TAKK-SIDE – ingen "filer sendt" tull!
                 <div className="text-center py-12">
                   <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
