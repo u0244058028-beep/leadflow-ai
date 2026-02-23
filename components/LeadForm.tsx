@@ -34,7 +34,6 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
     setIsSubmitting(true)
     
     try {
-      // Konverter potential_value til tall hvis det finnes, ellers undefined
       const submitData: Partial<Lead> = {
         name: form.name,
         title: form.title || undefined,
@@ -61,7 +60,6 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-lg shadow">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Grunnleggende info */}
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700">Name *</label>
           <input
@@ -178,7 +176,7 @@ export default function LeadForm({ initialData, onSubmit, onCancel }: Props) {
           />
         </div>
 
-        {/* NYTT FELT: Potensiell verdi */}
+        {/* Potential Value Field */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Potential Deal Value ($)</label>
           <input
