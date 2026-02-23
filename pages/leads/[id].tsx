@@ -22,6 +22,10 @@ export default function LeadDetail() {
   const [userName, setUserName] = useState('')
   const [fileListKey, setFileListKey] = useState(0)
   
+  // Value editing states
+  const [editingValue, setEditingValue] = useState(false)
+  const [tempValue, setTempValue] = useState('')
+  
   // E-post states
   const [showEmailForm, setShowEmailForm] = useState(false)
   const [emailSubject, setEmailSubject] = useState('')
@@ -39,7 +43,6 @@ export default function LeadDetail() {
     const user = (await supabase.auth.getUser()).data.user
     if (!user) return
 
-    // Hent brukernavn
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name')
@@ -47,7 +50,6 @@ export default function LeadDetail() {
       .single()
     if (profile) setUserName(profile.full_name)
 
-    // Hent lead
     const { data: leadData } = await supabase
       .from('leads')
       .select('*')
@@ -55,7 +57,6 @@ export default function LeadDetail() {
       .single()
     setLead(leadData)
 
-    // Hent oppgaver
     const { data: tasksData } = await supabase
       .from('tasks')
       .select('*')
@@ -63,7 +64,6 @@ export default function LeadDetail() {
       .order('due_date', { ascending: true })
     setTasks(tasksData || [])
 
-    // Hent notater
     const { data: notesData } = await supabase
       .from('notes')
       .select('*')
@@ -216,6 +216,17 @@ export default function LeadDetail() {
     })
   }
 
+  async function updateValue() {
+    if (!lead) return
+    const newValue = tempValue ? parseInt(tempValue) : null
+    await supabase
+      .from('leads')
+      .update({ potential_value: newValue })
+      .eq('id', lead.id)
+    setLead({ ...lead, potential_value: newValue })
+    setEditingValue(false)
+  }
+
   function getScoreColor(score: number | null) {
     if (!score) return 'bg-gray-100 text-gray-800'
     if (score >= 8) return 'bg-green-100 text-green-800'
@@ -246,7 +257,6 @@ export default function LeadDetail() {
             <p><span className="font-medium">Phone:</span> {lead.phone || '–'}</p>
             <p><span className="font-medium">Status:</span> {lead.status}</p>
             
-            {/* AI Score */}
             {lead.ai_score && (
               <div className="mt-4 p-3 rounded-lg bg-gray-50">
                 <p className="text-sm font-medium text-gray-700 mb-1">AI Lead Score</p>
@@ -263,10 +273,21 @@ export default function LeadDetail() {
               </div>
             )}
 
-            {/* 🎯 NYTT: Potensiell verdi */}
-            {lead.potential_value && (
+            {/* Potential Value med redigering */}
+            {lead.potential_value && !editingValue ? (
               <div className="mt-4 p-3 rounded-lg bg-gray-50">
-                <p className="text-sm font-medium text-gray-700 mb-1">Estimated Value</p>
+                <div className="flex justify-between items-center">
+                  <p className="text-sm font-medium text-gray-700 mb-1">Estimated Value</p>
+                  <button
+                    onClick={() => {
+                      setTempValue(lead.potential_value?.toString() || '')
+                      setEditingValue(true)
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    Edit
+                  </button>
+                </div>
                 <div className="flex items-center gap-3">
                   <span className="text-2xl font-bold text-green-600">
                     ${lead.potential_value.toLocaleString()}
@@ -275,6 +296,47 @@ export default function LeadDetail() {
                     {lead.status === 'converted' ? '💰 Won deal' : '📊 Pipeline value'}
                   </p>
                 </div>
+              </div>
+            ) : editingValue ? (
+              <div className="mt-4 p-3 rounded-lg bg-gray-50">
+                <p className="text-sm font-medium text-gray-700 mb-2">Update Value</p>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={tempValue}
+                    onChange={(e) => setTempValue(e.target.value)}
+                    className="flex-1 border border-gray-300 rounded-md p-2"
+                    placeholder="Enter value"
+                  />
+                  <button
+                    onClick={updateValue}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingValue(false)}
+                    className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 p-3 rounded-lg bg-gray-50">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm font-medium text-gray-700 mb-1">Estimated Value</p>
+                  <button
+                    onClick={() => {
+                      setTempValue('')
+                      setEditingValue(true)
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    Add value
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 italic">No value set</p>
               </div>
             )}
           </div>
