@@ -10,71 +10,50 @@ export default async function handler(
   res: NextApiResponse
 ) {
   console.log('========== AUTO-FOLLOWUP START ==========')
-  console.log('1. Method:', req.method)
-  console.log('2. Body:', JSON.stringify(req.body, null, 2))
-  console.log('3. RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY)
-  console.log('4. NEXT_PUBLIC_SITE_URL:', process.env.NEXT_PUBLIC_SITE_URL)
-
+  
   if (req.method !== 'POST') {
-    console.log('5. Wrong method, returning 405')
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
     const { userId } = req.body
-    console.log('6. UserId:', userId)
+    console.log('UserId:', userId)
 
     if (!userId) {
-      console.log('7. Missing userId')
       return res.status(400).json({ error: 'Missing userId' })
     }
 
-    // Hent leads som trenger oppfølging
-    console.log('8. Fetching leads for user:', userId)
-    
+    // Hent leads som trenger oppfølging (uten join)
     const twoDaysAgo = new Date()
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
-    console.log('9. Two days ago:', twoDaysAgo.toISOString())
+    console.log('Two days ago:', twoDaysAgo.toISOString())
 
     const { data: leads, error: leadsError } = await supabase
       .from('leads')
-      .select(`
-        *,
-        profiles!leads_user_id_fkey (full_name, company_name)
-      `)
+      .select('*')  // IKKE join med profiles
       .eq('user_id', userId)
       .in('status', ['new', 'contacted'])
       .or(`last_contacted.is.null,last_contacted.lt.${twoDaysAgo.toISOString()}`)
       .limit(20)
 
     if (leadsError) {
-      console.error('10. Error fetching leads:', leadsError)
+      console.error('Error fetching leads:', leadsError)
       return res.status(500).json({ error: 'Failed to fetch leads' })
     }
 
-    console.log('11. Found leads:', leads?.length || 0)
+    console.log('Found leads:', leads?.length || 0)
 
     if (!leads || leads.length === 0) {
-      console.log('12. No leads need followup')
       return res.json({ message: 'No leads need followup', results: [] })
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'
-    console.log('13. Site URL:', siteUrl)
-
     const results = []
 
-    for (let i = 0; i < leads.length; i++) {
-      const lead = leads[i]
-      console.log(`\n--- Processing lead ${i+1}/${leads.length} ---`)
-      console.log('Lead ID:', lead.id)
-      console.log('Lead name:', lead.name)
-      console.log('Lead email:', lead.email)
-      console.log('Lead score:', lead.ai_score)
-      console.log('Lead status:', lead.status)
-      console.log('Last contacted:', lead.last_contacted)
-
+    for (const lead of leads) {
       try {
+        console.log(`Processing lead: ${lead.id} - ${lead.name}`)
+
         // Bestem type oppfølging
         let followupType = 'standard'
         let customPrompt = ''
@@ -95,10 +74,8 @@ export default async function handler(
           customPrompt = `This is their first contact. Welcome them and deliver the offer.`
         }
 
-        console.log('Followup type:', followupType)
-
         // Generer melding med Puter.ai
-        const prompt = `Write a short, friendly follow-up email to ${lead.name} from ${lead.company || 'a company'}.
+        const prompt = `Write a short, friendly follow-up email to ${lead.name} from a company.
         
 Lead context:
 - Score: ${lead.ai_score || 'Not scored yet'}/10
@@ -112,7 +89,7 @@ Keep it warm and professional. Include a question to encourage response.
 Make it personal and specific to their situation.
 Max 150 words.`
 
-        console.log('Sending prompt to Puter.ai...')
+        console.log('Calling Puter.ai...')
         
         const aiResponse = await fetch('https://api.puter.com/v1/ai/chat', {
           method: 'POST',
@@ -125,20 +102,13 @@ Max 150 words.`
           })
         })
 
-        console.log('Puter.ai response status:', aiResponse.status)
-
         if (!aiResponse.ok) {
-          const errorText = await aiResponse.text()
-          console.error('Puter.ai error:', errorText)
           throw new Error(`AI API error: ${aiResponse.status}`)
         }
 
         const aiData = await aiResponse.json()
-        console.log('Puter.ai response data:', aiData)
-
         const message = aiData.choices?.[0]?.message?.content || ''
-        console.log('Generated message length:', message.length)
-
+        
         if (!message) {
           throw new Error('AI returned empty message')
         }
@@ -160,7 +130,7 @@ Max 150 words.`
         `
 
         // Send e-post via Resend
-        console.log('Sending email via Resend to:', lead.email)
+        console.log('Sending email to:', lead.email)
         
         const { data: emailData, error: emailError } = await resend.emails.send({
           from: 'LeadFlow <followup@myleadassistant.com>',
@@ -179,19 +149,13 @@ Max 150 words.`
         console.log('Email sent! ID:', emailData?.id)
 
         // Oppdater last_contacted
-        const { error: updateError } = await supabase
+        await supabase
           .from('leads')
           .update({ 
             last_contacted: new Date().toISOString(),
             status: lead.status === 'new' ? 'contacted' : lead.status
           })
           .eq('id', lead.id)
-
-        if (updateError) {
-          console.error('Update error:', updateError)
-        } else {
-          console.log('Lead updated')
-        }
 
         // Logg aktiviteten
         await supabase.from('ai_activity_log').insert({
@@ -214,7 +178,7 @@ Max 150 words.`
         })
 
       } catch (error: any) {
-        console.error(`❌ Error processing lead ${lead.id}:`, error)
+        console.error(`Error processing lead ${lead.id}:`, error)
         results.push({
           leadId: lead.id,
           name: lead.name,
@@ -224,9 +188,6 @@ Max 150 words.`
       }
     }
 
-    console.log('========== AUTO-FOLLOWUP END ==========')
-    console.log('Results:', results)
-
     res.json({ 
       success: true, 
       processed: results.length,
@@ -234,7 +195,7 @@ Max 150 words.`
     })
 
   } catch (error: any) {
-    console.error('❌ Fatal error:', error)
+    console.error('Fatal error:', error)
     res.status(500).json({ error: error?.message || 'Internal server error' })
   }
 }
