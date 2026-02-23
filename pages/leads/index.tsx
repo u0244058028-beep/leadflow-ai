@@ -144,7 +144,6 @@ export default function LeadsPage() {
     }
   }
 
-  // 🎯 OPPDATERT AI-scoring med smart logikk (uten source)
   async function rescoreLead(leadId: string) {
     if (!leadId) {
       alert('Invalid lead ID')
@@ -161,7 +160,6 @@ export default function LeadsPage() {
         return
       }
 
-      // Hent ALLE data om leadet
       const lead = leads.find(l => l.id === leadId)
       
       const { data: notes } = await supabase
@@ -186,7 +184,6 @@ export default function LeadsPage() {
       const taskCount = tasks?.length || 0
       const emailCount = emails?.length || 0
 
-      // 🎯 SMART PROMPT for lead-scoring (uten source)
       const prompt = `You are an expert B2B sales lead scorer. Score this lead 1-10 based on:
 
 JOB TITLE SCORING:
@@ -223,17 +220,12 @@ Calculate the total score based on the criteria above.
 Start from 1 (cold) and add points based on the scoring guide.
 Return ONLY a number between 1-10.`
 
-      console.log('Scoring lead with prompt:', prompt)
-
       const response = await window.puter.ai.chat(prompt, {
         model: 'google/gemini-2.5-flash',
         temperature: 0.2,
         max_tokens: 5
       })
 
-      console.log('Raw AI response:', response)
-
-      // Ekstraher score
       let scoreText = '5'
       if (typeof response === 'string') {
         scoreText = response
@@ -247,7 +239,6 @@ Return ONLY a number between 1-10.`
       const score = scoreMatch ? parseInt(scoreMatch[0]) : 5
       const finalScore = Math.min(10, Math.max(1, score))
 
-      // Generer forklaring basert på data
       let reason = 'Score updated'
       
       if (lead?.title?.toLowerCase().includes('ceo') || lead?.title?.toLowerCase().includes('founder')) {
@@ -260,8 +251,7 @@ Return ONLY a number between 1-10.`
         reason = 'Engaged through conversations and follow-ups'
       } else {
         const reasonPrompt = `Explain in one sentence why this lead scored ${finalScore}/10.
-        Focus on the most important factor: title (${lead?.title || 'none'}), industry (${lead?.industry || 'unknown'}), or engagement (${notes?.length || 0} notes).
-        Keep it concise and professional.`
+        Focus on the most important factor: title (${lead?.title || 'none'}), industry (${lead?.industry || 'unknown'}), or engagement (${notes?.length || 0} notes).`
 
         const reasonResponse = await window.puter.ai.chat(reasonPrompt, {
           model: 'google/gemini-2.5-flash',
@@ -276,8 +266,7 @@ Return ONLY a number between 1-10.`
         }
       }
 
-      // Oppdater lead i databasen
-      const { error: updateError } = await supabase
+      await supabase
         .from('leads')
         .update({ 
           ai_score: finalScore,
@@ -286,21 +275,11 @@ Return ONLY a number between 1-10.`
         })
         .eq('id', leadId)
 
-      if (updateError) throw updateError
-
-      // Logg aktivitet
       await supabase.from('ai_activity_log').insert({
         user_id: user.id,
         lead_id: leadId,
         action_type: 'score_updated',
-        description: `Lead scored ${finalScore}/10 - ${reason}`,
-        metadata: { 
-          score: finalScore,
-          reason,
-          title: lead?.title,
-          industry: lead?.industry,
-          notes_count: notes?.length
-        }
+        description: `Lead scored ${finalScore}/10 - ${reason}`
       })
 
       await loadLeads()
@@ -373,11 +352,11 @@ Return ONLY a number between 1-10.`
 
   return (
     <Layout>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold">Leads</h1>
         <button
           onClick={() => setShowForm(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+          className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
         >
           + New Lead
         </button>
@@ -392,10 +371,11 @@ Return ONLY a number between 1-10.`
         </div>
       )}
 
-      {/* Søk og filter-seksjon */}
+      {/* Søk og filter-seksjon – mobilvennlig */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="col-span-1 md:col-span-2">
+        <div className="space-y-4">
+          {/* Søkefelt - full bredde på mobil */}
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
             <div className="relative">
               <input
@@ -421,55 +401,59 @@ Return ONLY a number between 1-10.`
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              {statusOptions.map(status => (
-                <option key={status} value={status}>
-                  {status === 'all' ? 'All statuses' : status.charAt(0).toUpperCase() + status.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Filtere i grid – 2 kolonner på mobil */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {statusOptions.map(status => (
+                  <option key={status} value={status}>
+                    {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">AI Score</label>
-            <select
-              value={scoreFilter}
-              onChange={(e) => setScoreFilter(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All scores</option>
-              <option value="high">High (8-10)</option>
-              <option value="medium">Medium (5-7)</option>
-              <option value="low">Low (1-4)</option>
-              <option value="unscored">Not scored</option>
-            </select>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">AI Score</label>
+              <select
+                value={scoreFilter}
+                onChange={(e) => setScoreFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All</option>
+                <option value="high">High (8-10)</option>
+                <option value="medium">Medium (5-7)</option>
+                <option value="low">Low (1-4)</option>
+                <option value="unscored">Not scored</option>
+              </select>
+            </div>
           </div>
         </div>
 
+        {/* Aktive filtre (samme som før) */}
         {(searchTerm || statusFilter !== 'all' || scoreFilter !== 'all') && (
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="text-sm text-gray-500">Active filters:</span>
             {searchTerm && (
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                Search: "{searchTerm}"
+                "{searchTerm}"
                 <button onClick={() => setSearchTerm('')} className="ml-1 hover:text-blue-600">×</button>
               </span>
             )}
             {statusFilter !== 'all' && (
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
-                Status: {statusFilter}
+                {statusFilter}
                 <button onClick={() => setStatusFilter('all')} className="ml-1 hover:text-purple-600">×</button>
               </span>
             )}
             {scoreFilter !== 'all' && (
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                Score: {scoreFilter}
+                {scoreFilter}
                 <button onClick={() => setScoreFilter('all')} className="ml-1 hover:text-green-600">×</button>
               </span>
             )}
@@ -523,105 +507,163 @@ Return ONLY a number between 1-10.`
           </div>
         ) : (
           <>
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
-              <div onClick={() => handleSort('name')} className="col-span-3 cursor-pointer hover:text-gray-700">
-                Name <SortIcon field="name" />
-              </div>
-              <div onClick={() => handleSort('company')} className="col-span-2 cursor-pointer hover:text-gray-700">
-                Company <SortIcon field="company" />
-              </div>
-              <div className="col-span-2">Contact</div>
-              <div onClick={() => handleSort('status')} className="col-span-2 cursor-pointer hover:text-gray-700">
-                Status <SortIcon field="status" />
-              </div>
-              <div onClick={() => handleSort('ai_score')} className="col-span-2 cursor-pointer hover:text-gray-700">
-                AI Score <SortIcon field="ai_score" />
-              </div>
-              <div className="col-span-1">Actions</div>
+            {/* MOBILVISNING – kort for hvert lead (vises på mobil, skjules på desktop) */}
+            <div className="block sm:hidden divide-y divide-gray-200">
+              {paginatedLeads.map((lead) => (
+                <div key={lead.id} className="p-4 hover:bg-gray-50">
+                  <Link href={`/leads/${lead.id}`} className="block">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-medium text-blue-600">{lead.name}</p>
+                        {lead.title && <p className="text-xs text-gray-500">{lead.title}</p>}
+                      </div>
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(lead.status)}`}>
+                        {lead.status}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
+                      <div>
+                        <span className="text-xs text-gray-400">Company</span>
+                        <p className="truncate">{lead.company || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-400">Email</span>
+                        <p className="truncate">{lead.email || '—'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      {lead.ai_score ? (
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getScoreColor(lead.ai_score)}`}>
+                            Score: {lead.ai_score}/10
+                          </span>
+                          {lead.score_reason && (
+                            <span className="text-xs text-gray-500 truncate max-w-[150px]" title={lead.score_reason}>
+                              {lead.score_reason}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            rescoreLead(lead.id)
+                          }}
+                          disabled={scoringLead === lead.id}
+                          className="px-3 py-1 text-xs bg-purple-100 text-purple-800 rounded-full hover:bg-purple-200 transition disabled:opacity-50"
+                        >
+                          {scoringLead === lead.id ? 'Scoring...' : '🤖 Get AI score'}
+                        </button>
+                      )}
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </Link>
+                </div>
+              ))}
             </div>
 
-            <ul className="divide-y divide-gray-200">
-              {paginatedLeads.map((lead) => (
-                <li key={lead.id}>
-                  <Link href={`/leads/${lead.id}`} className="block hover:bg-gray-50 transition">
-                    <div className="px-4 py-4 grid grid-cols-12 gap-4 items-center">
-                      <div className="col-span-3">
-                        <p className="text-sm font-medium text-blue-600 truncate">{lead.name}</p>
+            {/* DESKTOPVISNING – tabell (vises på desktop, skjules på mobil) */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700" onClick={() => handleSort('name')}>
+                      Name <SortIcon field="name" />
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700" onClick={() => handleSort('company')}>
+                      Company <SortIcon field="company" />
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contact
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700" onClick={() => handleSort('status')}>
+                      Status <SortIcon field="status" />
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700" onClick={() => handleSort('ai_score')}>
+                      AI Score <SortIcon field="ai_score" />
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {paginatedLeads.map((lead) => (
+                    <tr key={lead.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Link href={`/leads/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                          {lead.name}
+                        </Link>
                         {lead.title && (
-                          <p className="text-xs text-gray-500 truncate">{lead.title}</p>
+                          <p className="text-xs text-gray-500 mt-1">{lead.title}</p>
                         )}
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-sm text-gray-500 truncate">{lead.company || '—'}</p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm text-gray-900">{lead.company || '—'}</p>
                         {lead.industry && (
-                          <p className="text-xs text-gray-400 truncate">{lead.industry}</p>
+                          <p className="text-xs text-gray-500 mt-1">{lead.industry}</p>
                         )}
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-sm text-gray-500 truncate">{lead.email || '—'}</p>
-                      </div>
-                      <div className="col-span-2">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {lead.email || '—'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(lead.status)}`}>
                           {lead.status}
                         </span>
-                      </div>
-                      <div className="col-span-2">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         {lead.ai_score ? (
-                          <div className="flex flex-col items-start">
+                          <div className="flex flex-col">
                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getScoreColor(lead.ai_score)}`}>
                               {lead.ai_score}/10
                             </span>
                             {lead.score_reason && (
-                              <span className="text-xs text-gray-500 mt-1 italic truncate max-w-[150px]" title={lead.score_reason}>
+                              <span className="text-xs text-gray-500 mt-1 italic max-w-[200px]" title={lead.score_reason}>
                                 {lead.score_reason}
                               </span>
                             )}
                           </div>
                         ) : (
                           <button
-                            onClick={(e) => {
-                              e.preventDefault()
-                              rescoreLead(lead.id)
-                            }}
+                            onClick={() => rescoreLead(lead.id)}
                             disabled={scoringLead === lead.id}
-                            className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full hover:bg-purple-200 transition disabled:opacity-50 flex items-center gap-1"
+                            className="px-3 py-1 text-xs bg-purple-100 text-purple-800 rounded-full hover:bg-purple-200 transition disabled:opacity-50"
                           >
-                            {scoringLead === lead.id ? (
-                              <>
-                                <div className="animate-spin rounded-full h-3 w-3 border-2 border-purple-800 border-t-transparent"></div>
-                                Scoring...
-                              </>
-                            ) : (
-                              '🤖 Get AI score'
-                            )}
+                            {scoringLead === lead.id ? 'Scoring...' : 'Get AI score'}
                           </button>
                         )}
-                      </div>
-                      <div className="col-span-1">
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <Link href={`/leads/${lead.id}`} className="text-blue-600 hover:text-blue-900">
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            {/* Paginering (mobilvennlig) */}
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-700">
-                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredLeads.length)} of {filteredLeads.length} leads
+                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredLeads.length)} of {filteredLeads.length}
                 </span>
                 <select
                   value={itemsPerPage}
                   onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                  className="ml-2 border border-gray-300 rounded-md text-sm px-2 py-1"
+                  className="border border-gray-300 rounded-md text-sm px-2 py-1"
                 >
-                  <option value={10}>10 per page</option>
-                  <option value={25}>25 per page</option>
-                  <option value={50}>50 per page</option>
-                  <option value={100}>100 per page</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
                 </select>
               </div>
               <div className="flex gap-2">
