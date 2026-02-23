@@ -16,7 +16,7 @@ export interface Lead {
   last_scored?: string;
   score_reason?: string;
   source?: string;
-  potential_value?: number;  // NYTT: Potensiell verdi i dollars
+  potential_value?: number;
 }
 
 export interface Task {
