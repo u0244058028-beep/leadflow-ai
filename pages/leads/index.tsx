@@ -20,12 +20,12 @@ export default function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [scoreFilter, setScoreFilter] = useState<string>('all')
-  const [favoriteFilter, setFavoriteFilter] = useState<boolean | null>(null) // ✨ NY!
+  const [favoriteFilter, setFavoriteFilter] = useState<boolean | null>(null)
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
-  const [togglingFavorite, setTogglingFavorite] = useState<string | null>(null) // ✨ NY!
+  const [togglingFavorite, setTogglingFavorite] = useState<string | null>(null)
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
@@ -65,7 +65,7 @@ export default function LeadsPage() {
     loadLeads()
   }, [])
 
-  // ✨ NY: Toggle favorite
+  // Toggle favorite
   async function toggleFavorite(leadId: string, currentValue: boolean) {
     setTogglingFavorite(leadId)
     try {
@@ -126,7 +126,7 @@ export default function LeadsPage() {
       }
     }
 
-    // ✨ NY: Filtrer på favoritter
+    // Filtrer på favoritter
     if (favoriteFilter !== null) {
       filtered = filtered.filter(lead => lead.is_favorite === favoriteFilter)
     }
@@ -416,7 +416,7 @@ Return ONLY a number between 1-10.`
               </select>
             </div>
 
-            {/* ✨ NY: Favorite filter */}
+            {/* Favorite filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Favorites</label>
               <select
@@ -525,7 +525,6 @@ Return ONLY a number between 1-10.`
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-blue-600">{lead.name}</p>
-                          {/* ✨ NY: Stjerne på mobil */}
                           <button
                             onClick={(e) => {
                               e.preventDefault()
