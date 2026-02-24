@@ -19,7 +19,7 @@ export default async function handler(
   }
 
   try {
-    // Hent brukerens e-post for replyTo
+    // Hent brukerens e-post for reply_to
     const { data: user } = await supabase
       .from('profiles')
       .select('email')
@@ -29,7 +29,7 @@ export default async function handler(
     const { data, error } = await resend.emails.send({
       from: 'LeadFlow <noreply@myleadassistant.com>',
       to: [to],
-      replyTo: user?.email || replyTo, // Bruk brukerens e-post
+      reply_to: user?.email || replyTo, // 🔥 Fikset: reply_to med underscore!
       subject: subject,
       html: html,
     })
