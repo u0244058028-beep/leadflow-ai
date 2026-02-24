@@ -23,18 +23,28 @@ export default function PublicLandingPage() {
     setError(null)
 
     try {
+      console.log('Loading page with slug:', slug)
+
       let query = supabase
         .from('landing_pages')
         .select('*')
         .eq('slug', slug)
 
-      if (!preview) query = query.eq('is_published', true)
+      if (!preview) {
+        query = query.eq('is_published', true)
+      }
 
       const { data: pageData, error: pageError } = await query.single()
 
-      if (pageError || !pageData) throw new Error('Page not found')
+      if (pageError || !pageData) {
+        console.error('Page error:', pageError)
+        throw new Error('Page not found')
+      }
+
+      console.log('Page loaded:', pageData)
       setPage(pageData)
 
+      // Hent felter
       const { data: fieldsData } = await supabase
         .from('landing_page_fields')
         .select('*')
@@ -45,8 +55,20 @@ export default function PublicLandingPage() {
         setFields(fieldsData)
       } else {
         setFields([
-          { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
-          { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true }
+          {
+            id: 'default-name',
+            field_type: 'text',
+            label: 'Full Name',
+            placeholder: 'John Doe',
+            required: true
+          },
+          {
+            id: 'default-email',
+            field_type: 'email',
+            label: 'Email Address',
+            placeholder: 'john@company.com',
+            required: true
+          }
         ])
       }
       
@@ -85,7 +107,7 @@ export default function PublicLandingPage() {
 
       if (!response.ok) throw new Error('Could not save your information')
 
-      // Send bekreftelses-e-post via API (ikke direkte)
+      // Send bekreftelse
       await fetch('/api/send-confirmation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -115,8 +137,33 @@ export default function PublicLandingPage() {
     }
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
-  if (error || !page) return <div className="min-h-screen flex items-center justify-center">Page not found</div>
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !page) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">😕</div>
+          <h1 className="text-2xl font-bold mb-2">Page not found</h1>
+          <p className="text-gray-600 mb-4">
+            {error || 'The page you\'re looking for doesn\'t exist'}
+          </p>
+          <a href="/" className="text-blue-600 hover:underline">
+            Go to LeadFlow
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   const settings = page.settings || {}
   const benefits = settings.benefits || []
@@ -134,7 +181,7 @@ export default function PublicLandingPage() {
       <div className="min-h-screen bg-gray-50 py-12 px-4">
         {preview && !page.is_published && (
           <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-white text-center py-2 text-sm z-50">
-            ⚡ Preview mode
+            ⚡ Preview mode – this page is not published yet
           </div>
         )}
 
