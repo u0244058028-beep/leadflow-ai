@@ -19,7 +19,7 @@ export default function App({ Component, pageProps }: AppProps) {
         }
 
         // Publiske sider som ikke krever innlogging
-        const publicPaths = ['/login', '/', '/s/']
+        const publicPaths = ['/login', '/', '/s/', '/onboarding']
         const isPublicPath = publicPaths.some(path => 
           router.pathname === path || router.pathname.startsWith('/s/')
         )
@@ -38,7 +38,7 @@ export default function App({ Component, pageProps }: AppProps) {
         // Sjekk om profilen finnes i public.profiles
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, full_name, onboarding_completed')
           .eq('id', user.id)
           .maybeSingle()
 
@@ -47,6 +47,7 @@ export default function App({ Component, pageProps }: AppProps) {
         }
 
         console.log('📋 [APP] Profil finnes?', !!profile)
+        console.log('📋 [APP] Onboarding fullført?', profile?.onboarding_completed)
 
         // Hvis profilen mangler, opprett den!
         if (!profile) {
@@ -63,7 +64,8 @@ export default function App({ Component, pageProps }: AppProps) {
               id: user.id,
               email: user.email,
               full_name: fullName,
-              avatar_url: user.user_metadata?.avatar_url || null
+              avatar_url: user.user_metadata?.avatar_url || null,
+              onboarding_completed: false
             })
 
           if (insertError) {
@@ -71,6 +73,24 @@ export default function App({ Component, pageProps }: AppProps) {
           } else {
             console.log('✅ [APP] Profil opprettet!')
           }
+        }
+
+        // SJEKK OM BRUKER TRENGER ONBOARDING
+        const { data: updatedProfile } = await supabase
+          .from('profiles')
+          .select('full_name, onboarding_completed')
+          .eq('id', user.id)
+          .single()
+
+        // Hvis brukeren mangler navn eller ikke har fullført onboarding, og ikke allerede er på onboarding-siden
+        const needsOnboarding = 
+          (!updatedProfile?.full_name || updatedProfile.full_name === 'User' || !updatedProfile?.onboarding_completed) &&
+          router.pathname !== '/onboarding'
+
+        if (needsOnboarding) {
+          console.log('🔄 [APP] Bruker trenger onboarding, redirecter...')
+          router.push('/onboarding')
+          return
         }
 
         // Hvis bruker er på login-siden og er innlogget, send til dashboard
@@ -109,12 +129,25 @@ export default function App({ Component, pageProps }: AppProps) {
                           session.user.user_metadata?.name || 
                           session.user.email?.split('@')[0] || 
                           'User',
-                avatar_url: session.user.user_metadata?.avatar_url || null
+                avatar_url: session.user.user_metadata?.avatar_url || null,
+                onboarding_completed: false
               })
               console.log('✅ [APP] Profil opprettet ved SIGNED_IN')
             }
+            
+            // Sjekk om bruker trenger onboarding
+            const { data: newProfile } = await supabase
+              .from('profiles')
+              .select('onboarding_completed, full_name')
+              .eq('id', session.user.id)
+              .single()
+
+            if (!newProfile?.onboarding_completed || newProfile.full_name === 'User') {
+              router.push('/onboarding')
+            } else {
+              router.push('/dashboard')
+            }
           }
-          router.push('/dashboard')
         }
         createProfileOnSignIn()
       } else if (event === 'SIGNED_OUT') {
