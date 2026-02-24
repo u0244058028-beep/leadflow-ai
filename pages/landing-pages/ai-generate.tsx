@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
@@ -9,6 +9,26 @@ export default function AIGeneratePage() {
   const [step, setStep] = useState<'form' | 'generating' | 'preview'>('form')
   const [generatedPage, setGeneratedPage] = useState<any>(null)
   const [description, setDescription] = useState('')
+  const [profile, setProfile] = useState<any>(null)
+
+  useEffect(() => {
+    loadProfile()
+  }, [])
+
+  async function loadProfile() {
+    const user = (await supabase.auth.getUser()).data.user
+    if (!user) return
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('full_name, company_name, industry, target_audience, default_offer')
+      .eq('id', user.id)
+      .single()
+
+    if (data) {
+      setProfile(data)
+    }
+  }
 
   async function generateWithAI() {
     if (!description.trim()) {
@@ -26,35 +46,56 @@ export default function AIGeneratePage() {
         return
       }
 
-      // PROMPT med valgfrie felt
-      const prompt = `You are an expert copywriter helping users create landing pages.
+      // Hent oppdatert profil hvis ikke allerede lastet
+      let currentProfile = profile
+      if (!currentProfile) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('full_name, company_name, industry, target_audience, default_offer')
+          .eq('id', user.id)
+          .single()
+        currentProfile = data
+      }
 
-THE USER'S OFFER:
+      // 🎯 PROMPT MED BRUKERKONTEKST
+      const prompt = `You are an expert copywriter helping ${currentProfile?.full_name || 'a user'} from ${currentProfile?.company_name || 'a company'} create a landing page.
+
+ABOUT THEIR BUSINESS:
+- Industry: ${currentProfile?.industry || 'Not specified'}
+- Target audience: ${currentProfile?.target_audience || 'professionals'}
+- Typical offer: ${currentProfile?.default_offer || 'resources'}
+
+THE USER'S REQUEST:
 "${description}"
 
-IMPORTANT: The form MUST include:
-- Full Name (required)
-- Email Address (required)
-- PLUS 3-4 OPTIONAL fields (Job Title, Company, Phone, Industry)
+YOUR TASK:
+Create a lead capture page based on their request. The page should:
+1. Offer something valuable in exchange for their email
+2. Be specific to their business and audience
+3. Include 2-3 compelling benefits
+4. Have a clear call-to-action
 
 Return EXACTLY this JSON format:
 {
-  "title": "Headline about their offer",
-  "subheadline": "Supporting line",
-  "description": "2-3 sentences",
-  "offer": "What they're offering",
+  "title": "Compelling headline about THEIR offer (max 10 words)",
+  "subheadline": "Supporting line explaining the value to THEM",
+  "description": "2-3 sentences about what they'll get",
+  "offer": "The specific thing they're offering",
   "benefits": ["Benefit 1", "Benefit 2", "Benefit 3"],
   "fields": [
     { "type": "text", "label": "Full Name", "placeholder": "John Doe", "required": true },
     { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true },
     { "type": "text", "label": "Job Title (optional)", "placeholder": "e.g., CEO", "required": false },
-    { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false },
-    { "type": "tel", "label": "Phone (optional)", "placeholder": "+1 234 567 890", "required": false },
-    { "type": "text", "label": "Industry (optional)", "placeholder": "e.g., SaaS", "required": false }
+    { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false }
   ],
   "buttonText": "Get My [Offer] Now",
-  "trustElements": ["No spam", "Privacy guaranteed"]
-}`
+  "trustElements": [
+    "No spam, unsubscribe anytime",
+    "We respect your privacy"
+  ]
+}
+
+Make it specific to their business and audience.`
 
       const response = await window.puter.ai.chat(prompt, {
         model: 'google/gemini-3-flash-preview',
@@ -76,48 +117,82 @@ Return EXACTLY this JSON format:
       } catch (e) {
         console.error('Error parsing AI response:', e)
         
-        // FALLBACK med valgfrie felt
+        // Intelligent fallback
+        const words = description.toLowerCase()
+        let offer = 'Free Guide'
+        let title = 'Free Guide: How to Master Your Business'
+        let buttonText = 'Get My Free Guide'
+        let benefits = [
+          'Proven strategies that work',
+          'Expert insights and tips',
+          'Practical templates included'
+        ]
+        
+        if (words.includes('consult') || words.includes('strategy')) {
+          offer = 'Free Strategy Session'
+          title = 'Book Your Free 30-Minute Strategy Call'
+          buttonText = 'Book My Free Session'
+        } else if (words.includes('demo')) {
+          offer = 'Free Personalized Demo'
+          title = 'See How Our Solution Can Help You'
+          buttonText = 'Get My Free Demo'
+        } else if (words.includes('webinar')) {
+          offer = 'Free Webinar Access'
+          title = 'Join Our Exclusive Free Webinar'
+          buttonText = 'Save My Seat'
+        } else if (words.includes('checklist')) {
+          offer = 'Free Ultimate Checklist'
+          title = 'The Complete Checklist for Success'
+          buttonText = 'Get My Free Checklist'
+        } else if (words.includes('trial') || words.includes('14 days')) {
+          offer = '14-Day Free Trial'
+          title = 'Try Our Product Free for 14 Days'
+          buttonText = 'Start My Free Trial'
+        }
+        
         aiSuggestion = {
-          title: "Free Guide: How to Master Your Business",
-          subheadline: "The ultimate resource for professionals",
-          description: "Get instant access to proven strategies and start seeing results today.",
-          offer: "Free Guide",
-          benefits: ["Save time", "Expert insights", "Practical tips"],
+          title: title,
+          subheadline: `The ultimate resource for ${currentProfile?.target_audience || 'professionals'}`,
+          description: `Get instant access and start seeing results today.`,
+          offer: offer,
+          benefits: benefits,
           fields: [
-            { type: "text", label: "Full Name", placeholder: "John Doe", required: true },
-            { type: "email", label: "Email Address", placeholder: "john@company.com", required: true },
-            { type: "text", label: "Job Title (optional)", placeholder: "e.g., CEO", required: false },
-            { type: "text", label: "Company (optional)", placeholder: "e.g., Acme Inc", required: false },
-            { type: "tel", label: "Phone (optional)", placeholder: "+1 234 567 890", required: false }
+            { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
+            { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true },
+            { type: 'text', label: 'Job Title (optional)', placeholder: 'e.g., CEO', required: false },
+            { type: 'text', label: 'Company (optional)', placeholder: 'e.g., Acme Inc', required: false }
           ],
-          buttonText: "Get My Free Guide",
-          trustElements: ["No spam, unsubscribe anytime", "We respect your privacy"]
+          buttonText: buttonText,
+          trustElements: [
+            'No spam, unsubscribe anytime',
+            'We respect your privacy'
+          ]
         }
       }
 
-      // SIKRE at alle felt finnes
+      // Sikre at alle nødvendige felt finnes
       const safePage = {
-        title: aiSuggestion?.title || "Free Resource",
-        subheadline: aiSuggestion?.subheadline || "Get access now",
-        description: aiSuggestion?.description || "Fill out the form to get instant access.",
-        offer: aiSuggestion?.offer || "Free Resource",
+        title: aiSuggestion?.title || 'Free Resource',
+        subheadline: aiSuggestion?.subheadline || 'Get access now',
+        description: aiSuggestion?.description || 'Fill out the form to get instant access.',
+        offer: aiSuggestion?.offer || 'Free Resource',
         benefits: Array.isArray(aiSuggestion?.benefits) ? aiSuggestion.benefits : [
-          "Save time", "Expert insights", "Practical tips"
+          'Save time',
+          'Expert insights',
+          'Practical tips'
         ],
         fields: Array.isArray(aiSuggestion?.fields) ? aiSuggestion.fields : [
-          { type: "text", label: "Full Name", placeholder: "John Doe", required: true },
-          { type: "email", label: "Email Address", placeholder: "john@company.com", required: true },
-          { type: "text", label: "Job Title (optional)", placeholder: "e.g., CEO", required: false },
-          { type: "text", label: "Company (optional)", placeholder: "e.g., Acme Inc", required: false }
+          { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
+          { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true }
         ],
-        buttonText: aiSuggestion?.buttonText || "Get Access",
+        buttonText: aiSuggestion?.buttonText || 'Get Access',
         trustElements: Array.isArray(aiSuggestion?.trustElements) ? aiSuggestion.trustElements : [
-          "No spam, unsubscribe anytime",
-          "We respect your privacy"
+          'No spam, unsubscribe anytime',
+          'We respect your privacy'
         ]
       }
 
-      // Generer slug
+      // Generer slug fra beskrivelsen
       const slug = description
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '-')
@@ -218,7 +293,6 @@ Return EXACTLY this JSON format:
   return (
     <Layout>
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <button 
             onClick={() => router.back()} 
@@ -226,7 +300,7 @@ Return EXACTLY this JSON format:
           >
             ← Back to Pages
           </button>
-          {step === 'preview' && generatedPage && (
+          {step === 'preview' && (
             <button
               onClick={savePage}
               disabled={loading}
@@ -244,7 +318,6 @@ Return EXACTLY this JSON format:
           )}
         </div>
 
-        {/* Form Step */}
         {step === 'form' && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
@@ -253,6 +326,15 @@ Return EXACTLY this JSON format:
             <p className="text-gray-600 mb-8">
               Describe what you want to offer – our AI will create a high-converting lead capture page in seconds.
             </p>
+
+            {profile && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-blue-800">
+                  ✨ Using your profile: {profile.industry && `${profile.industry} • `}
+                  targeting {profile.target_audience || 'professionals'}
+                </p>
+              </div>
+            )}
 
             <div className="space-y-6">
               <div>
@@ -268,9 +350,9 @@ Return EXACTLY this JSON format:
                 />
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-medium text-blue-800 mb-2">✨ Examples</h3>
-                <ul className="space-y-2 text-sm text-blue-700">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 className="font-medium text-gray-800 mb-2">✨ Examples</h3>
+                <ul className="space-y-2 text-sm text-gray-600">
                   <li>"Free eBook about email marketing for e-commerce stores"</li>
                   <li>"Personalized demo of our project management software"</li>
                   <li>"30-minute strategy session for real estate agents"</li>
@@ -288,7 +370,6 @@ Return EXACTLY this JSON format:
           </div>
         )}
 
-        {/* Generating Step */}
         {step === 'generating' && (
           <div className="min-h-[60vh] flex items-center justify-center">
             <div className="text-center">
@@ -299,7 +380,6 @@ Return EXACTLY this JSON format:
           </div>
         )}
 
-        {/* Preview Step */}
         {step === 'preview' && generatedPage && (
           <div>
             <h2 className="text-2xl font-bold mb-6">Preview your page</h2>
@@ -319,7 +399,6 @@ Return EXACTLY this JSON format:
                     </div>
                   )}
 
-                  {/* Benefits */}
                   {generatedPage.benefits?.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                       {generatedPage.benefits.map((benefit: string, i: number) => (
@@ -331,7 +410,6 @@ Return EXACTLY this JSON format:
                     </div>
                   )}
 
-                  {/* Form */}
                   <div className="bg-white rounded-lg p-6 shadow-md">
                     {generatedPage.fields?.map((field: any, i: number) => (
                       <div key={i} className="mb-4">
@@ -356,7 +434,6 @@ Return EXACTLY this JSON format:
                     </button>
                   </div>
 
-                  {/* Trust Elements */}
                   <div className="mt-6 flex justify-center gap-4 text-xs text-gray-500">
                     {generatedPage.trustElements?.map((el: string, i: number) => (
                       <span key={i}>🔒 {el}</span>
