@@ -46,38 +46,28 @@ export default function AIGeneratePage() {
         return
       }
 
-      // Hent oppdatert profil hvis ikke allerede lastet
-      let currentProfile = profile
-      if (!currentProfile) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('full_name, company_name, industry, target_audience, default_offer')
-          .eq('id', user.id)
-          .single()
-        currentProfile = data
-      }
+      // 🎯 PROMPT OPTIMERT FOR OPENAI GPT-5.1-CODEX
+      const prompt = `You are an expert copywriter specializing in landing pages.
 
-      // 🎯 PROMPT MED BRUKERKONTEKST – OPTIMERT FOR CLAUDE
-      const prompt = `You are an expert copywriter. Create a landing page based EXACTLY on this description:
-
+IMPORTANT: Create a landing page based EXACTLY on this description:
 "${description}"
 
-IMPORTANT RULES:
-1. Use the EXACT offer from the description
-2. If they mention "myleadassistant.com" or "14-day free trial", make that the main focus
-3. The headline MUST be about what they described
-4. Benefits must be specific to their product/service
-5. Do NOT use generic phrases like "proven strategies" unless they described that
+RULES:
+- The headline MUST mention the specific product/service from the description
+- Benefits must be specific to what they offer, NOT generic
+- The offer must be exactly what they described
+- Use professional, persuasive language
+- Make it compelling and conversion-focused
 
-Return JSON exactly like this:
+Return ONLY valid JSON in this exact format, with no other text:
 {
-  "title": "Headline based on their description",
-  "subheadline": "Supporting line explaining their specific value",
-  "description": "2 sentences about their specific offer",
-  "offer": "The exact thing they're offering",
+  "title": "Headline about their specific product/service (max 10 words)",
+  "subheadline": "Supporting line explaining their unique value (max 15 words)",
+  "description": "2-3 sentences about their specific offer",
+  "offer": "The exact thing they're offering (e.g., '14-Day Free Trial', 'Free Guide', 'Demo')",
   "benefits": [
     "Specific benefit 1 based on their description",
-    "Specific benefit 2 based on their description",
+    "Specific benefit 2 based on their description", 
     "Specific benefit 3 based on their description"
   ],
   "fields": [
@@ -86,68 +76,119 @@ Return JSON exactly like this:
     { "type": "text", "label": "Job Title (optional)", "placeholder": "e.g., CEO", "required": false },
     { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false }
   ],
-  "buttonText": "CTA based on their offer",
-  "trustElements": ["No spam", "Privacy guaranteed"]
+  "buttonText": "Action button based on their offer",
+  "trustElements": [
+    "No spam, unsubscribe anytime",
+    "We respect your privacy"
+  ]
 }`
 
-      console.log('Calling Claude via Puter.ai...')
-      
+      console.log('📤 Sending to OpenAI via Puter.ai...')
+      console.log('Description:', description)
+
       const response = await window.puter.ai.chat(prompt, {
-        model: 'claude-sonnet-4',  // 🔥 Claude-modellen!
+        model: "gpt-5.1-codex",  // 🔥 Best for JSON output!
         temperature: 0.7,
         max_tokens: 2000
       })
 
-      console.log('Claude response:', response)
+      console.log('📥 Raw OpenAI response:', response)
 
       // Parse JSON
       let aiSuggestion
       try {
-        const jsonMatch = response.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          aiSuggestion = JSON.parse(jsonMatch[0])
+        // Hvis responsen er en string, prøv å parse direkte
+        if (typeof response === 'string') {
+          aiSuggestion = JSON.parse(response)
+        } 
+        // Hvis responsen er et objekt med message.content
+        else if (response?.message?.content) {
+          aiSuggestion = JSON.parse(response.message.content)
+        }
+        // Hvis responsen er et objekt med choices
+        else if (response?.choices?.[0]?.message?.content) {
+          aiSuggestion = JSON.parse(response.choices[0].message.content)
+        }
+        // Hvis responsen allerede er et objekt
+        else if (typeof response === 'object' && response !== null) {
+          aiSuggestion = response
         } else {
-          throw new Error('No JSON found')
+          throw new Error('Could not parse AI response')
         }
       } catch (e) {
         console.error('Error parsing AI response:', e)
+        console.error('Response was:', response)
         
-        // Intelligent fallback
+        // Intelligent fallback basert på beskrivelsen
         const words = description.toLowerCase()
-        let offer = 'Free Guide'
-        let title = 'Free Guide: How to Master Your Business'
-        let buttonText = 'Get My Free Guide'
+        let offer = 'Free Resource'
+        let title = 'Free Resource: How to Succeed'
+        let buttonText = 'Get Access'
         let benefits = [
-          'Proven strategies that work',
+          'Save time with proven methods',
           'Expert insights and tips',
-          'Practical templates included'
+          'Practical tools included'
         ]
         
-        if (words.includes('consult') || words.includes('strategy')) {
-          offer = 'Free Strategy Session'
-          title = 'Book Your Free 30-Minute Strategy Call'
-          buttonText = 'Book My Free Session'
+        if (words.includes('trial') || words.includes('14 days') || words.includes('free')) {
+          offer = '14-Day Free Trial'
+          title = 'Try Our Product Free for 14 Days'
+          buttonText = 'Start Free Trial'
+          benefits = [
+            'Full access to all features',
+            'No credit card required',
+            'Cancel anytime'
+          ]
         } else if (words.includes('demo')) {
           offer = 'Free Personalized Demo'
-          title = 'See How Our Solution Can Help You'
-          buttonText = 'Get My Free Demo'
+          title = 'See Our Solution in Action'
+          buttonText = 'Book My Demo'
+          benefits = [
+            'Tailored to your needs',
+            'Live walkthrough',
+            'Q&A session included'
+          ]
+        } else if (words.includes('consult') || words.includes('strategy')) {
+          offer = 'Free Strategy Session'
+          title = 'Book Your Free 30-Minute Strategy Call'
+          buttonText = 'Book My Session'
+          benefits = [
+            'Personalized advice',
+            'Actionable insights',
+            'No sales pitch'
+          ]
+        } else if (words.includes('guide') || words.includes('ebook')) {
+          offer = 'Free Guide'
+          title = 'Free Guide: How to Master Your Business'
+          buttonText = 'Get My Free Guide'
+          benefits = [
+            'Proven strategies that work',
+            'Expert insights and tips',
+            'Practical templates included'
+          ]
         } else if (words.includes('webinar')) {
           offer = 'Free Webinar Access'
           title = 'Join Our Exclusive Free Webinar'
           buttonText = 'Save My Seat'
+          benefits = [
+            'Live training from experts',
+            'Q&A session included',
+            'Recording sent after'
+          ]
         } else if (words.includes('checklist')) {
           offer = 'Free Ultimate Checklist'
           title = 'The Complete Checklist for Success'
           buttonText = 'Get My Free Checklist'
-        } else if (words.includes('trial') || words.includes('14 days')) {
-          offer = '14-Day Free Trial'
-          title = 'Try Our Product Free for 14 Days'
-          buttonText = 'Start My Free Trial'
+          benefits = [
+            'Step-by-step guide',
+            'Downloadable PDF',
+            'Used by 1000+ professionals'
+          ]
         }
         
         aiSuggestion = {
           title: title,
-          subheadline: `The ultimate resource for ${currentProfile?.target_audience || 'professionals'}`,
+          subheadline: `The ultimate resource for ${profile?.target_audience || 'professionals'}`,
           description: `Get instant access and start seeing results today.`,
           offer: offer,
           benefits: benefits,
@@ -351,6 +392,7 @@ Return JSON exactly like this:
                   <li>"Free eBook about email marketing for e-commerce stores"</li>
                   <li>"Personalized demo of our project management software"</li>
                   <li>"30-minute strategy session for real estate agents"</li>
+                  <li>"14-day free trial of myleadassistant.com for small business owners"</li>
                 </ul>
               </div>
 
@@ -369,7 +411,7 @@ Return JSON exactly like this:
           <div className="min-h-[60vh] flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
-              <h2 className="text-xl font-bold mb-2">Claude is creating your page...</h2>
+              <h2 className="text-xl font-bold mb-2">OpenAI is creating your page...</h2>
               <p className="text-gray-500">This takes about 10 seconds</p>
             </div>
           </div>
