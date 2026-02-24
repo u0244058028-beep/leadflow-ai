@@ -9,76 +9,123 @@ export default function App({ Component, pageProps }: AppProps) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const ensureProfileExists = async () => {
+    const checkUserAndCreateProfile = async () => {
       try {
-        console.log('🔍 Checking user session...')
+        console.log('🔍 [APP] Sjekker bruker...')
         const { data: { user }, error } = await supabase.auth.getUser()
         
         if (error) {
-          console.error('❌ Auth error:', error)
+          console.error('❌ [APP] Auth-feil:', error)
         }
 
-        if (user) {
-          console.log('✅ User found:', user.id, user.email)
-          
-          // PRØV GJENTATTE GANGER å opprette profil
-          let profile = null
-          let attempts = 0
-          const maxAttempts = 3
-          
-          while (!profile && attempts < maxAttempts) {
-            attempts++
-            console.log(`📋 Attempt ${attempts} to find/create profile...`)
-            
-            // Sjekk om profilen finnes
-            const { data: existingProfile } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('id', user.id)
-              .maybeSingle()
-            
-            if (existingProfile) {
-              profile = existingProfile
-              console.log('✅ Profile already exists')
-              break
-            }
-            
-            // Hvis ikke, opprett den!
-            console.log('➕ Creating profile for user:', user.id)
-            
-            const fullName = user.user_metadata?.full_name || 
-                           user.user_metadata?.name || 
-                           user.email?.split('@')[0] || 
-                           'User'
-            
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert({
-                id: user.id,
-                email: user.email,
-                full_name: fullName,
-                avatar_url: user.user_metadata?.avatar_url || null
-              })
+        // Publiske sider som ikke krever innlogging
+        const publicPaths = ['/login', '/', '/s/']
+        const isPublicPath = publicPaths.some(path => 
+          router.pathname === path || router.pathname.startsWith('/s/')
+        )
 
-            if (insertError) {
-              console.error('❌ Profile creation error:', insertError)
-            } else {
-              console.log('✅ Profile created successfully!')
-              profile = { id: user.id } // Bare for å avslutte loopen
-            }
+        if (!user) {
+          console.log('👤 [APP] Ingen bruker funnet')
+          if (!isPublicPath) {
+            router.push('/login')
           }
-        } else {
-          console.log('👤 No user logged in')
+          setIsLoading(false)
+          return
         }
+
+        console.log('✅ [APP] Bruker funnet:', user.id, user.email)
+
+        // Sjekk om profilen finnes i public.profiles
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (profileError) {
+          console.error('❌ [APP] Profil-sjekk feil:', profileError)
+        }
+
+        console.log('📋 [APP] Profil finnes?', !!profile)
+
+        // Hvis profilen mangler, opprett den!
+        if (!profile) {
+          console.log('➕ [APP] Oppretter profil for:', user.id)
+          
+          const fullName = user.user_metadata?.full_name || 
+                          user.user_metadata?.name || 
+                          user.email?.split('@')[0] || 
+                          'User'
+
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              email: user.email,
+              full_name: fullName,
+              avatar_url: user.user_metadata?.avatar_url || null
+            })
+
+          if (insertError) {
+            console.error('❌ [APP] Feil ved opprettelse av profil:', insertError)
+          } else {
+            console.log('✅ [APP] Profil opprettet!')
+          }
+        }
+
+        // Hvis bruker er på login-siden og er innlogget, send til dashboard
+        if (router.pathname === '/login') {
+          router.push('/dashboard')
+        }
+
       } catch (error) {
-        console.error('❌ Unexpected error:', error)
+        console.error('❌ [APP] Uventet feil:', error)
       } finally {
         setIsLoading(false)
       }
     }
 
-    ensureProfileExists()
-  }, [])
+    checkUserAndCreateProfile()
+
+    // Lytt på auth-endringer
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('📢 [APP] Auth state changed:', event)
+      
+      if (event === 'SIGNED_IN') {
+        // Ved innlogging, sjekk og opprett profil
+        const createProfileOnSignIn = async () => {
+          if (session?.user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', session.user.id)
+              .maybeSingle()
+
+            if (!profile) {
+              await supabase.from('profiles').insert({
+                id: session.user.id,
+                email: session.user.email,
+                full_name: session.user.user_metadata?.full_name || 
+                          session.user.user_metadata?.name || 
+                          session.user.email?.split('@')[0] || 
+                          'User',
+                avatar_url: session.user.user_metadata?.avatar_url || null
+              })
+              console.log('✅ [APP] Profil opprettet ved SIGNED_IN')
+            }
+          }
+          router.push('/dashboard')
+        }
+        createProfileOnSignIn()
+      } else if (event === 'SIGNED_OUT') {
+        router.push('/login')
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [router])
 
   if (isLoading) {
     return (
