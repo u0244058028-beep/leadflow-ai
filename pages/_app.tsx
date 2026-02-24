@@ -38,7 +38,7 @@ export default function App({ Component, pageProps }: AppProps) {
         // Sjekk om profilen finnes i public.profiles
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id, full_name, onboarding_completed')
+          .select('id, full_name, onboarding_completed, welcome_email_sent')
           .eq('id', user.id)
           .maybeSingle()
 
@@ -48,6 +48,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
         console.log('📋 [APP] Profil finnes?', !!profile)
         console.log('📋 [APP] Onboarding fullført?', profile?.onboarding_completed)
+        console.log('📋 [APP] Velkomst-e-post sendt?', profile?.welcome_email_sent)
 
         // Hvis profilen mangler, opprett den!
         if (!profile) {
@@ -65,14 +66,22 @@ export default function App({ Component, pageProps }: AppProps) {
               email: user.email,
               full_name: fullName,
               avatar_url: user.user_metadata?.avatar_url || null,
-              onboarding_completed: false
+              onboarding_completed: false,
+              welcome_email_sent: false
             })
 
           if (insertError) {
             console.error('❌ [APP] Feil ved opprettelse av profil:', insertError)
           } else {
             console.log('✅ [APP] Profil opprettet!')
+            
+            // 🎯 NY BRUKER – SEND VELKOMST-E-POST!
+            await sendWelcomeEmail(user.email, fullName, user.id)
           }
+        } else if (!profile.welcome_email_sent) {
+          // 🎯 EKSISTERENDE BRUKER SOM IKKE HAR FÅTT VELKOMST-E-POST
+          console.log('📧 [APP] Bruker mangler velkomst-e-post, sender nå...')
+          await sendWelcomeEmail(user.email, profile.full_name || user.email?.split('@')[0], user.id)
         }
 
         // SJEKK OM BRUKER TRENGER ONBOARDING
@@ -82,7 +91,6 @@ export default function App({ Component, pageProps }: AppProps) {
           .eq('id', user.id)
           .single()
 
-        // Hvis brukeren mangler navn eller ikke har fullført onboarding, og ikke allerede er på onboarding-siden
         const needsOnboarding = 
           (!updatedProfile?.full_name || updatedProfile.full_name === 'User' || !updatedProfile?.onboarding_completed) &&
           router.pathname !== '/onboarding'
@@ -93,7 +101,6 @@ export default function App({ Component, pageProps }: AppProps) {
           return
         }
 
-        // Hvis bruker er på login-siden og er innlogget, send til dashboard
         if (router.pathname === '/login') {
           router.push('/dashboard')
         }
@@ -107,17 +114,15 @@ export default function App({ Component, pageProps }: AppProps) {
 
     checkUserAndCreateProfile()
 
-    // Lytt på auth-endringer
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('📢 [APP] Auth state changed:', event)
       
       if (event === 'SIGNED_IN') {
-        // Ved innlogging, sjekk og opprett profil
         const createProfileOnSignIn = async () => {
           if (session?.user) {
             const { data: profile } = await supabase
               .from('profiles')
-              .select('id')
+              .select('id, welcome_email_sent')
               .eq('id', session.user.id)
               .maybeSingle()
 
@@ -130,12 +135,26 @@ export default function App({ Component, pageProps }: AppProps) {
                           session.user.email?.split('@')[0] || 
                           'User',
                 avatar_url: session.user.user_metadata?.avatar_url || null,
-                onboarding_completed: false
+                onboarding_completed: false,
+                welcome_email_sent: false
               })
               console.log('✅ [APP] Profil opprettet ved SIGNED_IN')
+              
+              // 🎯 NY BRUKER – SEND VELKOMST-E-POST!
+              await sendWelcomeEmail(
+                session.user.email, 
+                session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
+                session.user.id
+              )
+            } else if (!profile.welcome_email_sent) {
+              // 🎯 EKSISTERENDE BRUKER UTEN VELKOMST-E-POST
+              await sendWelcomeEmail(
+                session.user.email,
+                session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
+                session.user.id
+              )
             }
             
-            // Sjekk om bruker trenger onboarding
             const { data: newProfile } = await supabase
               .from('profiles')
               .select('onboarding_completed, full_name')
@@ -159,6 +178,35 @@ export default function App({ Component, pageProps }: AppProps) {
       subscription.unsubscribe()
     }
   }, [router])
+
+  // 🎯 FUNKSJON FOR Å SENDE VELKOMST-E-POST
+  async function sendWelcomeEmail(email: string, name: string, userId: string) {
+    try {
+      console.log('📧 [APP] Sender velkomst-e-post til:', email)
+      
+      const response = await fetch('/api/send-welcome-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name })
+      })
+
+      const data = await response.json()
+      
+      if (response.ok) {
+        console.log('✅ [APP] Velkomst-e-post sendt!', data)
+        
+        // Marker at e-post er sendt
+        await supabase
+          .from('profiles')
+          .update({ welcome_email_sent: true })
+          .eq('id', userId)
+      } else {
+        console.error('❌ [APP] Feil ved sending:', data)
+      }
+    } catch (error) {
+      console.error('❌ [APP] Kunne ikke sende velkomst-e-post:', error)
+    }
+  }
 
   if (isLoading) {
     return (
