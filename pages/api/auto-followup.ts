@@ -21,6 +21,13 @@ export default async function handler(
       return res.status(400).json({ error: 'Missing userId' })
     }
 
+    // Hent brukerens e-post for reply_to
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', userId)
+      .single()
+
     // Hent leads som trenger oppfølging
     const twoDaysAgo = new Date()
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
@@ -137,11 +144,11 @@ Guidelines:
           </html>
         `
 
-        // 🔥 VIKTIG: Bruk noreply@ men med replyTo!
+        // 🔥 VIKTIG: Bruk reply_to (med underscore)!
         const { data: emailData, error: emailError } = await resend.emails.send({
           from: 'LeadFlow <noreply@myleadassistant.com>',
           to: [lead.email],
-          replyTo: lead.user_email || 'owner@example.com', // Må hentes fra profil
+          reply_to: userProfile?.email || 'owner@example.com', // ← Fikset!
           subject: subject,
           html: htmlContent
         })
