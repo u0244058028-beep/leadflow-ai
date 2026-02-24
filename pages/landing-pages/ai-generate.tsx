@@ -30,10 +30,23 @@ export default function AIGeneratePage() {
     }
   }
 
-  // 🔧 TEST-FUNKSJON (inne i komponenten)
+  // 🔧 TEST-FUNKSJON med full feillogging
   async function generateWithAI() {
     if (!description.trim()) {
       alert('Please describe what you want to offer')
+      return
+    }
+
+    // SJEKK OM PUTER FINNES
+    if (typeof window.puter === 'undefined') {
+      alert('Puter is not loaded. Please refresh the page.')
+      console.error('❌ window.puter is undefined')
+      return
+    }
+
+    if (typeof window.puter.ai === 'undefined') {
+      alert('Puter.ai is not available. Please refresh the page.')
+      console.error('❌ window.puter.ai is undefined')
       return
     }
 
@@ -43,26 +56,52 @@ export default function AIGeneratePage() {
     try {
       console.log('🔍 TEST MODE - Sending to AI...')
       console.log('Description:', description)
+      console.log('📤 Puter object:', window.puter)
+      console.log('📤 Puter.ai methods:', Object.keys(window.puter.ai))
 
       // Enkel test uten JSON-krav
       const testPrompt = `Based on this description: "${description}", 
       write a short headline and 3 benefits. Just plain text, no JSON.`
 
+      console.log('📤 Calling Puter.ai with model: gpt-5-nano')
+      
       const response = await window.puter.ai.chat(testPrompt, {
         model: "gpt-5-nano",
         temperature: 0.7,
         max_tokens: 200
       })
 
-      console.log('📥 AI response:', response)
-      alert('AI responded! Check console for result.')
+      console.log('✅ AI response received!')
+      console.log('📥 Full response:', response)
+      console.log('📥 Response type:', typeof response)
+      console.log('📥 Response as string:', JSON.stringify(response, null, 2))
       
-      // Bare for å komme tilbake til form
+      alert('AI responded! Check console for result.')
       setStep('form')
       
     } catch (error: any) {
-      console.error('❌ AI error:', error)
-      alert('Error: ' + error.message)
+      console.error('❌ AI error - FULL DETAILS:')
+      console.error('Error object:', error)
+      console.error('Error message:', error?.message)
+      console.error('Error stack:', error?.stack)
+      console.error('Error response:', error?.response)
+      console.error('Error name:', error?.name)
+      
+      // Vis feilmelding i UI
+      let errorMessage = 'Unknown error'
+      if (error?.message) {
+        errorMessage = error.message
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else {
+        try {
+          errorMessage = JSON.stringify(error)
+        } catch {
+          errorMessage = 'Could not stringify error'
+        }
+      }
+      
+      alert('Error: ' + errorMessage)
       setStep('form')
     } finally {
       setLoading(false)
