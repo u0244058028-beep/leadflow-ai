@@ -20,10 +20,12 @@ export default function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [scoreFilter, setScoreFilter] = useState<string>('all')
+  const [favoriteFilter, setFavoriteFilter] = useState<boolean | null>(null) // ✨ NY!
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
+  const [togglingFavorite, setTogglingFavorite] = useState<string | null>(null) // ✨ NY!
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
@@ -63,6 +65,30 @@ export default function LeadsPage() {
     loadLeads()
   }, [])
 
+  // ✨ NY: Toggle favorite
+  async function toggleFavorite(leadId: string, currentValue: boolean) {
+    setTogglingFavorite(leadId)
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ is_favorite: !currentValue })
+        .eq('id', leadId)
+
+      if (error) throw error
+
+      // Oppdater lokal state
+      setLeads(leads.map(lead => 
+        lead.id === leadId 
+          ? { ...lead, is_favorite: !currentValue }
+          : lead
+      ))
+    } catch (error) {
+      console.error('Error toggling favorite:', error)
+    } finally {
+      setTogglingFavorite(null)
+    }
+  }
+
   const filteredLeads = useMemo(() => {
     if (!leads.length) return []
     
@@ -100,6 +126,11 @@ export default function LeadsPage() {
       }
     }
 
+    // ✨ NY: Filtrer på favoritter
+    if (favoriteFilter !== null) {
+      filtered = filtered.filter(lead => lead.is_favorite === favoriteFilter)
+    }
+
     filtered.sort((a, b) => {
       let aValue: any = a[sortField]
       let bValue: any = b[sortField]
@@ -112,11 +143,11 @@ export default function LeadsPage() {
 
     setFilterLoading(false)
     return filtered
-  }, [leads, debouncedSearchTerm, statusFilter, scoreFilter, sortField, sortOrder])
+  }, [leads, debouncedSearchTerm, statusFilter, scoreFilter, favoriteFilter, sortField, sortOrder])
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedSearchTerm, statusFilter, scoreFilter, sortField, sortOrder])
+  }, [debouncedSearchTerm, statusFilter, scoreFilter, favoriteFilter, sortField, sortOrder])
 
   async function handleCreateLead(leadData: Partial<Lead>) {
     try {
@@ -130,7 +161,8 @@ export default function LeadsPage() {
         { 
           ...leadData, 
           user_id: user.id,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          is_favorite: false
         }
       ])
 
@@ -144,7 +176,6 @@ export default function LeadsPage() {
     }
   }
 
-  // 🎯 FORENKLET scoring som fungerer (uten max_tokens)
   async function rescoreLead(leadId: string) {
     if (!leadId) {
       alert('Invalid lead ID')
@@ -161,17 +192,8 @@ export default function LeadsPage() {
         return
       }
 
-      // Hent ALLE data om leadet
       const lead = leads.find(l => l.id === leadId)
       
-      console.log('🎯 Scoring lead:', {
-        id: lead?.id,
-        name: lead?.name,
-        title: lead?.title,
-        company: lead?.company,
-        industry: lead?.industry
-      })
-
       const { data: notes } = await supabase
         .from('notes')
         .select('content')
@@ -194,7 +216,6 @@ export default function LeadsPage() {
       const taskCount = tasks?.length || 0
       const emailCount = emails?.length || 0
 
-      // 🎯 ENKEL PROMPT – uten max_tokens
       const prompt = `Score this lead 1-10 based on:
 - Title: ${lead?.title || 'none'} (CEO/Founder = +4, Manager = +2)
 - Industry: ${lead?.industry || 'unknown'} (SaaS/Tech = +3, Consulting = +2)
@@ -204,16 +225,10 @@ export default function LeadsPage() {
 
 Return ONLY a number between 1-10.`
 
-      console.log('📤 Sending prompt to OpenAI...')
-
-      // 🔥 VIKTIG: Kun model, ingen andre parametere!
       const response = await window.puter.ai.chat(prompt, {
         model: "gpt-5.1-codex"
       })
 
-      console.log('📥 Raw response:', response)
-
-      // Ekstraher score
       let scoreText = ''
       if (typeof response === 'string') {
         scoreText = response
@@ -223,15 +238,10 @@ Return ONLY a number between 1-10.`
         scoreText = response.choices[0].message.content
       }
 
-      console.log('📥 Extracted text:', scoreText)
-
       const scoreMatch = scoreText.match(/\d+/)
       const score = scoreMatch ? parseInt(scoreMatch[0]) : 5
       const finalScore = Math.min(10, Math.max(1, score))
 
-      console.log('✅ Final score:', finalScore)
-
-      // Generer forklaring
       let reason = 'Score updated'
       if (lead?.title?.toLowerCase().includes('ceo') || lead?.title?.toLowerCase().includes('founder')) {
         reason = 'Decision maker with budget authority'
@@ -239,11 +249,8 @@ Return ONLY a number between 1-10.`
         reason = 'Manager with influence'
       } else if (lead?.industry?.toLowerCase().includes('saas') || lead?.industry?.toLowerCase().includes('tech')) {
         reason = 'In relevant industry'
-      } else if (notes?.length && notes.length > 0) {
-        reason = 'Engaged through conversations'
       }
 
-      // Oppdater lead
       await supabase
         .from('leads')
         .update({ 
@@ -378,7 +385,7 @@ Return ONLY a number between 1-10.`
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select
@@ -408,10 +415,29 @@ Return ONLY a number between 1-10.`
                 <option value="unscored">Not scored</option>
               </select>
             </div>
+
+            {/* ✨ NY: Favorite filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Favorites</label>
+              <select
+                value={favoriteFilter === null ? 'all' : favoriteFilter ? 'favorites' : 'non-favorites'}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val === 'all') setFavoriteFilter(null)
+                  else if (val === 'favorites') setFavoriteFilter(true)
+                  else setFavoriteFilter(false)
+                }}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All</option>
+                <option value="favorites">⭐ Favorites only</option>
+                <option value="non-favorites">Non-favorites</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {(searchTerm || statusFilter !== 'all' || scoreFilter !== 'all') && (
+        {(searchTerm || statusFilter !== 'all' || scoreFilter !== 'all' || favoriteFilter !== null) && (
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="text-sm text-gray-500">Active filters:</span>
             {searchTerm && (
@@ -432,11 +458,18 @@ Return ONLY a number between 1-10.`
                 <button onClick={() => setScoreFilter('all')} className="ml-1 hover:text-green-600">×</button>
               </span>
             )}
+            {favoriteFilter !== null && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
+                {favoriteFilter ? '⭐ Favorites' : 'Non-favorites'}
+                <button onClick={() => setFavoriteFilter(null)} className="ml-1 hover:text-yellow-600">×</button>
+              </span>
+            )}
             <button
               onClick={() => {
                 setSearchTerm('')
                 setStatusFilter('all')
                 setScoreFilter('all')
+                setFavoriteFilter(null)
               }}
               className="text-xs text-red-600 hover:text-red-800"
             >
@@ -465,6 +498,7 @@ Return ONLY a number between 1-10.`
                   setSearchTerm('')
                   setStatusFilter('all')
                   setScoreFilter('all')
+                  setFavoriteFilter(null)
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
               >
@@ -488,8 +522,21 @@ Return ONLY a number between 1-10.`
                 <div key={lead.id} className="p-4 hover:bg-gray-50">
                   <Link href={`/leads/${lead.id}`} className="block">
                     <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="font-medium text-blue-600">{lead.name}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-blue-600">{lead.name}</p>
+                          {/* ✨ NY: Stjerne på mobil */}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault()
+                              toggleFavorite(lead.id, lead.is_favorite || false)
+                            }}
+                            disabled={togglingFavorite === lead.id}
+                            className="text-lg"
+                          >
+                            {lead.is_favorite ? '⭐' : '☆'}
+                          </button>
+                        </div>
                         {lead.title && <p className="text-xs text-gray-500">{lead.title}</p>}
                       </div>
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(lead.status)}`}>
@@ -552,6 +599,9 @@ Return ONLY a number between 1-10.`
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ⭐
+                    </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700" onClick={() => handleSort('name')}>
                       Name <SortIcon field="name" />
                     </th>
@@ -578,6 +628,15 @@ Return ONLY a number between 1-10.`
                 <tbody className="bg-white divide-y divide-gray-200">
                   {paginatedLeads.map((lead) => (
                     <tr key={lead.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => toggleFavorite(lead.id, lead.is_favorite || false)}
+                          disabled={togglingFavorite === lead.id}
+                          className="text-xl focus:outline-none"
+                        >
+                          {lead.is_favorite ? '⭐' : '☆'}
+                        </button>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Link href={`/leads/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
                           {lead.name}
