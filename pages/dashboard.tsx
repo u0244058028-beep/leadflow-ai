@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
 import Link from 'next/link'
 import AIActivityLog from '@/components/AIActivityLog'
-import { TrendingUp, TrendingDown, Minus, Users, Calendar, DollarSign, Award } from 'lucide-react'
 
 interface DashboardStats {
   leadCount: number
@@ -149,7 +148,7 @@ export default function Dashboard() {
     }
   }
 
-  // Hjelpefunksjon for trend-ikoner
+  // Hjelpefunksjon for trend-ikoner (uten lucide-react)
   function TrendIndicator({ current, previous }: { current: number; previous: number }) {
     const difference = current - previous
     const percentChange = previous > 0 ? Math.round((difference / previous) * 100) : 0
@@ -157,21 +156,21 @@ export default function Dashboard() {
     if (difference > 0) {
       return (
         <div className="flex items-center gap-1 text-green-600">
-          <TrendingUp className="w-4 h-4" />
+          <span className="text-sm">📈</span>
           <span className="text-xs font-medium">+{percentChange}%</span>
         </div>
       )
     } else if (difference < 0) {
       return (
         <div className="flex items-center gap-1 text-red-600">
-          <TrendingDown className="w-4 h-4" />
+          <span className="text-sm">📉</span>
           <span className="text-xs font-medium">{percentChange}%</span>
         </div>
       )
     } else {
       return (
         <div className="flex items-center gap-1 text-gray-400">
-          <Minus className="w-4 h-4" />
+          <span className="text-sm">➡️</span>
           <span className="text-xs font-medium">0%</span>
         </div>
       )
@@ -224,7 +223,7 @@ export default function Dashboard() {
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-gray-600">Total Leads</p>
-            <Users className="w-5 h-5 text-blue-600" />
+            <span className="text-blue-600 bg-blue-100 p-2 rounded-lg text-lg">👥</span>
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.leadCount}</p>
           <div className="flex items-center justify-between mt-2">
@@ -237,7 +236,7 @@ export default function Dashboard() {
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-gray-600">Tasks Today</p>
-            <Calendar className="w-5 h-5 text-orange-600" />
+            <span className="text-orange-600 bg-orange-100 p-2 rounded-lg text-lg">📅</span>
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.tasksToday}</p>
           <p className="text-xs text-gray-500 mt-2">Due today</p>
@@ -247,7 +246,7 @@ export default function Dashboard() {
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-gray-600">Pipeline Value</p>
-            <DollarSign className="w-5 h-5 text-purple-600" />
+            <span className="text-purple-600 bg-purple-100 p-2 rounded-lg text-lg">💰</span>
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-gray-900">
             ${stats.pipelineValue.toLocaleString()}
@@ -259,7 +258,7 @@ export default function Dashboard() {
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-gray-600">Revenue</p>
-            <Award className="w-5 h-5 text-green-600" />
+            <span className="text-green-600 bg-green-100 p-2 rounded-lg text-lg">🏆</span>
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-green-600">
             ${stats.actualRevenue.toLocaleString()}
