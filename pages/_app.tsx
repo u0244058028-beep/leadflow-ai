@@ -75,13 +75,23 @@ export default function App({ Component, pageProps }: AppProps) {
           } else {
             console.log('✅ [APP] Profil opprettet!')
             
-            // 🎯 NY BRUKER – SEND VELKOMST-E-POST!
-            await sendWelcomeEmail(user.email, fullName, user.id)
+            // 🎯 NY BRUKER – SEND VELKOMST-E-POST (med sjekk for email)
+            if (user.email) {
+              await sendWelcomeEmail(user.email, fullName, user.id)
+            } else {
+              console.error('❌ [APP] Bruker har ingen e-postadresse, kan ikke sende velkomst')
+            }
           }
         } else if (!profile.welcome_email_sent) {
           // 🎯 EKSISTERENDE BRUKER SOM IKKE HAR FÅTT VELKOMST-E-POST
           console.log('📧 [APP] Bruker mangler velkomst-e-post, sender nå...')
-          await sendWelcomeEmail(user.email, profile.full_name || user.email?.split('@')[0], user.id)
+          if (user.email) {
+            await sendWelcomeEmail(
+              user.email, 
+              profile.full_name || user.email?.split('@')[0] || 'User', 
+              user.id
+            )
+          }
         }
 
         // SJEKK OM BRUKER TRENGER ONBOARDING
@@ -140,19 +150,23 @@ export default function App({ Component, pageProps }: AppProps) {
               })
               console.log('✅ [APP] Profil opprettet ved SIGNED_IN')
               
-              // 🎯 NY BRUKER – SEND VELKOMST-E-POST!
-              await sendWelcomeEmail(
-                session.user.email, 
-                session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
-                session.user.id
-              )
+              // 🎯 NY BRUKER – SEND VELKOMST-E-POST
+              if (session.user.email) {
+                await sendWelcomeEmail(
+                  session.user.email, 
+                  session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+                  session.user.id
+                )
+              }
             } else if (!profile.welcome_email_sent) {
               // 🎯 EKSISTERENDE BRUKER UTEN VELKOMST-E-POST
-              await sendWelcomeEmail(
-                session.user.email,
-                session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
-                session.user.id
-              )
+              if (session.user.email) {
+                await sendWelcomeEmail(
+                  session.user.email,
+                  session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+                  session.user.id
+                )
+              }
             }
             
             const { data: newProfile } = await supabase
