@@ -1,6 +1,3 @@
-console.log('🚀 [SLUG] Page loaded with slug:', slug)
-console.log('🚀 [SLUG] Preview mode:', preview)
-console.log('🚀 [SLUG] Full URL:', window.location.href)
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
@@ -9,6 +6,12 @@ import Head from 'next/head'
 export default function PublicLandingPage() {
   const router = useRouter()
   const { slug, preview } = router.query
+  
+  // Logger MÅ være etter at router er definert
+  console.log('🚀 [SLUG] Page loaded with slug:', slug)
+  console.log('🚀 [SLUG] Preview mode:', preview)
+  console.log('🚀 [SLUG] Full URL:', typeof window !== 'undefined' ? window.location.href : 'Server-side')
+  
   const [page, setPage] = useState<any>(null)
   const [fields, setFields] = useState<any[]>([])
   const [formData, setFormData] = useState<any>({})
@@ -168,7 +171,7 @@ export default function PublicLandingPage() {
     )
   }
 
-  // 🔥 Hent ALLE data fra settings
+  // Hent ALLE data fra settings
   const settings = page.settings || {}
   const benefits = settings.benefits || settings.longBenefits || []
   const trustElements = settings.trustElements || ['No spam', 'We respect your privacy']
