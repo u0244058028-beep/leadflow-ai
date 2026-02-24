@@ -122,26 +122,94 @@ export default function LeadDetail() {
     loadData()
   }
 
+  // 🎯 OPPDATERT: Smart followup med samme AI som scoring
   async function generateFollowup() {
+    if (!lead) return
+    
     setLoadingAI(true)
     try {
       const user = (await supabase.auth.getUser()).data.user
-      if (!user || !lead) return
+      if (!user) return
 
-      const res = await fetch('/api/generate-followup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadName: lead?.name,
-          company: lead?.company,
-          leadId: lead?.id,
-          userId: user.id,
-        }),
+      // Hent brukerens profil for avsender-info
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, company_name')
+        .eq('id', user.id)
+        .single()
+
+      // Hent nylige notater for kontekst
+      const { data: recentNotes } = await supabase
+        .from('notes')
+        .select('content')
+        .eq('lead_id', lead.id)
+        .order('created_at', { ascending: false })
+        .limit(3)
+
+      const notesText = recentNotes?.map(n => n.content).join('\n') || 'No previous conversation'
+
+      // 🎯 PROMPT basert på lead-score
+      let prompt = ''
+      
+      if (lead.ai_score && lead.ai_score >= 8) {
+        // Hot lead – foreslå møte
+        prompt = `Write a short email to ${lead.name} (${lead.title || 'professional'}) suggesting a quick 15-minute meeting.
+The lead is HOT (score ${lead.ai_score}/10) and ready to convert.
+Be enthusiastic but professional.
+Include a link to book a meeting.
+From: ${profile?.full_name || 'Your name'} at ${profile?.company_name || 'our company'}`
+      } else if (lead.ai_score && lead.ai_score >= 5) {
+        // Warm lead – spør om de har spørsmål
+        prompt = `Write a friendly follow-up email to ${lead.name} (${lead.title || 'professional'} at ${lead.company || 'their company'}).
+They are a WARM lead (score ${lead.ai_score}/10).
+Ask if they have any questions about your offering.
+Keep it helpful, not pushy.
+Reference their industry (${lead.industry || 'their field'}) if relevant.
+From: ${profile?.full_name || 'Your name'}`
+      } else {
+        // Cold lead – tilby verdi
+        prompt = `Write a light, value-adding follow-up email to ${lead.name}.
+They are a COLD lead (score ${lead.ai_score || 'not scored'}/10).
+Offer a useful tip or resource related to ${lead.industry || 'their industry'}.
+Keep it friendly and low-pressure.
+Don't ask for a meeting yet.
+From: ${profile?.full_name || 'Your name'}`
+      }
+
+      console.log('📤 Generating follow-up with OpenAI...')
+
+      const response = await window.puter.ai.chat(prompt, {
+        model: "gpt-5.1-codex"  // Samme AI som scoring!
       })
-      const data = await res.json()
-      setGeneratedMessage(data.message)
+
+      console.log('📥 Response:', response)
+
+      let message = ''
+      if (typeof response === 'string') {
+        message = response
+      } else if (response?.message?.content) {
+        message = response.message.content
+      } else if (response?.choices?.[0]?.message?.content) {
+        message = response.choices[0].message.content
+      }
+
+      setGeneratedMessage(message)
+
+      // Logg at melding ble generert
+      await supabase.from('ai_activity_log').insert({
+        user_id: user.id,
+        lead_id: lead.id,
+        action_type: 'followup_generated',
+        description: `Generated follow-up for ${lead.name}`,
+        metadata: { 
+          score: lead.ai_score,
+          preview: message.substring(0, 100)
+        }
+      })
+
     } catch (error) {
-      console.error(error)
+      console.error('Error generating follow-up:', error)
+      alert('Failed to generate message')
     } finally {
       setLoadingAI(false)
     }
@@ -227,7 +295,6 @@ export default function LeadDetail() {
     setEditingValue(false)
   }
 
-  // 🎯 FUNKSJON FOR Å OPPDATERE STATUS
   async function updateStatus(newStatus: Lead['status']) {
     if (!lead) return
     
@@ -236,7 +303,6 @@ export default function LeadDetail() {
       .update({ status: newStatus })
       .eq('id', lead.id)
     
-    // Logg aktiviteten
     await supabase.from('ai_activity_log').insert({
       user_id: lead.user_id,
       lead_id: lead.id,
@@ -288,7 +354,7 @@ export default function LeadDetail() {
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-lg font-semibold mb-4">Details</h2>
             
-            {/* 🎯 STATUS-VELGER */}
+            {/* Status-velger */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               <div className="flex gap-2 items-center">
@@ -339,7 +405,7 @@ export default function LeadDetail() {
               </div>
             )}
 
-            {/* Potential Value med redigering */}
+            {/* Potential Value */}
             {lead.potential_value && !editingValue ? (
               <div className="mt-4 p-3 rounded-lg bg-gray-50">
                 <div className="flex justify-between items-center">
