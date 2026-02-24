@@ -30,23 +30,14 @@ export default function AIGeneratePage() {
     }
   }
 
-  // 🔧 ENDELIG VERSJON – uten temperature, uten max_tokens
   async function generateWithAI() {
     if (!description.trim()) {
       alert('Please describe what you want to offer')
       return
     }
 
-    // SJEKK OM PUTER FINNES
     if (typeof window.puter === 'undefined') {
       alert('Puter is not loaded. Please refresh the page.')
-      console.error('❌ window.puter is undefined')
-      return
-    }
-
-    if (typeof window.puter.ai === 'undefined') {
-      alert('Puter.ai is not available. Please refresh the page.')
-      console.error('❌ window.puter.ai is undefined')
       return
     }
 
@@ -54,34 +45,55 @@ export default function AIGeneratePage() {
     setStep('generating')
     
     try {
-      console.log('🔍 Sending to AI...')
-      console.log('Description:', description)
-
-      // 🎯 PROMPT for å generere landing page
+      // 🎯 PROMPT for landing page med valgfrie felt for bedre scoring
       const prompt = `You are an expert copywriter. Create a landing page based on this description:
 
 "${description}"
+
+IMPORTANT: The form MUST have:
+- Full Name (required)
+- Email Address (required)
+- PLUS 3-4 OPTIONAL fields that help score leads better
+
+GOOD OPTIONAL FIELDS (choose based on their offer):
+- Job Title (helps identify decision makers)
+- Company Name (helps identify company size/relevance)
+- Phone Number (shows higher intent)
+- Industry (helps qualify relevance)
+- Company Size (dropdown: 1-10, 11-50, 51-200, 201-500, 500+)
+
+SCORING BENEFITS:
+- Job Title = +4 points if CEO/Founder
+- Industry = +3 points if relevant
+- Company = +2 points for known companies
+- Phone = +1 point for engagement
 
 Return ONLY valid JSON in this exact format:
 {
   "title": "A compelling headline about their offer",
   "subheadline": "A short supporting line explaining the value",
   "description": "2-3 sentences about what they'll get",
-  "offer": "The specific thing they're offering (e.g., '14-Day Free Trial', 'Free Guide')",
+  "offer": "The specific thing they're offering (e.g., '14-Day Free Trial', 'Free Guide', 'Demo')",
   "benefits": ["Benefit 1", "Benefit 2", "Benefit 3"],
+  "fields": [
+    { "type": "text", "label": "Full Name", "placeholder": "John Doe", "required": true },
+    { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true },
+    { "type": "text", "label": "Job Title (optional)", "placeholder": "e.g., CEO, Marketing Manager", "required": false },
+    { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false },
+    { "type": "tel", "label": "Phone (optional)", "placeholder": "+1 234 567 890", "required": false },
+    { "type": "text", "label": "Industry (optional)", "placeholder": "e.g., SaaS, Consulting", "required": false }
+  ],
   "buttonText": "Call to action button text",
   "trustElements": ["No spam", "Privacy guaranteed"]
 }`
 
-      console.log('📤 Calling Puter.ai with model: gpt-5.1-codex')
+      console.log('📤 Calling Puter.ai...')
       
-      // VIKTIG: Ingen temperature, ingen max_tokens – bare model!
       const response = await window.puter.ai.chat(prompt, {
         model: "gpt-5.1-codex"
       })
 
-      console.log('✅ AI response received!')
-      console.log('📥 Response:', response)
+      console.log('📥 Raw AI response:', response)
 
       // Parse JSON
       let aiSuggestion
@@ -99,21 +111,53 @@ Return ONLY valid JSON in this exact format:
         }
       } catch (e) {
         console.error('Error parsing JSON:', e)
-        console.error('Raw response:', response)
         
-        // Fallback
+        // Intelligent fallback basert på beskrivelsen
+        const words = description.toLowerCase()
+        let offer = 'Free Resource'
+        let title = 'Free Resource'
+        let buttonText = 'Get Access'
+        let benefits = ['Save time', 'Expert insights', 'Practical tips']
+        
+        if (words.includes('trial') || words.includes('14 days') || words.includes('free')) {
+          offer = '14-Day Free Trial'
+          title = 'Try Our Product Free for 14 Days'
+          buttonText = 'Start Free Trial'
+          benefits = ['Full access to all features', 'No credit card required', 'Cancel anytime']
+        } else if (words.includes('demo')) {
+          offer = 'Free Personalized Demo'
+          title = 'See Our Solution in Action'
+          buttonText = 'Book My Demo'
+          benefits = ['Tailored to your needs', 'Live walkthrough', 'Q&A session included']
+        } else if (words.includes('consult') || words.includes('strategy')) {
+          offer = 'Free Strategy Session'
+          title = 'Book Your Free 30-Minute Strategy Call'
+          buttonText = 'Book My Session'
+          benefits = ['Personalized advice', 'Actionable insights', 'No sales pitch']
+        }
+        
         aiSuggestion = {
-          title: "Special Offer Just for You",
-          subheadline: "Limited time opportunity",
-          description: "Fill out the form to get instant access.",
-          offer: "Free Resource",
-          benefits: ["Save time", "Expert insights", "Practical tips"],
-          buttonText: "Get Access Now",
-          trustElements: ["No spam", "Privacy guaranteed"]
+          title: title,
+          subheadline: `The ultimate resource for ${profile?.target_audience || 'professionals'}`,
+          description: `Get instant access and start seeing results today.`,
+          offer: offer,
+          benefits: benefits,
+          fields: [
+            { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
+            { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true },
+            { type: 'text', label: 'Job Title (optional)', placeholder: 'e.g., CEO', required: false },
+            { type: 'text', label: 'Company (optional)', placeholder: 'e.g., Acme Inc', required: false },
+            { type: 'tel', label: 'Phone (optional)', placeholder: '+1 234 567 890', required: false },
+            { type: 'text', label: 'Industry (optional)', placeholder: 'e.g., SaaS', required: false }
+          ],
+          buttonText: buttonText,
+          trustElements: ['No spam, unsubscribe anytime', 'We respect your privacy']
         }
       }
 
-      // Sikre at alle felt finnes
+      console.log('📥 Parsed suggestion:', aiSuggestion)
+
+      // 🔥 VALIDER OG SIKRE ALLE FELT
       const safePage = {
         title: aiSuggestion?.title || 'Free Resource',
         subheadline: aiSuggestion?.subheadline || 'Get access now',
@@ -124,12 +168,36 @@ Return ONLY valid JSON in this exact format:
           'Expert insights',
           'Practical tips'
         ],
+        // VIKTIG: Valider fields nøye
+        fields: (() => {
+          if (!aiSuggestion?.fields || !Array.isArray(aiSuggestion.fields) || aiSuggestion.fields.length === 0) {
+            // Default fields med valgfrie felt
+            return [
+              { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
+              { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true },
+              { type: 'text', label: 'Job Title (optional)', placeholder: 'e.g., CEO', required: false },
+              { type: 'text', label: 'Company (optional)', placeholder: 'e.g., Acme Inc', required: false },
+              { type: 'tel', label: 'Phone (optional)', placeholder: '+1 234 567 890', required: false },
+              { type: 'text', label: 'Industry (optional)', placeholder: 'e.g., SaaS', required: false }
+            ]
+          }
+          
+          // Valider hvert field
+          return aiSuggestion.fields.map((field: any) => ({
+            type: field.type || 'text',
+            label: field.label || 'Field',
+            placeholder: field.placeholder || '',
+            required: field.required !== false
+          }))
+        })(),
         buttonText: aiSuggestion?.buttonText || 'Get Access',
         trustElements: Array.isArray(aiSuggestion?.trustElements) ? aiSuggestion.trustElements : [
           'No spam, unsubscribe anytime',
           'We respect your privacy'
         ]
       }
+
+      console.log('✅ Validated page:', safePage)
 
       // Generer slug fra beskrivelsen
       const slug = description
@@ -181,6 +249,8 @@ Return ONLY valid JSON in this exact format:
         counter++
       }
       
+      console.log('Saving page with fields:', generatedPage.fields)
+
       // Opprett siden
       const { data: page, error: pageError } = await supabase
         .from('landing_pages')
@@ -207,16 +277,22 @@ Return ONLY valid JSON in this exact format:
       // Opprett feltene
       for (let i = 0; i < generatedPage.fields.length; i++) {
         const field = generatedPage.fields[i]
-        await supabase
+        console.log('Creating field:', field)
+        
+        const { error: fieldError } = await supabase
           .from('landing_page_fields')
           .insert({
             landing_page_id: page.id,
             field_type: field.type,
             label: field.label,
-            placeholder: field.placeholder,
-            required: true,
+            placeholder: field.placeholder || '',
+            required: field.required !== false,
             sort_order: i
           })
+
+        if (fieldError) {
+          console.error('Error creating field:', fieldError)
+        }
       }
 
       router.push(`/landing-pages/${page.id}`)
