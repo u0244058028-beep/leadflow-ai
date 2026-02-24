@@ -144,7 +144,7 @@ export default function LeadsPage() {
     }
   }
 
-  // 🎯 OPPDATERT: Bruker samme AI som landing pages (gpt-5.1-codex)
+  // 🎯 OPPDATERT scoring med logging
   async function rescoreLead(leadId: string) {
     if (!leadId) {
       alert('Invalid lead ID')
@@ -164,6 +164,14 @@ export default function LeadsPage() {
       // Hent ALLE data om leadet
       const lead = leads.find(l => l.id === leadId)
       
+      console.log('🎯 Scoring lead:', {
+        id: lead?.id,
+        name: lead?.name,
+        title: lead?.title,
+        company: lead?.company,
+        industry: lead?.industry
+      })
+
       const { data: notes } = await supabase
         .from('notes')
         .select('content')
@@ -186,54 +194,62 @@ export default function LeadsPage() {
       const taskCount = tasks?.length || 0
       const emailCount = emails?.length || 0
 
-      // 🎯 NY PROMPT med samme AI som landing pages
-      const prompt = `You are an expert B2B sales lead scorer. Score this lead 1-10 based on:
+      // 🎯 TYDELIG PROMPT med steg-for-steg utregning
+      const prompt = `You are an expert B2B sales lead scorer. Score this lead from 1 to 10.
 
-JOB TITLE SCORING:
-- CEO/Founder/Director/Vice President/C-level = +4 points
-- Manager/Head of = +2 points
-- Individual contributor = +1 point
-- No title = 0 points
+SCORING SYSTEM:
+- Start at 1 (cold lead)
+- ADD points based on:
 
-INDUSTRY RELEVANCE:
-- SaaS/Technology/Software/AI = +3 points
-- Consulting/Professional Services/Marketing = +2 points
-- Other industries = +1 point
+JOB TITLE:
++4 if C-level (CEO, Founder, Director, VP, President)
++2 if Manager, Head of
++1 if Individual contributor
++0 if no title
 
-ENGAGEMENT SCORING:
-- Each note = +1 point (max +3)
-- Each task = +1 point (max +2)
-- Each email = +1 point (max +2)
+INDUSTRY:
++3 if SaaS, Technology, Software, AI
++2 if Consulting, Professional Services, Marketing
++1 if other industries
+
+ENGAGEMENT:
++1 per note (max +3)
++1 per task (max +2)
++1 per email (max +2)
 
 LEAD DATA:
-Name: ${lead?.name}
+Name: ${lead?.name || 'Unknown'}
 Title: ${lead?.title || 'Not specified'}
 Company: ${lead?.company || 'Unknown'}
 Industry: ${lead?.industry || 'Unknown'}
 
-ENGAGEMENT METRICS:
-Notes count: ${notes?.length || 0}
-Tasks count: ${taskCount}
-Emails sent: ${emailCount}
+ACTIVITY:
+Notes: ${notes?.length || 0}
+Tasks: ${taskCount}
+Emails: ${emailCount}
 
-RECENT NOTES:
-${notesText || 'No notes'}
+Recent notes: ${notesText || 'None'}
 
-Calculate the total score based on the criteria above. 
-Start from 1 (cold) and add points based on the scoring guide.
-Return ONLY a number between 1-10.`
+Calculate step by step:
+1. Start at 1
+2. Add title points: ___
+3. Add industry points: ___
+4. Add engagement points: ___
+5. Total = ___
 
-      console.log('📤 Scoring lead with OpenAI via Puter.ai...')
-      
+Return ONLY the final number between 1-10.`
+
+      console.log('📤 Sending prompt to OpenAI:', prompt)
+
       const response = await window.puter.ai.chat(prompt, {
-        model: "gpt-5.1-codex",  // 🔥 Samme som landing pages!
-        max_tokens: 5
+        model: "gpt-5.1-codex",
+        max_tokens: 10
       })
 
-      console.log('📥 Raw AI response:', response)
+      console.log('📥 Raw response:', response)
 
       // Ekstraher score
-      let scoreText = '5'
+      let scoreText = ''
       if (typeof response === 'string') {
         scoreText = response
       } else if (response?.message?.content) {
@@ -242,13 +258,16 @@ Return ONLY a number between 1-10.`
         scoreText = response.choices[0].message.content
       }
 
+      console.log('📥 Extracted text:', scoreText)
+
       const scoreMatch = scoreText.match(/\d+/)
       const score = scoreMatch ? parseInt(scoreMatch[0]) : 5
       const finalScore = Math.min(10, Math.max(1, score))
 
+      console.log('✅ Final score:', finalScore)
+
       // Generer forklaring
       let reason = 'Score updated'
-      
       if (lead?.title?.toLowerCase().includes('ceo') || lead?.title?.toLowerCase().includes('founder')) {
         reason = 'Decision maker with budget authority'
       } else if (lead?.title?.toLowerCase().includes('manager') || lead?.title?.toLowerCase().includes('head')) {
@@ -257,24 +276,10 @@ Return ONLY a number between 1-10.`
         reason = 'In relevant industry with potential for growth'
       } else if (notes?.length && notes.length > 0) {
         reason = 'Engaged through conversations and follow-ups'
-      } else {
-        const reasonPrompt = `Explain in one sentence why this lead scored ${finalScore}/10.
-        Focus on the most important factor: title (${lead?.title || 'none'}), industry (${lead?.industry || 'unknown'}), or engagement (${notes?.length || 0} notes).`
-
-        const reasonResponse = await window.puter.ai.chat(reasonPrompt, {
-          model: "gpt-5.1-codex",
-          max_tokens: 30
-        })
-
-        if (typeof reasonResponse === 'string') {
-          reason = reasonResponse
-        } else if (reasonResponse?.message?.content) {
-          reason = reasonResponse.message.content
-        }
       }
 
-      // Oppdater lead i databasen
-      const { error: updateError } = await supabase
+      // Oppdater lead
+      await supabase
         .from('leads')
         .update({ 
           ai_score: finalScore,
@@ -283,21 +288,11 @@ Return ONLY a number between 1-10.`
         })
         .eq('id', leadId)
 
-      if (updateError) throw updateError
-
-      // Logg aktivitet
       await supabase.from('ai_activity_log').insert({
         user_id: user.id,
         lead_id: leadId,
         action_type: 'score_updated',
-        description: `Lead scored ${finalScore}/10 - ${reason}`,
-        metadata: { 
-          score: finalScore,
-          reason,
-          title: lead?.title,
-          industry: lead?.industry,
-          notes_count: notes?.length
-        }
+        description: `Lead scored ${finalScore}/10 - ${reason}`
       })
 
       await loadLeads()
