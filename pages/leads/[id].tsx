@@ -217,15 +217,35 @@ export default function LeadDetail() {
   }
 
   async function updateValue() {
-  if (!lead) return
-  const newValue = tempValue ? parseInt(tempValue) : undefined
-  await supabase
-    .from('leads')
-    .update({ potential_value: newValue })
-    .eq('id', lead.id)
-  setLead({ ...lead, potential_value: newValue })
-  setEditingValue(false)
-}
+    if (!lead) return
+    const newValue = tempValue ? parseInt(tempValue) : undefined
+    await supabase
+      .from('leads')
+      .update({ potential_value: newValue })
+      .eq('id', lead.id)
+    setLead({ ...lead, potential_value: newValue })
+    setEditingValue(false)
+  }
+
+  // 🎯 FUNKSJON FOR Å OPPDATERE STATUS
+  async function updateStatus(newStatus: Lead['status']) {
+    if (!lead) return
+    
+    await supabase
+      .from('leads')
+      .update({ status: newStatus })
+      .eq('id', lead.id)
+    
+    // Logg aktiviteten
+    await supabase.from('ai_activity_log').insert({
+      user_id: lead.user_id,
+      lead_id: lead.id,
+      action_type: 'status_changed',
+      description: `Lead marked as ${newStatus}`
+    })
+    
+    setLead({ ...lead, status: newStatus })
+  }
 
   function getScoreColor(score: number | null) {
     if (!score) return 'bg-gray-100 text-gray-800'
@@ -238,9 +258,24 @@ export default function LeadDetail() {
 
   return (
     <Layout>
-      <div className="mb-4">
+      <div className="mb-4 flex justify-between items-center">
         <button onClick={() => router.back()} className="text-blue-600 hover:underline">
           ← Back to leads
+        </button>
+        
+        <button
+          onClick={async () => {
+            if (confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
+              await supabase.from('leads').delete().eq('id', lead.id)
+              router.push('/leads')
+            }
+          }}
+          className="px-3 py-1 text-sm text-red-600 border border-red-300 rounded-md hover:bg-red-50 flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Delete lead
         </button>
       </div>
       
@@ -252,11 +287,42 @@ export default function LeadDetail() {
           {/* Details Card */}
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-lg font-semibold mb-4">Details</h2>
+            
+            {/* 🎯 STATUS-VELGER */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+              <div className="flex gap-2 items-center">
+                <select
+                  value={lead.status}
+                  onChange={(e) => updateStatus(e.target.value as Lead['status'])}
+                  className="border border-gray-300 rounded-md p-2 flex-1"
+                >
+                  <option value="new">🆕 New</option>
+                  <option value="contacted">📞 Contacted</option>
+                  <option value="qualified">⭐ Qualified</option>
+                  <option value="converted">💰 Converted (Customer)</option>
+                  <option value="lost">❌ Lost</option>
+                </select>
+                
+                {lead.status === 'converted' && (
+                  <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                    ✅ Customer
+                  </span>
+                )}
+                
+                {lead.status === 'lost' && (
+                  <span className="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm">
+                    ❌ Lost
+                  </span>
+                )}
+              </div>
+            </div>
+
             <p><span className="font-medium">Company:</span> {lead.company || '–'}</p>
             <p><span className="font-medium">Email:</span> {lead.email || '–'}</p>
             <p><span className="font-medium">Phone:</span> {lead.phone || '–'}</p>
-            <p><span className="font-medium">Status:</span> {lead.status}</p>
             
+            {/* AI Score */}
             {lead.ai_score && (
               <div className="mt-4 p-3 rounded-lg bg-gray-50">
                 <p className="text-sm font-medium text-gray-700 mb-1">AI Lead Score</p>
