@@ -58,35 +58,36 @@ export default function AIGeneratePage() {
       }
 
       // 🎯 PROMPT MED BRUKERKONTEKST – OPTIMERT FOR CLAUDE
-      const prompt = `You are an expert copywriter specializing in high-converting landing pages.
+      const prompt = `You are an expert copywriter. Create a landing page based EXACTLY on this description:
 
-CONTEXT:
-- Business: ${currentProfile?.company_name || 'Unknown'}
-- Industry: ${currentProfile?.industry || 'Unknown'}
-- Target audience: ${currentProfile?.target_audience || 'professionals'}
-- Your task: Create a landing page based on this request: "${description}"
+"${description}"
 
-REQUIREMENTS:
-1. Create a compelling headline that grabs attention
-2. Include a clear offer or lead magnet
-3. List 3 specific benefits (not generic features)
-4. Form should have: Full Name (required), Email (required), and 2-3 optional fields (Job Title, Company, Phone, Industry)
-5. Button text should be action-oriented
-6. Tone should be professional and trustworthy
+IMPORTANT RULES:
+1. Use the EXACT offer from the description
+2. If they mention "myleadassistant.com" or "14-day free trial", make that the main focus
+3. The headline MUST be about what they described
+4. Benefits must be specific to their product/service
+5. Do NOT use generic phrases like "proven strategies" unless they described that
 
-Return ONLY valid JSON in this exact format:
+Return JSON exactly like this:
 {
-  "title": "Headline (max 10 words)",
-  "subheadline": "Supporting line explaining the value",
-  "description": "2-3 sentences about what they'll get",
-  "offer": "The specific thing they're offering (e.g., 'Free Guide', '14-Day Trial', 'Demo')",
-  "benefits": ["Benefit 1", "Benefit 2", "Benefit 3"],
+  "title": "Headline based on their description",
+  "subheadline": "Supporting line explaining their specific value",
+  "description": "2 sentences about their specific offer",
+  "offer": "The exact thing they're offering",
+  "benefits": [
+    "Specific benefit 1 based on their description",
+    "Specific benefit 2 based on their description",
+    "Specific benefit 3 based on their description"
+  ],
   "fields": [
     { "type": "text", "label": "Full Name", "placeholder": "John Doe", "required": true },
-    { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true }
+    { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true },
+    { "type": "text", "label": "Job Title (optional)", "placeholder": "e.g., CEO", "required": false },
+    { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false }
   ],
-  "buttonText": "Get My [Offer] Now",
-  "trustElements": ["No spam, unsubscribe anytime", "We respect your privacy"]
+  "buttonText": "CTA based on their offer",
+  "trustElements": ["No spam", "Privacy guaranteed"]
 }`
 
       console.log('Calling Claude via Puter.ai...')
