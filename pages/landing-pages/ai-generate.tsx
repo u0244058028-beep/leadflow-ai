@@ -45,7 +45,6 @@ export default function AIGeneratePage() {
     setStep('generating')
     
     try {
-      // 🎯 PROMPT for landing page med valgfrie felt for bedre scoring
       const prompt = `You are an expert copywriter. Create a landing page based on this description:
 
 "${description}"
@@ -53,20 +52,7 @@ export default function AIGeneratePage() {
 IMPORTANT: The form MUST have:
 - Full Name (required)
 - Email Address (required)
-- PLUS 3-4 OPTIONAL fields that help score leads better
-
-GOOD OPTIONAL FIELDS (choose based on their offer):
-- Job Title (helps identify decision makers)
-- Company Name (helps identify company size/relevance)
-- Phone Number (shows higher intent)
-- Industry (helps qualify relevance)
-- Company Size (dropdown: 1-10, 11-50, 51-200, 201-500, 500+)
-
-SCORING BENEFITS:
-- Job Title = +4 points if CEO/Founder
-- Industry = +3 points if relevant
-- Company = +2 points for known companies
-- Phone = +1 point for engagement
+- PLUS 3-4 OPTIONAL fields (Job Title, Company, Phone, Industry)
 
 Return ONLY valid JSON in this exact format:
 {
@@ -78,10 +64,10 @@ Return ONLY valid JSON in this exact format:
   "fields": [
     { "type": "text", "label": "Full Name", "placeholder": "John Doe", "required": true },
     { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true },
-    { "type": "text", "label": "Job Title (optional)", "placeholder": "e.g., CEO, Marketing Manager", "required": false },
+    { "type": "text", "label": "Job Title (optional)", "placeholder": "e.g., CEO", "required": false },
     { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false },
     { "type": "tel", "label": "Phone (optional)", "placeholder": "+1 234 567 890", "required": false },
-    { "type": "text", "label": "Industry (optional)", "placeholder": "e.g., SaaS, Consulting", "required": false }
+    { "type": "text", "label": "Industry (optional)", "placeholder": "e.g., SaaS", "required": false }
   ],
   "buttonText": "Call to action button text",
   "trustElements": ["No spam", "Privacy guaranteed"]
@@ -112,7 +98,7 @@ Return ONLY valid JSON in this exact format:
       } catch (e) {
         console.error('Error parsing JSON:', e)
         
-        // Intelligent fallback basert på beskrivelsen
+        // Intelligent fallback
         const words = description.toLowerCase()
         let offer = 'Free Resource'
         let title = 'Free Resource'
@@ -168,10 +154,8 @@ Return ONLY valid JSON in this exact format:
           'Expert insights',
           'Practical tips'
         ],
-        // VIKTIG: Valider fields nøye
         fields: (() => {
           if (!aiSuggestion?.fields || !Array.isArray(aiSuggestion.fields) || aiSuggestion.fields.length === 0) {
-            // Default fields med valgfrie felt
             return [
               { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
               { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true },
@@ -181,8 +165,6 @@ Return ONLY valid JSON in this exact format:
               { type: 'text', label: 'Industry (optional)', placeholder: 'e.g., SaaS', required: false }
             ]
           }
-          
-          // Valider hvert field
           return aiSuggestion.fields.map((field: any) => ({
             type: field.type || 'text',
             label: field.label || 'Field',
@@ -199,7 +181,6 @@ Return ONLY valid JSON in this exact format:
 
       console.log('✅ Validated page:', safePage)
 
-      // Generer slug fra beskrivelsen
       const slug = description
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '-')
@@ -249,9 +230,17 @@ Return ONLY valid JSON in this exact format:
         counter++
       }
       
-      console.log('Saving page with fields:', generatedPage.fields)
+      console.log('Saving page with ALL data:', {
+        title: generatedPage.title,
+        subheadline: generatedPage.subheadline,
+        description: generatedPage.description,
+        offer: generatedPage.offer,
+        benefits: generatedPage.benefits,
+        buttonText: generatedPage.buttonText,
+        trustElements: generatedPage.trustElements
+      })
 
-      // Opprett siden
+      // Opprett siden med ALL data i settings
       const { data: page, error: pageError } = await supabase
         .from('landing_pages')
         .insert({
@@ -266,7 +255,11 @@ Return ONLY valid JSON in this exact format:
             benefits: generatedPage.benefits,
             trustElements: generatedPage.trustElements,
             offer: generatedPage.offer,
-            buttonText: generatedPage.buttonText
+            buttonText: generatedPage.buttonText,
+            fullDescription: generatedPage.description, // Lagre hele beskrivelsen
+            longBenefits: generatedPage.benefits, // Sikre at benefits lagres
+            headline: generatedPage.title,
+            subheadline: generatedPage.subheadline
           }
         })
         .select()
