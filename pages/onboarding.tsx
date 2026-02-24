@@ -6,6 +6,7 @@ export default function Onboarding() {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   
   const [formData, setFormData] = useState({
     fullName: '',
@@ -50,31 +51,39 @@ export default function Onboarding() {
     }
 
     // Sjekk om bruker allerede har fylt ut onboarding
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
-      .select('full_name, company_name, industry, target_audience, default_offer')
+      .select('full_name, company_name, industry, target_audience, default_offer, onboarding_completed')
       .eq('id', user.id)
       .single()
 
+    if (error) {
+      console.error('Error checking profile:', error)
+      // Fortsett uansett – vi prøver å oppdatere
+    }
+
     // Hvis allerede fylt ut, send til dashboard
-    if (profile?.full_name && profile?.full_name !== 'User') {
+    if (profile?.onboarding_completed) {
       router.push('/dashboard')
     }
   }
 
   async function handleSubmit() {
     setLoading(true)
+    setError('')
     
     try {
       const user = (await supabase.auth.getUser()).data.user
       if (!user) throw new Error('No user found')
+
+      console.log('Updating profile with:', formData)
 
       // Oppdater profilen med onboarding-data
       const { error } = await supabase
         .from('profiles')
         .update({
           full_name: formData.fullName,
-          company_name: formData.companyName,
+          company_name: formData.companyName || null,
           industry: formData.industry,
           target_audience: formData.targetAudience,
           default_offer: formData.defaultOffer,
@@ -85,14 +94,19 @@ export default function Onboarding() {
         })
         .eq('id', user.id)
 
-      if (error) throw error
+      if (error) {
+        console.error('Update error:', error)
+        throw error
+      }
+
+      console.log('Profile updated successfully')
 
       // Gå til dashboard
       router.push('/dashboard?welcome=true')
       
     } catch (error: any) {
       console.error('Onboarding error:', error)
-      alert('Something went wrong. Please try again.')
+      setError(error.message || 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -117,6 +131,12 @@ export default function Onboarding() {
             />
           </div>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+            {error}
+          </div>
+        )}
 
         {/* Step 1: Basic Info */}
         {step === 1 && (
