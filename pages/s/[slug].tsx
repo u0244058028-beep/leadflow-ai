@@ -1,3 +1,6 @@
+console.log('🚀 [SLUG] Page loaded with slug:', slug)
+console.log('🚀 [SLUG] Preview mode:', preview)
+console.log('🚀 [SLUG] Full URL:', window.location.href)
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
