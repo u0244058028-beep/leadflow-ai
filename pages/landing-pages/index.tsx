@@ -122,15 +122,16 @@ export default function LandingPages() {
                     Edit
                   </Link>
 
-                  {/* ✅ FIXET: Preview/View åpnes i ny fane */}
+                  {/* 🔥 PERMANENT FIKS: View/Preview med cache-buster */}
                   <button
                     onClick={() => {
-                      const baseUrl = window.location.origin
-                      if (page.is_published) {
-                        window.open(`${baseUrl}/s/${page.slug}`, '_blank')
-                      } else {
-                        window.open(`${baseUrl}/s/${page.slug}?preview=true`, '_blank')
-                      }
+                      const cacheBuster = Date.now() // Unik timestamp
+                      const url = page.is_published 
+                        ? `/s/${page.slug}?cb=${cacheBuster}`
+                        : `/s/${page.slug}?preview=true&cb=${cacheBuster}`
+                      
+                      // Åpne i ny fane
+                      window.open(url, '_blank')
                     }}
                     className="px-3 py-1 bg-purple-100 text-purple-700 rounded-md text-sm hover:bg-purple-200 transition"
                   >
