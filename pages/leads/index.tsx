@@ -144,6 +144,7 @@ export default function LeadsPage() {
     }
   }
 
+  // 🎯 OPPDATERT: Bruker samme AI som landing pages (gpt-5.1-codex)
   async function rescoreLead(leadId: string) {
     if (!leadId) {
       alert('Invalid lead ID')
@@ -160,6 +161,7 @@ export default function LeadsPage() {
         return
       }
 
+      // Hent ALLE data om leadet
       const lead = leads.find(l => l.id === leadId)
       
       const { data: notes } = await supabase
@@ -184,6 +186,7 @@ export default function LeadsPage() {
       const taskCount = tasks?.length || 0
       const emailCount = emails?.length || 0
 
+      // 🎯 NY PROMPT med samme AI som landing pages
       const prompt = `You are an expert B2B sales lead scorer. Score this lead 1-10 based on:
 
 JOB TITLE SCORING:
@@ -220,12 +223,16 @@ Calculate the total score based on the criteria above.
 Start from 1 (cold) and add points based on the scoring guide.
 Return ONLY a number between 1-10.`
 
+      console.log('📤 Scoring lead with OpenAI via Puter.ai...')
+      
       const response = await window.puter.ai.chat(prompt, {
-        model: 'google/gemini-2.5-flash',
-        temperature: 0.2,
+        model: "gpt-5.1-codex",  // 🔥 Samme som landing pages!
         max_tokens: 5
       })
 
+      console.log('📥 Raw AI response:', response)
+
+      // Ekstraher score
       let scoreText = '5'
       if (typeof response === 'string') {
         scoreText = response
@@ -239,6 +246,7 @@ Return ONLY a number between 1-10.`
       const score = scoreMatch ? parseInt(scoreMatch[0]) : 5
       const finalScore = Math.min(10, Math.max(1, score))
 
+      // Generer forklaring
       let reason = 'Score updated'
       
       if (lead?.title?.toLowerCase().includes('ceo') || lead?.title?.toLowerCase().includes('founder')) {
@@ -254,8 +262,7 @@ Return ONLY a number between 1-10.`
         Focus on the most important factor: title (${lead?.title || 'none'}), industry (${lead?.industry || 'unknown'}), or engagement (${notes?.length || 0} notes).`
 
         const reasonResponse = await window.puter.ai.chat(reasonPrompt, {
-          model: 'google/gemini-2.5-flash',
-          temperature: 0.3,
+          model: "gpt-5.1-codex",
           max_tokens: 30
         })
 
@@ -266,7 +273,8 @@ Return ONLY a number between 1-10.`
         }
       }
 
-      await supabase
+      // Oppdater lead i databasen
+      const { error: updateError } = await supabase
         .from('leads')
         .update({ 
           ai_score: finalScore,
@@ -275,18 +283,28 @@ Return ONLY a number between 1-10.`
         })
         .eq('id', leadId)
 
+      if (updateError) throw updateError
+
+      // Logg aktivitet
       await supabase.from('ai_activity_log').insert({
         user_id: user.id,
         lead_id: leadId,
         action_type: 'score_updated',
-        description: `Lead scored ${finalScore}/10 - ${reason}`
+        description: `Lead scored ${finalScore}/10 - ${reason}`,
+        metadata: { 
+          score: finalScore,
+          reason,
+          title: lead?.title,
+          industry: lead?.industry,
+          notes_count: notes?.length
+        }
       })
 
       await loadLeads()
       alert(`Lead scored ${finalScore}/10!\n\n${reason}`)
       
     } catch (error: any) {
-      console.error('Error scoring lead:', error)
+      console.error('❌ Error scoring lead:', error)
       alert('Failed to score lead: ' + (error.message || 'Unknown error'))
     } finally {
       setScoringLead(null)
