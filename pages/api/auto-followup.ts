@@ -10,26 +10,20 @@ export default async function handler(
   res: NextApiResponse
 ) {
   console.log('========== AUTO-FOLLOWUP START ==========')
-  console.log('Time:', new Date().toISOString())
   
   if (req.method !== 'POST') {
-    console.log('❌ Wrong method:', req.method)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
     const { userId } = req.body
-    console.log('👤 UserId:', userId)
-
     if (!userId) {
-      console.log('❌ Missing userId')
       return res.status(400).json({ error: 'Missing userId' })
     }
 
-    // Hent leads som trenger oppfølging (ikke kontaktet på 2 dager)
+    // Hent leads som trenger oppfølging
     const twoDaysAgo = new Date()
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
-    console.log('📅 Two days ago:', twoDaysAgo.toISOString())
 
     const { data: leads, error: leadsError } = await supabase
       .from('leads')
@@ -40,72 +34,45 @@ export default async function handler(
       .limit(20)
 
     if (leadsError) {
-      console.error('❌ Error fetching leads:', leadsError)
+      console.error('Error fetching leads:', leadsError)
       return res.status(500).json({ error: 'Failed to fetch leads' })
     }
 
-    console.log('📊 Found leads:', leads?.length || 0)
-
     if (!leads || leads.length === 0) {
-      console.log('ℹ️ No leads need followup')
-      return res.json({ 
-        success: true, 
-        message: 'No leads need follow-up right now',
-        results: [] 
-      })
+      return res.json({ message: 'No leads need followup', results: [] })
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'
     const results = []
 
     for (const lead of leads) {
-      console.log(`\n--- Processing lead ${lead.id} ---`)
-      console.log('Name:', lead.name)
-      console.log('Email:', lead.email)
-      console.log('Score:', lead.ai_score)
-      console.log('Status:', lead.status)
-
       try {
-        // Bestem type oppfølging basert på score
+        // Bestem type oppfølging
         let followupType = 'standard'
-        let customPrompt = ''
         let subject = ''
+        let customPrompt = ''
 
         if (lead.ai_score >= 8) {
           followupType = 'hot'
           subject = `Quick question, ${lead.name.split(' ')[0]}?`
-          customPrompt = `This is a HOT lead (score ${lead.ai_score}/10). 
-          Suggest booking a meeting or demo. 
-          Be enthusiastic and direct. 
-          Include a clear call-to-action to schedule a call.`
+          customPrompt = `This is a HOT lead (score ${lead.ai_score}/10). Suggest booking a meeting or demo.`
         } else if (lead.ai_score >= 5) {
           followupType = 'warm'
           subject = `Following up, ${lead.name.split(' ')[0]}`
-          customPrompt = `This is a WARM lead (score ${lead.ai_score}/10). 
-          Ask if they have questions about your offering. 
-          Be helpful and consultative. 
-          Offer additional value or resources.`
+          customPrompt = `This is a WARM lead (score ${lead.ai_score}/10). Ask if they have questions.`
         } else {
           followupType = 'cold'
           subject = `Checking in, ${lead.name.split(' ')[0]}`
-          customPrompt = `This is a COLD lead (score ${lead.ai_score}/10). 
-          Keep it light and friendly. 
-          Don't be pushy. 
-          Offer a useful tip or resource related to their interest.`
+          customPrompt = `This is a COLD lead (score ${lead.ai_score}/10). Keep it light and offer value.`
         }
 
         if (!lead.last_contacted) {
           followupType = 'welcome'
           subject = `Thanks for your interest, ${lead.name.split(' ')[0]}!`
-          customPrompt = `This is their FIRST contact. 
-          Welcome them warmly. 
-          Deliver the value they signed up for. 
-          Ask a simple question to start a conversation.`
+          customPrompt = `This is their FIRST contact. Welcome them warmly.`
         }
 
-        console.log('📧 Follow-up type:', followupType)
-
-        // Generer melding med Puter.ai
+        // Generer melding
         const prompt = `Write a friendly follow-up email to ${lead.name}.
         
 Lead context:
@@ -114,7 +81,6 @@ Lead context:
 - Title: ${lead.title || 'Not specified'}
 - Industry: ${lead.industry || 'Not specified'}
 - Score: ${lead.ai_score || 'Not scored yet'}/10
-- Status: ${lead.status}
 - Type: ${followupType} lead
 
 ${customPrompt}
@@ -122,12 +88,8 @@ ${customPrompt}
 Guidelines:
 - Keep it warm and professional
 - Include a specific question to encourage response
-- Make it personal based on their title/industry if available
-- Max 150 words
-- No placeholders like [Name] – use real data`
+- Max 150 words`
 
-        console.log('🤖 Calling Puter.ai...')
-        
         const aiResponse = await fetch('https://api.puter.com/v1/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -139,25 +101,14 @@ Guidelines:
           })
         })
 
-        if (!aiResponse.ok) {
-          const errorText = await aiResponse.text()
-          console.error('❌ Puter.ai error:', errorText)
-          throw new Error(`AI API error: ${aiResponse.status}`)
-        }
+        if (!aiResponse.ok) throw new Error(`AI API error: ${aiResponse.status}`)
 
         const aiData = await aiResponse.json()
         const message = aiData.choices?.[0]?.message?.content || ''
-        
-        if (!message) {
-          throw new Error('AI returned empty message')
-        }
+        if (!message) throw new Error('AI returned empty message')
 
-        console.log('✅ AI message generated, length:', message.length)
-
-        // Generer tracking-piksel (fjerner eventuelle hakeparenteser)
         const trackingPixel = generateTrackingPixel(lead.id, siteUrl)
         
-        // Bygg komplett HTML for e-post
         const htmlContent = `
           <!DOCTYPE html>
           <html>
@@ -173,12 +124,10 @@ Guidelines:
                 
                 <div style="font-size: 12px; color: #6b7280;">
                   <p style="margin: 0 0 10px 0;">
-                    📸 To help us improve our service, this email contains a tiny tracking pixel.
-                    If you prefer not to be tracked, you can disable image loading in your email settings.
+                    📸 This email contains a tiny tracking pixel. If you prefer not to be tracked, disable images.
                   </p>
                   <p style="margin: 0;">
-                    <a href="${siteUrl}/unsubscribe/${lead.id}" style="color: #6b7280;">Unsubscribe</a> • 
-                    <a href="${siteUrl}/privacy" style="color: #6b7280;">Privacy Policy</a>
+                    Reply directly to this email – it will go to your contact at ${lead.company || 'our team'}.
                   </p>
                 </div>
                 
@@ -188,99 +137,45 @@ Guidelines:
           </html>
         `
 
-        // Send e-post via Resend
-        console.log('📤 Sending email to:', lead.email)
-        
+        // 🔥 VIKTIG: Bruk noreply@ men med replyTo!
         const { data: emailData, error: emailError } = await resend.emails.send({
-          from: 'LeadFlow <followup@myleadassistant.com>',
+          from: 'LeadFlow <noreply@myleadassistant.com>',
           to: [lead.email],
+          replyTo: lead.user_email || 'owner@example.com', // Må hentes fra profil
           subject: subject,
           html: htmlContent
         })
 
-        if (emailError) {
-          console.error('❌ Resend error:', emailError)
-          throw emailError
-        }
+        if (emailError) throw emailError
 
-        console.log('✅ Email sent! ID:', emailData?.id)
-
-        // Oppdater lead (last_contacted og status)
-        const updateData: any = {
-          last_contacted: new Date().toISOString()
-        }
-        
-        if (lead.status === 'new') {
-          updateData.status = 'contacted'
-        }
-
-        const { error: updateError } = await supabase
+        // Oppdater lead
+        await supabase
           .from('leads')
-          .update(updateData)
+          .update({ 
+            last_contacted: new Date().toISOString(),
+            status: lead.status === 'new' ? 'contacted' : lead.status
+          })
           .eq('id', lead.id)
 
-        if (updateError) {
-          console.error('⚠️ Update error:', updateError)
-        } else {
-          console.log('✅ Lead updated')
-        }
-
-        // Logg aktiviteten i ai_activity_log
         await supabase.from('ai_activity_log').insert({
           user_id: userId,
           lead_id: lead.id,
           action_type: 'followup_sent',
-          description: `${followupType} follow-up sent to ${lead.name}`,
-          metadata: {
-            type: followupType,
-            score: lead.ai_score,
-            email_id: emailData?.id,
-            subject: subject
-          }
+          description: `${followupType} follow-up sent to ${lead.name}`
         })
 
-        results.push({
-          leadId: lead.id,
-          name: lead.name,
-          success: true,
-          type: followupType,
-          emailId: emailData?.id
-        })
+        results.push({ leadId: lead.id, name: lead.name, success: true })
 
-      } catch (error: any) {
-        console.error(`❌ Error processing lead ${lead.id}:`, error)
-        results.push({
-          leadId: lead.id,
-          name: lead.name,
-          success: false,
-          error: error?.message || 'Unknown error'
-        })
+      } catch (error) {
+        console.error(`Error processing lead ${lead.id}:`, error)
+        results.push({ leadId: lead.id, name: lead.name, success: false })
       }
     }
 
-    // Oppsummer resultater
-    const successful = results.filter(r => r.success).length
-    const failed = results.filter(r => !r.success).length
-
-    console.log('\n========== SUMMARY ==========')
-    console.log('✅ Successful:', successful)
-    console.log('❌ Failed:', failed)
-    console.log('📊 Results:', results)
-
-    res.json({ 
-      success: true, 
-      processed: results.length,
-      successful,
-      failed,
-      results 
-    })
+    res.json({ success: true, results })
 
   } catch (error: any) {
-    console.error('❌ Fatal error:', error)
-    res.status(500).json({ 
-      error: error?.message || 'Internal server error' 
-    })
-  } finally {
-    console.log('========== AUTO-FOLLOWUP END ==========\n')
+    console.error('Fatal error:', error)
+    res.status(500).json({ error: error.message })
   }
 }
