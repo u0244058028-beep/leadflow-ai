@@ -18,6 +18,9 @@ interface DashboardStats {
   pageConversions: number
   recentLeads: any[]
   pipelineValue: number
+  actualRevenue: number
+  convertedLeads: any[]
+  lostLeads: number
 }
 
 export default function Dashboard() {
@@ -88,47 +91,36 @@ export default function Dashboard() {
       const leadCount = leads || 0
       const tasksToday = tasksData?.length || 0
       
-      const convertedLeads = leadsData?.filter(l => l.status === 'converted').length || 0
-      const conversionRate = leadCount > 0 ? (convertedLeads / leadCount) * 100 : 0
+      // Ekte konverteringer
+      const convertedLeads = leadsData?.filter(l => l.status === 'converted') || []
+      const lostLeads = leadsData?.filter(l => l.status === 'lost').length || 0
       
-      const hotLeads = leadsData?.filter(l => l.ai_score && l.ai_score >= 8).length || 0
-      const warmLeads = leadsData?.filter(l => l.ai_score && l.ai_score >= 5 && l.ai_score < 8).length || 0
-      const coldLeads = leadsData?.filter(l => l.ai_score && l.ai_score < 5).length || 0
+      // Ekte inntekt (sum av potential_value for konverterte leads)
+      const actualRevenue = convertedLeads.reduce((sum, lead) => {
+        return sum + (lead.potential_value || 0)
+      }, 0)
+      
+      // Konverteringsrate basert på TOTAL leads (ikke bare aktive)
+      const conversionRate = leadCount > 0 ? (convertedLeads.length / leadCount) * 100 : 0
+      
+      const hotLeads = leadsData?.filter(l => l.ai_score && l.ai_score >= 8 && l.status !== 'converted' && l.status !== 'lost').length || 0
+      const warmLeads = leadsData?.filter(l => l.ai_score && l.ai_score >= 5 && l.ai_score < 8 && l.status !== 'converted' && l.status !== 'lost').length || 0
+      const coldLeads = leadsData?.filter(l => l.ai_score && l.ai_score < 5 && l.status !== 'converted' && l.status !== 'lost').length || 0
       
       const topLeads = leadsData
-        ?.filter(l => l.ai_score)
+        ?.filter(l => l.ai_score && l.status !== 'converted' && l.status !== 'lost')
         ?.sort((a, b) => (b.ai_score || 0) - (a.ai_score || 0))
         ?.slice(0, 5) || []
 
-      // NY: Beregn pipeline-verdi
+      // Pipeline-verdi (kun aktive leads, ikke konverterte eller tapte)
       const pipelineValue = leadsData?.reduce((sum, lead) => {
-        // Hvis bruker har satt egen verdi, bruk den
-        if (lead.potential_value && lead.potential_value > 0) {
-          return sum + lead.potential_value
-        }
-        
-        // Ellers bruk estimat basert på status og score
-        let estimatedValue = 0
-        switch (lead.status) {
-          case 'converted': estimatedValue = 5000; break
-          case 'qualified': estimatedValue = 3000; break
-          case 'contacted': estimatedValue = 1000; break
-          case 'new': estimatedValue = 500; break
-          default: estimatedValue = 0
-        }
-        
-        // Juster basert på score (høyere score = høyere sannsynlighet)
-        if (lead.ai_score) {
-          estimatedValue = estimatedValue * (lead.ai_score / 5)
-        }
-        
-        return sum + estimatedValue
+        if (lead.status === 'converted' || lead.status === 'lost') return sum
+        if (lead.potential_value) return sum + lead.potential_value
+        return sum
       }, 0) || 0
 
-      // Nylige leads (siste 5)
       const recentLeads = leadsData?.slice(0, 5) || []
 
-      // Landing pages statistikk
       const pageCount = pagesData?.length || 0
       const pageViews = pagesData?.reduce((sum, p) => sum + (p.views || 0), 0) || 0
       const pageConversions = pagesData?.reduce((sum, p) => sum + (p.conversions || 0), 0) || 0
@@ -146,7 +138,10 @@ export default function Dashboard() {
         pageViews,
         pageConversions,
         recentLeads,
-        pipelineValue
+        pipelineValue,
+        actualRevenue,
+        convertedLeads,
+        lostLeads
       })
 
     } catch (error: any) {
@@ -221,24 +216,15 @@ export default function Dashboard() {
         <p className="text-sm text-gray-500 mt-1">Welcome back! Here's your overview.</p>
       </div>
       
-      {/* KPI-kort – 3 kolonner */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+      {/* KPI-kort – 4 kolonner */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-gray-600">Total Leads</p>
             <span className="text-blue-600 bg-blue-100 p-2 rounded-lg">👥</span>
           </div>
           <p className="text-3xl font-bold text-gray-900">{stats.leadCount}</p>
-          <p className="text-xs text-gray-500 mt-2">All time</p>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-gray-600">Tasks Today</p>
-            <span className="text-orange-600 bg-orange-100 p-2 rounded-lg">📋</span>
-          </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.tasksToday}</p>
-          <p className="text-xs text-gray-500 mt-2">Due today</p>
+          <p className="text-xs text-gray-500 mt-2">{stats.lostLeads} lost • {stats.convertedLeads.length} converted</p>
         </div>
         
         <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition">
@@ -247,23 +233,25 @@ export default function Dashboard() {
             <span className="text-green-600 bg-green-100 p-2 rounded-lg">📈</span>
           </div>
           <p className="text-3xl font-bold text-gray-900">{stats.conversionRate.toFixed(1)}%</p>
-          <p className="text-xs text-gray-500 mt-2">Of leads converted</p>
+          <p className="text-xs text-gray-500 mt-2">{stats.convertedLeads.length} of {stats.leadCount} leads</p>
         </div>
-      </div>
-
-      {/* Pipeline Value – NYTT KORT */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg shadow-lg mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium opacity-90">Total Pipeline Value</p>
-            <p className="text-4xl font-bold mt-2">${stats.pipelineValue.toLocaleString()}</p>
-            <p className="text-xs opacity-75 mt-1">
-              {stats.pipelineValue > 0 
-                ? 'Based on deal values and lead scores' 
-                : 'Add deal values to your leads for accurate pipeline'}
-            </p>
+        
+        <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-gray-600">Pipeline Value</p>
+            <span className="text-purple-600 bg-purple-100 p-2 rounded-lg">📊</span>
           </div>
-          <span className="text-5xl opacity-50">💰</span>
+          <p className="text-3xl font-bold text-gray-900">${stats.pipelineValue.toLocaleString()}</p>
+          <p className="text-xs text-gray-500 mt-2">Active opportunities</p>
+        </div>
+        
+        <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-gray-600">Actual Revenue</p>
+            <span className="text-green-600 bg-green-100 p-2 rounded-lg">💰</span>
+          </div>
+          <p className="text-3xl font-bold text-green-600">${stats.actualRevenue.toLocaleString()}</p>
+          <p className="text-xs text-gray-500 mt-2">From {stats.convertedLeads.length} customers</p>
         </div>
       </div>
 
@@ -283,117 +271,45 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Nylige Leads med Verdi */}
-      <div className="bg-white rounded-lg shadow mb-8">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-lg font-semibold">📋 Recent Leads</h2>
-          <Link href="/leads" className="text-sm text-blue-600 hover:text-blue-800">
-            View all →
-          </Link>
+      {/* Nylige konverteringer */}
+      {stats.convertedLeads.length > 0 && (
+        <div className="bg-white rounded-lg shadow mb-8">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold">💰 Recent Customers</h2>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {stats.convertedLeads.slice(0, 5).map((lead) => (
+              <div key={lead.id} className="px-6 py-4 flex items-center justify-between">
+                <div>
+                  <Link href={`/leads/${lead.id}`} className="font-medium text-blue-600 hover:underline">
+                    {lead.name}
+                  </Link>
+                  <p className="text-sm text-gray-500">
+                    {lead.company || '—'} • {lead.potential_value ? `$${lead.potential_value.toLocaleString()}` : 'No value'}
+                  </p>
+                </div>
+                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                  Converted
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-        
-        {stats.recentLeads.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            No leads yet. Create your first lead to get started.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {stats.recentLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Link href={`/leads/${lead.id}`} className="text-sm font-medium text-blue-600 hover:underline">
-                        {lead.name}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {lead.company || '—'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {lead.title || '—'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {lead.potential_value ? (
-                        <span className="font-medium text-green-600">
-                          ${lead.potential_value.toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {lead.ai_score ? (
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          lead.ai_score >= 8 ? 'bg-red-100 text-red-800' :
-                          lead.ai_score >= 5 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {lead.ai_score}/10
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">Not scored</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        lead.status === 'new' ? 'bg-blue-100 text-blue-800' :
-                        lead.status === 'contacted' ? 'bg-purple-100 text-purple-800' :
-                        lead.status === 'qualified' ? 'bg-green-100 text-green-800' :
-                        lead.status === 'converted' ? 'bg-emerald-100 text-emerald-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {lead.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href={`/leads/${lead.id}`}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          View
-                        </Link>
-                        <button
-                          onClick={() => deleteLead(lead.id)}
-                          disabled={deletingId === lead.id}
-                          className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                        >
-                          {deletingId === lead.id ? '...' : 'Delete'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* Topp 5 leads og Landing Pages */}
+      {/* Resten av dashboard (uendret) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Topp 5 leads */}
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">🔥 Top 5 Hot Leads</h2>
+            <h2 className="text-lg font-semibold">🔥 Top 5 Active Leads</h2>
             <Link href="/leads" className="text-sm text-blue-600 hover:text-blue-800">
               View all →
             </Link>
           </div>
           
           {stats.topLeads.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-8">No scored leads yet</p>
+            <p className="text-sm text-gray-500 text-center py-8">No active scored leads</p>
           ) : (
             <ul className="divide-y divide-gray-200">
               {stats.topLeads.map((lead) => (
@@ -426,6 +342,7 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Landing Pages */}
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">📄 Landing Pages</h2>
