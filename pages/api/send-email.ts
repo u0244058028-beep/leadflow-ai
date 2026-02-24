@@ -12,27 +12,24 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { to, subject, html, leadId, userId } = req.body
+  const { to, subject, html, leadId, userId, replyTo } = req.body
 
   if (!to || !subject || !html || !leadId || !userId) {
     return res.status(400).json({ error: 'Missing required fields' })
   }
 
   try {
-    // Hent brukerprofil for avsendernavn
-    const { data: profile } = await supabase
+    // Hent brukerens e-post for replyTo
+    const { data: user } = await supabase
       .from('profiles')
-      .select('full_name, company_name')
+      .select('email')
       .eq('id', userId)
       .single()
 
-    const fromName = profile?.full_name || 'LeadFlow AI'
-    const fromEmail = 'noreply@myleadassistant.com' // Bytt til ditt domene
-
-    // Send e-post via Resend
     const { data, error } = await resend.emails.send({
-      from: `${fromName} via LeadFlow <${fromEmail}>`,
+      from: 'LeadFlow <noreply@myleadassistant.com>',
       to: [to],
+      replyTo: user?.email || replyTo, // Bruk brukerens e-post
       subject: subject,
       html: html,
     })
@@ -45,7 +42,7 @@ export default async function handler(
       lead_id: leadId,
       action_type: 'email_sent',
       description: `Sent email to ${to}: ${subject}`,
-      metadata: { subject, to, from: fromName },
+      metadata: { subject, to },
     })
 
     res.status(200).json({ success: true, data })
