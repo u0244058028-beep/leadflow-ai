@@ -30,7 +30,7 @@ export default function AIGeneratePage() {
     }
   }
 
-  // 🔧 TEST-FUNKSJON med full feillogging
+  // 🔧 ENDELIG VERSJON – uten temperature, uten max_tokens
   async function generateWithAI() {
     if (!description.trim()) {
       alert('Please describe what you want to offer')
@@ -54,54 +54,103 @@ export default function AIGeneratePage() {
     setStep('generating')
     
     try {
-      console.log('🔍 TEST MODE - Sending to AI...')
+      console.log('🔍 Sending to AI...')
       console.log('Description:', description)
-      console.log('📤 Puter object:', window.puter)
-      console.log('📤 Puter.ai methods:', Object.keys(window.puter.ai))
 
-      // Enkel test uten JSON-krav
-      const testPrompt = `Based on this description: "${description}", 
-      write a short headline and 3 benefits. Just plain text, no JSON.`
+      // 🎯 PROMPT for å generere landing page
+      const prompt = `You are an expert copywriter. Create a landing page based on this description:
 
-      console.log('📤 Calling Puter.ai with model: gpt-5-nano')
+"${description}"
+
+Return ONLY valid JSON in this exact format:
+{
+  "title": "A compelling headline about their offer",
+  "subheadline": "A short supporting line explaining the value",
+  "description": "2-3 sentences about what they'll get",
+  "offer": "The specific thing they're offering (e.g., '14-Day Free Trial', 'Free Guide')",
+  "benefits": ["Benefit 1", "Benefit 2", "Benefit 3"],
+  "buttonText": "Call to action button text",
+  "trustElements": ["No spam", "Privacy guaranteed"]
+}`
+
+      console.log('📤 Calling Puter.ai with model: gpt-5.1-codex')
       
-      const response = await window.puter.ai.chat(testPrompt, {
-  model: "gpt-5.1-codex",  // ← Best for JSON og strukturert output
-  temperature: 0.7,
-  max_tokens: 200
-})
+      // VIKTIG: Ingen temperature, ingen max_tokens – bare model!
+      const response = await window.puter.ai.chat(prompt, {
+        model: "gpt-5.1-codex"
+      })
 
       console.log('✅ AI response received!')
-      console.log('📥 Full response:', response)
-      console.log('📥 Response type:', typeof response)
-      console.log('📥 Response as string:', JSON.stringify(response, null, 2))
-      
-      alert('AI responded! Check console for result.')
-      setStep('form')
-      
-    } catch (error: any) {
-      console.error('❌ AI error - FULL DETAILS:')
-      console.error('Error object:', error)
-      console.error('Error message:', error?.message)
-      console.error('Error stack:', error?.stack)
-      console.error('Error response:', error?.response)
-      console.error('Error name:', error?.name)
-      
-      // Vis feilmelding i UI
-      let errorMessage = 'Unknown error'
-      if (error?.message) {
-        errorMessage = error.message
-      } else if (typeof error === 'string') {
-        errorMessage = error
-      } else {
-        try {
-          errorMessage = JSON.stringify(error)
-        } catch {
-          errorMessage = 'Could not stringify error'
+      console.log('📥 Response:', response)
+
+      // Parse JSON
+      let aiSuggestion
+      try {
+        if (typeof response === 'string') {
+          aiSuggestion = JSON.parse(response)
+        } else if (response?.message?.content) {
+          aiSuggestion = JSON.parse(response.message.content)
+        } else if (response?.choices?.[0]?.message?.content) {
+          aiSuggestion = JSON.parse(response.choices[0].message.content)
+        } else if (typeof response === 'object') {
+          aiSuggestion = response
+        } else {
+          throw new Error('Could not parse AI response')
+        }
+      } catch (e) {
+        console.error('Error parsing JSON:', e)
+        console.error('Raw response:', response)
+        
+        // Fallback
+        aiSuggestion = {
+          title: "Special Offer Just for You",
+          subheadline: "Limited time opportunity",
+          description: "Fill out the form to get instant access.",
+          offer: "Free Resource",
+          benefits: ["Save time", "Expert insights", "Practical tips"],
+          buttonText: "Get Access Now",
+          trustElements: ["No spam", "Privacy guaranteed"]
         }
       }
+
+      // Sikre at alle felt finnes
+      const safePage = {
+        title: aiSuggestion?.title || 'Free Resource',
+        subheadline: aiSuggestion?.subheadline || 'Get access now',
+        description: aiSuggestion?.description || 'Fill out the form to get instant access.',
+        offer: aiSuggestion?.offer || 'Free Resource',
+        benefits: Array.isArray(aiSuggestion?.benefits) ? aiSuggestion.benefits : [
+          'Save time',
+          'Expert insights',
+          'Practical tips'
+        ],
+        buttonText: aiSuggestion?.buttonText || 'Get Access',
+        trustElements: Array.isArray(aiSuggestion?.trustElements) ? aiSuggestion.trustElements : [
+          'No spam, unsubscribe anytime',
+          'We respect your privacy'
+        ]
+      }
+
+      // Generer slug fra beskrivelsen
+      const slug = description
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 50) || 'my-offer'
+
+      setGeneratedPage({
+        ...safePage,
+        primaryColor: '#3b82f6',
+        template: 'modern',
+        slug: slug
+      })
+
+      setStep('preview')
       
-      alert('Error: ' + errorMessage)
+    } catch (error: any) {
+      console.error('❌ AI error:', error)
+      alert('Error: ' + (error?.message || 'Unknown error'))
       setStep('form')
     } finally {
       setLoading(false)
@@ -165,7 +214,7 @@ export default function AIGeneratePage() {
             field_type: field.type,
             label: field.label,
             placeholder: field.placeholder,
-            required: field.required !== false,
+            required: true,
             sort_order: i
           })
       }
