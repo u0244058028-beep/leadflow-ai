@@ -66,10 +66,10 @@ export default function AIGeneratePage() {
       console.log('📤 Calling Puter.ai with model: gpt-5-nano')
       
       const response = await window.puter.ai.chat(testPrompt, {
-        model: "gpt-5-nano",
-        temperature: 0.7,
-        max_tokens: 200
-      })
+  model: "gpt-5.1-codex",  // ← Best for JSON og strukturert output
+  temperature: 0.7,
+  max_tokens: 200
+})
 
       console.log('✅ AI response received!')
       console.log('📥 Full response:', response)
