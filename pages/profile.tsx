@@ -79,11 +79,14 @@ export default function Profile() {
 
   async function handleDeleteAccount() {
     setDeleteLoading(true)
+    setMessage({ type: '', text: '' })
+    
     try {
       const user = (await supabase.auth.getUser()).data.user
       if (!user) throw new Error('No user found')
 
-      // Kall API-et for å slette kontoen
+      console.log('Sending delete request for user:', user.id)
+
       const response = await fetch('/api/delete-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,7 +96,7 @@ export default function Profile() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete account')
+        throw new Error(data.error || data.details || 'Failed to delete account')
       }
 
       // Logg ut etter sletting
@@ -101,7 +104,11 @@ export default function Profile() {
       router.push('/login?deleted=true')
       
     } catch (error: any) {
-      alert('Failed to delete account: ' + error.message)
+      console.error('Delete error:', error)
+      setMessage({
+        type: 'error',
+        text: 'Failed to delete account: ' + error.message
+      })
     } finally {
       setDeleteLoading(false)
       setShowDeleteConfirm(false)
@@ -116,51 +123,34 @@ export default function Profile() {
         <div className="bg-white rounded-lg shadow p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Email</label>
               <input
-                id="email"
                 type="email"
                 disabled
                 value={email}
                 className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-50 p-2"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Email cannot be changed
-              </p>
             </div>
 
             <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
-                Full name *
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Full name *</label>
               <input
-                id="fullName"
                 type="text"
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                placeholder="Ola Nordmann"
               />
             </div>
 
             <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
-                Company name
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Company name</label>
               <input
-                id="companyName"
                 type="text"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                placeholder="LeadFlow AS"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Your company name will appear in AI-generated emails
-              </p>
             </div>
 
             {message.text && (
@@ -189,7 +179,7 @@ export default function Profile() {
             </div>
           </form>
 
-          {/* Fare-sone – slett konto */}
+          {/* Danger Zone */}
           <div className="mt-8 pt-6 border-t border-red-200">
             <h2 className="text-lg font-semibold text-red-600 mb-2">Danger Zone</h2>
             <p className="text-sm text-gray-600 mb-4">
