@@ -144,7 +144,7 @@ export default function LeadsPage() {
     }
   }
 
-  // 🎯 OPPDATERT scoring med logging
+  // 🎯 FORENKLET scoring som fungerer (uten max_tokens)
   async function rescoreLead(leadId: string) {
     if (!leadId) {
       alert('Invalid lead ID')
@@ -194,56 +194,21 @@ export default function LeadsPage() {
       const taskCount = tasks?.length || 0
       const emailCount = emails?.length || 0
 
-      // 🎯 TYDELIG PROMPT med steg-for-steg utregning
-      const prompt = `You are an expert B2B sales lead scorer. Score this lead from 1 to 10.
+      // 🎯 ENKEL PROMPT – uten max_tokens
+      const prompt = `Score this lead 1-10 based on:
+- Title: ${lead?.title || 'none'} (CEO/Founder = +4, Manager = +2)
+- Industry: ${lead?.industry || 'unknown'} (SaaS/Tech = +3, Consulting = +2)
+- Notes count: ${notes?.length || 0} (+1 each, max +3)
+- Tasks count: ${taskCount} (+1 each, max +2)
+- Emails sent: ${emailCount} (+1 each, max +2)
 
-SCORING SYSTEM:
-- Start at 1 (cold lead)
-- ADD points based on:
+Return ONLY a number between 1-10.`
 
-JOB TITLE:
-+4 if C-level (CEO, Founder, Director, VP, President)
-+2 if Manager, Head of
-+1 if Individual contributor
-+0 if no title
+      console.log('📤 Sending prompt to OpenAI...')
 
-INDUSTRY:
-+3 if SaaS, Technology, Software, AI
-+2 if Consulting, Professional Services, Marketing
-+1 if other industries
-
-ENGAGEMENT:
-+1 per note (max +3)
-+1 per task (max +2)
-+1 per email (max +2)
-
-LEAD DATA:
-Name: ${lead?.name || 'Unknown'}
-Title: ${lead?.title || 'Not specified'}
-Company: ${lead?.company || 'Unknown'}
-Industry: ${lead?.industry || 'Unknown'}
-
-ACTIVITY:
-Notes: ${notes?.length || 0}
-Tasks: ${taskCount}
-Emails: ${emailCount}
-
-Recent notes: ${notesText || 'None'}
-
-Calculate step by step:
-1. Start at 1
-2. Add title points: ___
-3. Add industry points: ___
-4. Add engagement points: ___
-5. Total = ___
-
-Return ONLY the final number between 1-10.`
-
-      console.log('📤 Sending prompt to OpenAI:', prompt)
-
+      // 🔥 VIKTIG: Kun model, ingen andre parametere!
       const response = await window.puter.ai.chat(prompt, {
-        model: "gpt-5.1-codex",
-        max_tokens: 10
+        model: "gpt-5.1-codex"
       })
 
       console.log('📥 Raw response:', response)
@@ -271,11 +236,11 @@ Return ONLY the final number between 1-10.`
       if (lead?.title?.toLowerCase().includes('ceo') || lead?.title?.toLowerCase().includes('founder')) {
         reason = 'Decision maker with budget authority'
       } else if (lead?.title?.toLowerCase().includes('manager') || lead?.title?.toLowerCase().includes('head')) {
-        reason = 'Manager with influence but may need approval'
+        reason = 'Manager with influence'
       } else if (lead?.industry?.toLowerCase().includes('saas') || lead?.industry?.toLowerCase().includes('tech')) {
-        reason = 'In relevant industry with potential for growth'
+        reason = 'In relevant industry'
       } else if (notes?.length && notes.length > 0) {
-        reason = 'Engaged through conversations and follow-ups'
+        reason = 'Engaged through conversations'
       }
 
       // Oppdater lead
