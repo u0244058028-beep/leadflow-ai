@@ -3,87 +3,64 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Head from 'next/head'
 
-export default function PublicLandingPage() {
-  const router = useRouter()
-  const { slug, preview } = router.query
+// VIKTIG: Dette kjører på SERVEREN hver gang, ingen caching!
+export async function getServerSideProps(context: any) {
+  const { slug, preview } = context.query
   
-  // Logger MÅ være etter at router er definert
-  console.log('🚀 [SLUG] Page loaded with slug:', slug)
-  console.log('🚀 [SLUG] Preview mode:', preview)
-  console.log('🚀 [SLUG] Full URL:', typeof window !== 'undefined' ? window.location.href : 'Server-side')
-  
-  const [page, setPage] = useState<any>(null)
-  const [fields, setFields] = useState<any[]>([])
-  const [formData, setFormData] = useState<any>({})
-  const [submitted, setSubmitted] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  try {
+    console.log('🔵 [SERVER] Loading page with slug:', slug)
+    console.log('🔵 [SERVER] Preview mode:', preview)
 
-  useEffect(() => {
-    if (slug) loadPage()
-  }, [slug, preview])
+    let query = supabase
+      .from('landing_pages')
+      .select('*')
+      .eq('slug', slug)
 
-  async function loadPage() {
-    setLoading(true)
-    setError(null)
+    if (!preview) {
+      query = query.eq('is_published', true)
+    }
 
-    try {
-      console.log('Loading page with slug:', slug)
+    const { data: pageData, error: pageError } = await query.single()
 
-      let query = supabase
-        .from('landing_pages')
-        .select('*')
-        .eq('slug', slug)
-
-      if (!preview) {
-        query = query.eq('is_published', true)
+    if (pageError || !pageData) {
+      return {
+        notFound: true
       }
+    }
 
-      const { data: pageData, error: pageError } = await query.single()
+    // Hent felter
+    const { data: fieldsData } = await supabase
+      .from('landing_page_fields')
+      .select('*')
+      .eq('landing_page_id', pageData.id)
+      .order('sort_order')
 
-      if (pageError || !pageData) {
-        console.error('Page error:', pageError)
-        throw new Error('Page not found')
+    // Returner data som props til komponenten
+    return {
+      props: {
+        page: pageData,
+        fields: fieldsData || [],
+        slug,
+        preview: preview || null
       }
-
-      console.log('Page loaded:', pageData)
-      setPage(pageData)
-
-      // Hent felter
-      const { data: fieldsData } = await supabase
-        .from('landing_page_fields')
-        .select('*')
-        .eq('landing_page_id', pageData.id)
-        .order('sort_order')
-
-      if (fieldsData && fieldsData.length > 0) {
-        setFields(fieldsData)
-      } else {
-        setFields([
-          {
-            id: 'default-name',
-            field_type: 'text',
-            label: 'Full Name',
-            placeholder: 'John Doe',
-            required: true
-          },
-          {
-            id: 'default-email',
-            field_type: 'email',
-            label: 'Email Address',
-            placeholder: 'john@company.com',
-            required: true
-          }
-        ])
-      }
-      
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+    }
+  } catch (error) {
+    console.error('Error in getServerSideProps:', error)
+    return {
+      notFound: true
     }
   }
+}
+
+export default function PublicLandingPage({ page, fields: initialFields, slug, preview }: any) {
+  const router = useRouter()
+  const [fields, setFields] = useState(initialFields)
+  const [formData, setFormData] = useState<any>({})
+  const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  // Hvis sidene ikke finnes (404), vises notFound-siden automatisk
+  if (!page) return null
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -143,34 +120,6 @@ export default function PublicLandingPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !page) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">😕</div>
-          <h1 className="text-2xl font-bold mb-2">Page not found</h1>
-          <p className="text-gray-600 mb-4">
-            {error || 'The page you\'re looking for doesn\'t exist'}
-          </p>
-          <a href="/" className="text-blue-600 hover:underline">
-            Go to LeadFlow
-          </a>
-        </div>
-      </div>
-    )
-  }
-
   // Hent ALLE data fra settings
   const settings = page.settings || {}
   const benefits = settings.benefits || settings.longBenefits || []
@@ -186,6 +135,7 @@ export default function PublicLandingPage() {
       <Head>
         <title>{headline} | LeadFlow</title>
         <meta name="description" content={subheadline} />
+        <meta name="robots" content={preview ? 'noindex' : 'index, follow'} />
       </Head>
 
       <div className="min-h-screen bg-gray-50 py-12 px-4">
@@ -245,7 +195,7 @@ export default function PublicLandingPage() {
                   )}
 
                   <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 shadow-md">
-                    {fields.map((field) => (
+                    {fields.map((field: any) => (
                       <div key={field.id} className="mb-4">
                         <label className="block text-sm font-medium mb-1">
                           {field.label} 
