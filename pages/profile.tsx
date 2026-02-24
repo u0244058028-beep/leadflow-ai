@@ -6,6 +6,8 @@ import Layout from '@/components/Layout'
 export default function Profile() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
@@ -72,6 +74,37 @@ export default function Profile() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeleteLoading(true)
+    try {
+      const user = (await supabase.auth.getUser()).data.user
+      if (!user) throw new Error('No user found')
+
+      // Kall API-et for å slette kontoen
+      const response = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete account')
+      }
+
+      // Logg ut etter sletting
+      await supabase.auth.signOut()
+      router.push('/login?deleted=true')
+      
+    } catch (error: any) {
+      alert('Failed to delete account: ' + error.message)
+    } finally {
+      setDeleteLoading(false)
+      setShowDeleteConfirm(false)
     }
   }
 
@@ -155,6 +188,44 @@ export default function Profile() {
               </button>
             </div>
           </form>
+
+          {/* Fare-sone – slett konto */}
+          <div className="mt-8 pt-6 border-t border-red-200">
+            <h2 className="text-lg font-semibold text-red-600 mb-2">Danger Zone</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Once you delete your account, there is no going back. All your leads, landing pages, and data will be permanently removed.
+            </p>
+
+            {!showDeleteConfirm ? (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Delete account
+              </button>
+            ) : (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-red-800 font-medium mb-3">
+                  Are you absolutely sure? This action cannot be undone.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deleteLoading}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {deleteLoading ? 'Deleting...' : 'Yes, delete my account'}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Layout>
