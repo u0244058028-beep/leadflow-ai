@@ -122,7 +122,7 @@ export default function LeadDetail() {
     loadData()
   }
 
-  // 🎯 OPPDATERT: Smart followup med samme AI som scoring
+  // 🎯 SMART FOLLOWUP basert på score
   async function generateFollowup() {
     if (!lead) return
     
@@ -131,14 +131,12 @@ export default function LeadDetail() {
       const user = (await supabase.auth.getUser()).data.user
       if (!user) return
 
-      // Hent brukerens profil for avsender-info
       const { data: profile } = await supabase
         .from('profiles')
         .select('full_name, company_name')
         .eq('id', user.id)
         .single()
 
-      // Hent nylige notater for kontekst
       const { data: recentNotes } = await supabase
         .from('notes')
         .select('content')
@@ -148,18 +146,15 @@ export default function LeadDetail() {
 
       const notesText = recentNotes?.map(n => n.content).join('\n') || 'No previous conversation'
 
-      // 🎯 PROMPT basert på lead-score
       let prompt = ''
       
       if (lead.ai_score && lead.ai_score >= 8) {
-        // Hot lead – foreslå møte
         prompt = `Write a short email to ${lead.name} (${lead.title || 'professional'}) suggesting a quick 15-minute meeting.
 The lead is HOT (score ${lead.ai_score}/10) and ready to convert.
 Be enthusiastic but professional.
 Include a link to book a meeting.
 From: ${profile?.full_name || 'Your name'} at ${profile?.company_name || 'our company'}`
       } else if (lead.ai_score && lead.ai_score >= 5) {
-        // Warm lead – spør om de har spørsmål
         prompt = `Write a friendly follow-up email to ${lead.name} (${lead.title || 'professional'} at ${lead.company || 'their company'}).
 They are a WARM lead (score ${lead.ai_score}/10).
 Ask if they have any questions about your offering.
@@ -167,7 +162,6 @@ Keep it helpful, not pushy.
 Reference their industry (${lead.industry || 'their field'}) if relevant.
 From: ${profile?.full_name || 'Your name'}`
       } else {
-        // Cold lead – tilby verdi
         prompt = `Write a light, value-adding follow-up email to ${lead.name}.
 They are a COLD lead (score ${lead.ai_score || 'not scored'}/10).
 Offer a useful tip or resource related to ${lead.industry || 'their industry'}.
@@ -179,10 +173,8 @@ From: ${profile?.full_name || 'Your name'}`
       console.log('📤 Generating follow-up with OpenAI...')
 
       const response = await window.puter.ai.chat(prompt, {
-        model: "gpt-5.1-codex"  // Samme AI som scoring!
+        model: "gpt-5.1-codex"
       })
-
-      console.log('📥 Response:', response)
 
       let message = ''
       if (typeof response === 'string') {
@@ -195,7 +187,6 @@ From: ${profile?.full_name || 'Your name'}`
 
       setGeneratedMessage(message)
 
-      // Logg at melding ble generert
       await supabase.from('ai_activity_log').insert({
         user_id: user.id,
         lead_id: lead.id,
@@ -215,6 +206,7 @@ From: ${profile?.full_name || 'Your name'}`
     }
   }
 
+  // 🔥 OPPDATERT sendEmail med replyTo
   async function sendEmail() {
     if (!lead?.email) {
       alert('This lead has no email address')
@@ -228,7 +220,7 @@ From: ${profile?.full_name || 'Your name'}`
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, company_name')
+        .select('full_name, company_name, email')
         .eq('id', user.id)
         .single()
 
@@ -246,6 +238,7 @@ From: ${profile?.full_name || 'Your name'}`
           html: personalizedHtml,
           leadId: lead.id,
           userId: user.id,
+          replyTo: user.email, // 🔥 VIKTIG: din e-post
         }),
       })
 
