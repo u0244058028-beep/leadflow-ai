@@ -109,10 +109,10 @@ export default function LandingPages() {
                     className={`px-3 py-1 rounded-md text-sm font-medium transition ${
                       page.is_published
                         ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
                     }`}
                   >
-                    {page.is_published ? 'Published' : 'Publish'}
+                    {page.is_published ? 'Published' : 'Draft'}
                   </button>
 
                   <Link
@@ -122,15 +122,13 @@ export default function LandingPages() {
                     Edit
                   </Link>
 
-                  {/* ✅ FIXET: View/Preview åpnes i ny fane */}
+                  {/* ✅ FIXET: Preview/View åpnes i ny fane */}
                   <button
                     onClick={() => {
-                      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'
+                      const baseUrl = window.location.origin
                       if (page.is_published) {
-                        // Åpne publisert side i ny fane
                         window.open(`${baseUrl}/s/${page.slug}`, '_blank')
                       } else {
-                        // Åpne forhåndsvisning i ny fane
                         window.open(`${baseUrl}/s/${page.slug}?preview=true`, '_blank')
                       }
                     }}
