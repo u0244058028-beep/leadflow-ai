@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { X } from 'lucide-react'
 
 export default function OnboardingGuide() {
   const [isOpen, setIsOpen] = useState(false)
@@ -45,12 +44,12 @@ export default function OnboardingGuide() {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full relative animate-fade-in">
-        {/* Lukk-knapp */}
+        {/* Lukk-knapp (uten lucide-react) */}
         <button
           onClick={completeOnboarding}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition text-xl"
         >
-          <X className="w-5 h-5" />
+          ✕
         </button>
 
         {/* Innhold */}
