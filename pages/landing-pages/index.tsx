@@ -112,7 +112,7 @@ export default function LandingPages() {
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    {page.is_published ? 'Published' : 'Draft'}
+                    {page.is_published ? 'Published' : 'Publish'}
                   </button>
 
                   <Link
