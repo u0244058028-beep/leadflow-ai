@@ -38,3 +38,25 @@ export interface Note {
   content: string;
   user_id: string;
 }
+
+export interface Lead {
+  id: string;
+  created_at: string;
+  name: string;
+  title?: string;
+  company?: string;
+  industry?: string;
+  company_size?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  linkedin_url?: string;
+  status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
+  user_id: string;
+  ai_score?: number;
+  last_scored?: string;
+  score_reason?: string;
+  source?: string;
+  potential_value?: number;
+  is_favorite?: boolean;  // ✨ NY!
+}
