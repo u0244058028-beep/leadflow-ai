@@ -7,6 +7,10 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  console.log('📧 [WELCOME] API called')
+  console.log('Method:', req.method)
+  console.log('Body:', req.body)
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -14,10 +18,14 @@ export default async function handler(
   const { email, name } = req.body
 
   if (!email) {
+    console.log('❌ [WELCOME] Missing email')
     return res.status(400).json({ error: 'Missing email' })
   }
 
   try {
+    console.log('📧 [WELCOME] Sending to:', email)
+    console.log('📧 [WELCOME] RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY)
+
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'
     const userName = name || email.split('@')[0]
 
@@ -74,8 +82,7 @@ export default async function handler(
               
               <p style="color: #6b7280; font-size: 12px; text-align: center;">
                 Need help? Just reply to this email – we're here for you!<br>
-                <a href="${siteUrl}/privacy" style="color: #6b7280;">Privacy Policy</a> • 
-                <a href="${siteUrl}/terms" style="color: #6b7280;">Terms of Service</a>
+                <a href="${siteUrl}/privacy" style="color: #6b7280;">Privacy Policy</a>
               </p>
             </div>
           </body>
@@ -83,11 +90,15 @@ export default async function handler(
       `
     })
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ [WELCOME] Resend error:', error)
+      throw error
+    }
 
+    console.log('✅ [WELCOME] Email sent! ID:', data?.id)
     res.status(200).json({ success: true, id: data?.id })
-  } catch (error) {
-    console.error('Error sending welcome email:', error)
-    res.status(500).json({ error: 'Failed to send welcome email' })
+  } catch (error: any) {
+    console.error('❌ [WELCOME] Error:', error)
+    res.status(500).json({ error: error.message })
   }
 }
