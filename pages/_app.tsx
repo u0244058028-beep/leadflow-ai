@@ -3,6 +3,7 @@ import type { AppProps } from 'next/app'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/router'
+import OnboardingGuide from '@/components/OnboardingGuide'
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
@@ -47,8 +48,6 @@ export default function App({ Component, pageProps }: AppProps) {
         }
 
         console.log('📋 [APP] Profil finnes?', !!profile)
-        console.log('📋 [APP] Onboarding fullført?', profile?.onboarding_completed)
-        console.log('📋 [APP] Velkomst-e-post sendt?', profile?.welcome_email_sent)
 
         // Hvis profilen mangler, opprett den!
         if (!profile) {
@@ -75,22 +74,10 @@ export default function App({ Component, pageProps }: AppProps) {
           } else {
             console.log('✅ [APP] Profil opprettet!')
             
-            // 🎯 NY BRUKER – SEND VELKOMST-E-POST (med sjekk for email)
+            // Send velkomst-e-post
             if (user.email) {
               await sendWelcomeEmail(user.email, fullName, user.id)
-            } else {
-              console.error('❌ [APP] Bruker har ingen e-postadresse, kan ikke sende velkomst')
             }
-          }
-        } else if (!profile.welcome_email_sent) {
-          // 🎯 EKSISTERENDE BRUKER SOM IKKE HAR FÅTT VELKOMST-E-POST
-          console.log('📧 [APP] Bruker mangler velkomst-e-post, sender nå...')
-          if (user.email) {
-            await sendWelcomeEmail(
-              user.email, 
-              profile.full_name || user.email?.split('@')[0] || 'User', 
-              user.id
-            )
           }
         }
 
@@ -111,6 +98,7 @@ export default function App({ Component, pageProps }: AppProps) {
           return
         }
 
+        // Hvis bruker er på login-siden og er innlogget, send til dashboard
         if (router.pathname === '/login') {
           router.push('/dashboard')
         }
@@ -124,15 +112,17 @@ export default function App({ Component, pageProps }: AppProps) {
 
     checkUserAndCreateProfile()
 
+    // Lytt på auth-endringer
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('📢 [APP] Auth state changed:', event)
       
       if (event === 'SIGNED_IN') {
+        // Ved innlogging, sjekk og opprett profil
         const createProfileOnSignIn = async () => {
           if (session?.user) {
             const { data: profile } = await supabase
               .from('profiles')
-              .select('id, welcome_email_sent')
+              .select('id')
               .eq('id', session.user.id)
               .maybeSingle()
 
@@ -150,7 +140,7 @@ export default function App({ Component, pageProps }: AppProps) {
               })
               console.log('✅ [APP] Profil opprettet ved SIGNED_IN')
               
-              // 🎯 NY BRUKER – SEND VELKOMST-E-POST
+              // Send velkomst-e-post
               if (session.user.email) {
                 await sendWelcomeEmail(
                   session.user.email, 
@@ -158,17 +148,9 @@ export default function App({ Component, pageProps }: AppProps) {
                   session.user.id
                 )
               }
-            } else if (!profile.welcome_email_sent) {
-              // 🎯 EKSISTERENDE BRUKER UTEN VELKOMST-E-POST
-              if (session.user.email) {
-                await sendWelcomeEmail(
-                  session.user.email,
-                  session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
-                  session.user.id
-                )
-              }
             }
             
+            // Sjekk om bruker trenger onboarding
             const { data: newProfile } = await supabase
               .from('profiles')
               .select('onboarding_completed, full_name')
@@ -193,7 +175,7 @@ export default function App({ Component, pageProps }: AppProps) {
     }
   }, [router])
 
-  // 🎯 FUNKSJON FOR Å SENDE VELKOMST-E-POST
+  // Funksjon for å sende velkomst-e-post
   async function sendWelcomeEmail(email: string, name: string, userId: string) {
     try {
       console.log('📧 [APP] Sender velkomst-e-post til:', email)
@@ -233,5 +215,10 @@ export default function App({ Component, pageProps }: AppProps) {
     )
   }
 
-  return <Component {...pageProps} />
+  return (
+    <>
+      <Component {...pageProps} />
+      <OnboardingGuide />
+    </>
+  )
 }
