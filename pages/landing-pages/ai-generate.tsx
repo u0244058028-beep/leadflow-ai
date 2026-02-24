@@ -57,53 +57,47 @@ export default function AIGeneratePage() {
         currentProfile = data
       }
 
-      // 🎯 PROMPT MED BRUKERKONTEKST
-      const prompt = `You are an expert copywriter helping ${currentProfile?.full_name || 'a user'} from ${currentProfile?.company_name || 'a company'} create a landing page.
+      // 🎯 PROMPT MED BRUKERKONTEKST – OPTIMERT FOR CLAUDE
+      const prompt = `You are an expert copywriter specializing in high-converting landing pages.
 
-ABOUT THEIR BUSINESS:
-- Industry: ${currentProfile?.industry || 'Not specified'}
+CONTEXT:
+- Business: ${currentProfile?.company_name || 'Unknown'}
+- Industry: ${currentProfile?.industry || 'Unknown'}
 - Target audience: ${currentProfile?.target_audience || 'professionals'}
-- Typical offer: ${currentProfile?.default_offer || 'resources'}
+- Your task: Create a landing page based on this request: "${description}"
 
-THE USER'S REQUEST:
-"${description}"
+REQUIREMENTS:
+1. Create a compelling headline that grabs attention
+2. Include a clear offer or lead magnet
+3. List 3 specific benefits (not generic features)
+4. Form should have: Full Name (required), Email (required), and 2-3 optional fields (Job Title, Company, Phone, Industry)
+5. Button text should be action-oriented
+6. Tone should be professional and trustworthy
 
-YOUR TASK:
-Create a lead capture page based on their request. The page should:
-1. Offer something valuable in exchange for their email
-2. Be specific to their business and audience
-3. Include 2-3 compelling benefits
-4. Have a clear call-to-action
-
-Return EXACTLY this JSON format:
+Return ONLY valid JSON in this exact format:
 {
-  "title": "Compelling headline about THEIR offer (max 10 words)",
-  "subheadline": "Supporting line explaining the value to THEM",
+  "title": "Headline (max 10 words)",
+  "subheadline": "Supporting line explaining the value",
   "description": "2-3 sentences about what they'll get",
-  "offer": "The specific thing they're offering",
+  "offer": "The specific thing they're offering (e.g., 'Free Guide', '14-Day Trial', 'Demo')",
   "benefits": ["Benefit 1", "Benefit 2", "Benefit 3"],
   "fields": [
     { "type": "text", "label": "Full Name", "placeholder": "John Doe", "required": true },
-    { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true },
-    { "type": "text", "label": "Job Title (optional)", "placeholder": "e.g., CEO", "required": false },
-    { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false }
+    { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true }
   ],
   "buttonText": "Get My [Offer] Now",
-  "trustElements": [
-    "No spam, unsubscribe anytime",
-    "We respect your privacy"
-  ]
-}
+  "trustElements": ["No spam, unsubscribe anytime", "We respect your privacy"]
+}`
 
-Make it specific to their business and audience.`
-
+      console.log('Calling Claude via Puter.ai...')
+      
       const response = await window.puter.ai.chat(prompt, {
-        model: 'google/gemini-3-flash-preview',
-        temperature: 0.8,
+        model: 'claude-sonnet-4',  // 🔥 Claude-modellen!
+        temperature: 0.7,
         max_tokens: 2000
       })
 
-      console.log('AI response:', response)
+      console.log('Claude response:', response)
 
       // Parse JSON
       let aiSuggestion
@@ -374,7 +368,7 @@ Make it specific to their business and audience.`
           <div className="min-h-[60vh] flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
-              <h2 className="text-xl font-bold mb-2">AI is creating your page...</h2>
+              <h2 className="text-xl font-bold mb-2">Claude is creating your page...</h2>
               <p className="text-gray-500">This takes about 10 seconds</p>
             </div>
           </div>
