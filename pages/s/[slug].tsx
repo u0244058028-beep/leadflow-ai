@@ -90,10 +90,10 @@ export default function PublicLandingPage() {
       const leadData = {
         name: formData['Full Name'] || formData.name || 'Lead from landing page',
         email: email,
-        title: formData['Job Title (optional)'] || null,
-        company: formData['Company (optional)'] || null,
-        phone: formData['Phone (optional)'] || null,
-        industry: formData['Industry (optional)'] || null,
+        title: formData['Job Title (optional)'] || formData['Job Title'] || null,
+        company: formData['Company (optional)'] || formData['Company'] || null,
+        phone: formData['Phone (optional)'] || formData['Phone'] || null,
+        industry: formData['Industry (optional)'] || formData['Industry'] || null,
         status: 'new',
         user_id: page.user_id,
         source: `landing_page_${page.slug}`
@@ -165,17 +165,21 @@ export default function PublicLandingPage() {
     )
   }
 
+  // 🔥 Hent ALLE data fra settings
   const settings = page.settings || {}
-  const benefits = settings.benefits || []
+  const benefits = settings.benefits || settings.longBenefits || []
   const trustElements = settings.trustElements || ['No spam', 'We respect your privacy']
   const buttonText = settings.buttonText || 'Submit'
-  const offer = settings.offer || 'Free Resource'
+  const offer = settings.offer || ''
+  const fullDescription = settings.fullDescription || page.description || ''
+  const headline = settings.headline || page.title || ''
+  const subheadline = settings.subheadline || page.description || ''
 
   return (
     <>
       <Head>
-        <title>{page.title} | LeadFlow</title>
-        <meta name="description" content={page.description || 'Landing page'} />
+        <title>{headline} | LeadFlow</title>
+        <meta name="description" content={subheadline} />
       </Head>
 
       <div className="min-h-screen bg-gray-50 py-12 px-4">
@@ -206,11 +210,15 @@ export default function PublicLandingPage() {
               ) : (
                 <>
                   <h1 className="text-3xl md:text-4xl font-bold mb-4" style={{ color: page.primary_color }}>
-                    {page.title}
+                    {headline}
                   </h1>
                   
-                  {page.description && (
-                    <p className="text-xl text-gray-600 mb-6">{page.description}</p>
+                  {subheadline && (
+                    <p className="text-xl text-gray-600 mb-6">{subheadline}</p>
+                  )}
+
+                  {fullDescription && (
+                    <p className="text-gray-700 mb-8">{fullDescription}</p>
                   )}
 
                   {offer && (
