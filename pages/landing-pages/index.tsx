@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
 import Link from 'next/link'
@@ -6,159 +6,40 @@ import Link from 'next/link'
 export default function LandingPages() {
   const [pages, setPages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [initialLoad, setInitialLoad] = useState(true)
-
-  // Bruk useCallback for å unngå at funksjonen gjenopprettes
-  const loadPages = useCallback(async () => {
-    // Unngå å laste hvis allerede laster
-    if (loading && !initialLoad) return
-    
-    try {
-      setError(null)
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        setError('Please log in to view your pages')
-        setLoading(false)
-        setInitialLoad(false)
-        return
-      }
-
-      // Fjernet .timeout() – vi håndterer timeout i useEffect i stedet
-      const { data, error: pagesError } = await supabase
-        .from('landing_pages')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-
-      if (pagesError) throw pagesError
-
-      setPages(data || [])
-      
-    } catch (err: any) {
-      console.error('Error loading pages:', err)
-      setError(err?.message || 'Failed to load pages')
-    } finally {
-      setLoading(false)
-      setInitialLoad(false)
-    }
-  }, []) // Tom avhengighetsliste = kjører bare én gang
 
   useEffect(() => {
-    let isMounted = true
-    let timeoutId: NodeJS.Timeout
+    loadPages()
+  }, [])
 
-    const loadWithTimeout = async () => {
-      // Timeout på 5 sekunder – hvis ikke ferdig, vis feil
-      timeoutId = setTimeout(() => {
-        if (isMounted && loading) {
-          setError('Loading timed out. Please try again.')
-          setLoading(false)
-          setInitialLoad(false)
-        }
-      }, 5000)
+  async function loadPages() {
+    const user = (await supabase.auth.getUser()).data.user
+    if (!user) return
 
-      await loadPages()
-    }
+    const { data } = await supabase
+      .from('landing_pages')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
 
-    if (initialLoad) {
-      loadWithTimeout()
-    }
-
-    return () => {
-      isMounted = false
-      clearTimeout(timeoutId)
-    }
-  }, [initialLoad, loadPages])
+    setPages(data || [])
+    setLoading(false)
+  }
 
   async function togglePublish(pageId: string, current: boolean) {
-    try {
-      const { error } = await supabase
-        .from('landing_pages')
-        .update({ 
-          is_published: !current,
-          published_at: !current ? new Date().toISOString() : null
-        })
-        .eq('id', pageId)
-
-      if (error) throw error
-      
-      // Oppdater lokal state – unngår ny innlasting
-      setPages(prev => prev.map(p => 
-        p.id === pageId ? { ...p, is_published: !current } : p
-      ))
-      
-    } catch (err: any) {
-      alert('Failed to update: ' + err.message)
-    }
+    await supabase
+      .from('landing_pages')
+      .update({ 
+        is_published: !current,
+        published_at: !current ? new Date().toISOString() : null
+      })
+      .eq('id', pageId)
+    loadPages()
   }
 
   async function deletePage(pageId: string) {
     if (!confirm('Are you sure? This will delete the page and all its leads.')) return
-    
-    try {
-      const { error } = await supabase
-        .from('landing_pages')
-        .delete()
-        .eq('id', pageId)
-
-      if (error) throw error
-      
-      // Fjern fra lokal state
-      setPages(prev => prev.filter(p => p.id !== pageId))
-      
-    } catch (err: any) {
-      alert('Failed to delete: ' + err.message)
-    }
-  }
-
-  const openPreview = (slug: string, isPublished: boolean) => {
-    const url = isPublished 
-      ? `/s/${slug}`
-      : `/s/${slug}?preview=true`
-    window.open(url, '_blank')
-  }
-
-  // Vis loading med timeout-indikator
-  if (loading) {
-    return (
-      <Layout>
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-500">Loading your landing pages...</p>
-            <p className="text-xs text-gray-400 mt-2">This should only take a few seconds</p>
-          </div>
-        </div>
-      </Layout>
-    )
-  }
-
-  // Vis feilmelding med retry-knapp
-  if (error) {
-    return (
-      <Layout>
-        <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="text-center max-w-md">
-            <div className="text-red-600 text-4xl mb-4">⚠️</div>
-            <h2 className="text-xl font-bold mb-2">Could not load pages</h2>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={() => {
-                setLoading(true)
-                setError(null)
-                setInitialLoad(true)
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Try again
-            </button>
-          </div>
-        </div>
-      </Layout>
-    )
+    await supabase.from('landing_pages').delete().eq('id', pageId)
+    loadPages()
   }
 
   return (
@@ -181,7 +62,12 @@ export default function LandingPages() {
         </div>
       </div>
 
-      {pages.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading pages...</p>
+        </div>
+      ) : pages.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow">
           <p className="text-gray-500 mb-4">You haven't created any landing pages yet.</p>
           <div className="flex gap-2 justify-center">
@@ -236,8 +122,18 @@ export default function LandingPages() {
                     Edit
                   </Link>
 
+                  {/* ✅ FIXET: View/Preview åpnes i ny fane */}
                   <button
-                    onClick={() => openPreview(page.slug, page.is_published)}
+                    onClick={() => {
+                      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.myleadassistant.com'
+                      if (page.is_published) {
+                        // Åpne publisert side i ny fane
+                        window.open(`${baseUrl}/s/${page.slug}`, '_blank')
+                      } else {
+                        // Åpne forhåndsvisning i ny fane
+                        window.open(`${baseUrl}/s/${page.slug}?preview=true`, '_blank')
+                      }
+                    }}
                     className="px-3 py-1 bg-purple-100 text-purple-700 rounded-md text-sm hover:bg-purple-200 transition"
                   >
                     {page.is_published ? 'View' : 'Preview'}
