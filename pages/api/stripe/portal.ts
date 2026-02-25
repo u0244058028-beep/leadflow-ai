@@ -3,7 +3,7 @@ import { stripe } from '@/lib/stripe';
 import { supabase } from '@/lib/supabaseClient';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Tillat CORS for debugging
+  // Tillat CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   
   if (req.method !== 'POST') {
@@ -12,35 +12,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { userId } = req.body;
-    console.log('🔍 Portal API start - userId:', userId);
+    console.log('🔍 Portal API - userId mottatt:', userId);
 
     if (!userId) {
-      console.log('❌ Missing userId');
       return res.status(400).json({ message: 'Missing userId' });
     }
 
-    // Hent profilen
-    console.log('📊 Henter profil for userId:', userId);
+    // Først, sjekk om brukeren finnes i auth
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log('👤 Auth user:', user?.id);
+
+    // Hent profilen med maybeSingle() for å unngå 404-feil
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, stripe_customer_id, subscription_status')
       .eq('id', userId)
-      .maybeSingle();  // Bruk maybeSingle i stedet for single
+      .maybeSingle();
+
+    console.log('📊 Profile query result:', { profile, error });
 
     if (error) {
-      console.error('❌ Supabase error:', error);
+      console.error('❌ Database error:', error);
       return res.status(500).json({ 
         message: 'Database error', 
-        error: error.message,
-        details: error
+        error: error.message 
       });
     }
 
-    console.log('📦 Profile data:', profile);
-
     if (!profile) {
       console.log('❌ Ingen profil funnet for userId:', userId);
-      return res.status(404).json({ message: 'Profile not found' });
+      
+      // Prøv å finne brukeren via email som backup
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user?.email) {
+        const { data: profileByEmail } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', userData.user.email)
+          .maybeSingle();
+        
+        console.log('📧 Søkte på email:', userData.user.email, profileByEmail);
+        
+        if (profileByEmail) {
+          return res.status(200).json({ 
+            message: 'Found profile by email',
+            profile: profileByEmail 
+          });
+        }
+      }
+      
+      return res.status(404).json({ 
+        message: 'Profile not found',
+        userId: userId 
+      });
     }
 
     if (!profile.stripe_customer_id) {
@@ -54,21 +78,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('✅ Stripe customer ID funnet:', profile.stripe_customer_id);
 
     // Opprett portal session
-    console.log('🔄 Oppretter portal session for customer:', profile.stripe_customer_id);
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/profile`,
     });
 
-    console.log('✅ Portal session opprettet:', session.url);
+    console.log('✅ Portal session opprettet');
     res.status(200).json({ url: session.url });
     
   } catch (error: any) {
     console.error('❌ Fatal error:', error);
     res.status(500).json({ 
       message: error.message || 'Internal server error',
-      error: error.toString(),
-      stack: error.stack
+      error: error.toString()
     });
   }
 }
