@@ -39,7 +39,7 @@ export default function LandingPage() {
                     Log in
                   </Link>
                   <Link
-                    href="/login?signup=true"
+                    href="/pricing"  // 🆕 Endret fra /login?signup=true til /pricing
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
                   >
                     Start free trial
@@ -66,7 +66,7 @@ export default function LandingPage() {
           </p>
           <div className="flex gap-4 justify-center">
             <Link
-              href="/login?signup=true"
+              href="/pricing"  // 🆕 Endret fra /login?signup=true til /pricing
               className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-lg font-medium"
             >
               Start 14-day free trial
@@ -206,7 +206,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               <Link
-                href="/login?signup=true"
+                href="/pricing"  // 🆕 Endret fra /login?signup=true til /pricing
                 className="mt-8 inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
               >
                 Try it now
@@ -325,10 +325,10 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Link
-                href="/login?signup=true"
+                href="/pricing"  // 🆕 Endret til å gå til pricing-siden
                 className="block w-full text-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
               >
-                Start free trial
+                See pricing details
               </Link>
             </div>
           </div>
