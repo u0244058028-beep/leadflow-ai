@@ -1,7 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { stripe } from '@/lib/stripe';
+import { supabase } from '@/lib/supabaseClient';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Sett CORS-headere
+  // Tillat CORS for debugging
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -11,25 +13,128 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).end();
   }
 
-  // Bare sjekk miljøvariabler - ingen Stripe eller Supabase
-  const envCheck = {
-    NODE_ENV: process.env.NODE_ENV,
-    hasSecretKey: !!process.env.STRIPE_SECRET_KEY,
-    secretKeyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 7) || 'ikke satt',
-    hasPublishableKey: !!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
-    hasPriceId: !!process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY,
-    priceIdValue: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY || 'ikke satt',
-    hasAppUrl: !!process.env.NEXT_PUBLIC_APP_URL,
-    appUrlValue: process.env.NEXT_PUBLIC_APP_URL || 'ikke satt',
-    allEnvKeys: Object.keys(process.env).filter(key => 
-      key.includes('STRIPE') || key.includes('NEXT_PUBLIC')
-    )
-  };
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
 
-  // Returner ALL informasjon
-  return res.status(200).json({
-    message: 'Environment check',
-    env: envCheck,
-    timestamp: new Date().toISOString()
-  });
+  try {
+    const { userId, email } = req.body;
+    
+    // SJEKK 1: Input
+    if (!userId || !email) {
+      return res.status(400).json({ 
+        error: 'Mangler påkrevde felt',
+        received: { userId, email }
+      });
+    }
+
+    // SJEKK 2: Miljøvariabler
+    const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY;
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+    if (!priceId) {
+      return res.status(500).json({ 
+        error: 'Price ID mangler i miljøvariabler',
+        env: {
+          hasPriceId: !!process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY
+        }
+      });
+    }
+
+    if (!siteUrl) {
+      return res.status(500).json({ 
+        error: 'SITE_URL mangler i miljøvariabler',
+        env: {
+          hasSiteUrl: !!process.env.NEXT_PUBLIC_SITE_URL
+        }
+      });
+    }
+
+    // SJEKK 3: Hent eller opprett Stripe customer
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      return res.status(500).json({ 
+        error: 'Supabase-feil ved henting av profil',
+        details: profileError.message
+      });
+    }
+
+    let customerId = profile?.stripe_customer_id;
+
+    if (!customerId) {
+      try {
+        const customer = await stripe.customers.create({
+          email,
+          metadata: { userId },
+        });
+        customerId = customer.id;
+
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ stripe_customer_id: customerId })
+          .eq('id', userId);
+
+        if (updateError) {
+          console.error('Kunne ikke oppdatere profil med customer ID:', updateError);
+        }
+      } catch (stripeError: any) {
+        return res.status(500).json({ 
+          error: 'Stripe customer creation feilet',
+          message: stripeError.message,
+          type: stripeError.type
+        });
+      }
+    }
+
+    // SJEKK 4: Opprett checkout session
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        subscription_data: {
+          trial_period_days: 14,
+          trial_settings: {
+            end_behavior: {
+              missing_payment_method: 'cancel',
+            },
+          },
+          metadata: { userId },
+        },
+        success_url: `${siteUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${siteUrl}/pricing?canceled=true`,
+        metadata: { userId },
+        allow_promotion_codes: true,
+      });
+
+      return res.status(200).json({ url: session.url });
+      
+    } catch (stripeError: any) {
+      return res.status(500).json({ 
+        error: 'Checkout session creation feilet',
+        message: stripeError.message,
+        type: stripeError.type,
+        code: stripeError.code,
+        param: stripeError.param
+      });
+    }
+
+  } catch (error: any) {
+    return res.status(500).json({ 
+      error: 'Uventet feil',
+      message: error.message,
+      stack: error.stack
+    });
+  }
 }
