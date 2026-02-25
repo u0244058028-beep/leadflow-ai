@@ -3,138 +3,66 @@ import { stripe } from '@/lib/stripe';
 import { supabase } from '@/lib/supabaseClient';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Tillat CORS for debugging
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  // Håndter preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   try {
     const { userId, email } = req.body;
-    
-    // SJEKK 1: Input
+
     if (!userId || !email) {
-      return res.status(400).json({ 
-        error: 'Mangler påkrevde felt',
-        received: { userId, email }
-      });
+      return res.status(400).json({ message: 'Missing userId or email' });
     }
 
-    // SJEKK 2: Miljøvariabler
-    const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY;
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-
-    if (!priceId) {
-      return res.status(500).json({ 
-        error: 'Price ID mangler i miljøvariabler',
-        env: {
-          hasPriceId: !!process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY
-        }
-      });
-    }
-
-    if (!siteUrl) {
-      return res.status(500).json({ 
-        error: 'SITE_URL mangler i miljøvariabler',
-        env: {
-          hasSiteUrl: !!process.env.NEXT_PUBLIC_SITE_URL
-        }
-      });
-    }
-
-    // SJEKK 3: Hent eller opprett Stripe customer
-    const { data: profile, error: profileError } = await supabase
+    // Check if user has already had a trial
+    const { data: profile } = await supabase
       .from('profiles')
-      .select('stripe_customer_id')
+      .select('trial_ends_at, subscription_status, stripe_customer_id')
       .eq('id', userId)
-      .maybeSingle();
+      .single();
 
-    if (profileError) {
-      return res.status(500).json({ 
-        error: 'Supabase-feil ved henting av profil',
-        details: profileError.message
-      });
-    }
+    const hasHadTrial = profile?.trial_ends_at && new Date(profile.trial_ends_at) < new Date();
 
+    // Get or create Stripe customer
     let customerId = profile?.stripe_customer_id;
 
     if (!customerId) {
-      try {
-        const customer = await stripe.customers.create({
-          email,
-          metadata: { userId },
-        });
-        customerId = customer.id;
-
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ stripe_customer_id: customerId })
-          .eq('id', userId);
-
-        if (updateError) {
-          console.error('Kunne ikke oppdatere profil med customer ID:', updateError);
-        }
-      } catch (stripeError: any) {
-        return res.status(500).json({ 
-          error: 'Stripe customer creation feilet',
-          message: stripeError.message,
-          type: stripeError.type
-        });
-      }
-    }
-
-    // SJEKK 4: Opprett checkout session
-    try {
-      const session = await stripe.checkout.sessions.create({
-        customer: customerId,
-        payment_method_types: ['card'],
-        line_items: [
-          {
-            price: priceId,
-            quantity: 1,
-          },
-        ],
-        mode: 'subscription',
-        subscription_data: {
-          trial_period_days: 14,
-          trial_settings: {
-            end_behavior: {
-              missing_payment_method: 'cancel',
-            },
-          },
-          metadata: { userId },
-        },
-        success_url: `${siteUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${siteUrl}/pricing?canceled=true`,
+      const customer = await stripe.customers.create({
+        email,
         metadata: { userId },
-        allow_promotion_codes: true,
       });
+      customerId = customer.id;
 
-      return res.status(200).json({ url: session.url });
-      
-    } catch (stripeError: any) {
-      return res.status(500).json({ 
-        error: 'Checkout session creation feilet',
-        message: stripeError.message,
-        type: stripeError.type,
-        code: stripeError.code,
-        param: stripeError.param
-      });
+      await supabase
+        .from('profiles')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', userId);
     }
 
-  } catch (error: any) {
-    return res.status(500).json({ 
-      error: 'Uventet feil',
-      message: error.message,
-      stack: error.stack
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY!,
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      subscription_data: {
+        trial_period_days: hasHadTrial ? 0 : 14,
+        metadata: { userId },
+      },
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing?canceled=true`,
+      metadata: { userId },
+      allow_promotion_codes: true,
     });
+
+    res.status(200).json({ url: session.url });
+  } catch (error) {
+    console.error('Stripe error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 }
