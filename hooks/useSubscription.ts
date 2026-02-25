@@ -43,14 +43,22 @@ export function useSubscription() {
             ? Math.max(0, Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
             : null;
 
+          // 🟢 FIX: Sikre at isTrial alltid er boolean, ikke boolean | null
+          const isTrial = profile.subscription_status === 'trial' && 
+                         trialEndsAt !== null && 
+                         trialEndsAt > now;
+
           setStatus({
             isActive: profile.subscription_status === 'active',
-            isTrial: profile.subscription_status === 'trial' && trialEndsAt && trialEndsAt > now,
+            isTrial: isTrial, // Nå er dette alltid true/false
             trialEndsAt,
             daysLeft,
             subscriptionStatus: profile.subscription_status,
             loading: false,
           });
+        } else {
+          // Hvis ingen profil finnes, sett loading til false
+          setStatus(prev => ({ ...prev, loading: false }));
         }
       } catch (error) {
         console.error('Feil ved henting av abonnement:', error);
