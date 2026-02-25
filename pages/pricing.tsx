@@ -17,7 +17,6 @@ export default function PricingPage() {
       setIsLoggedIn(!!user);
 
       if (user) {
-        // Sjekk om brukeren allerede har hatt trial
         const { data: profile } = await supabase
           .from('profiles')
           .select('trial_ends_at, subscription_status')
@@ -25,12 +24,10 @@ export default function PricingPage() {
           .single();
 
         if (profile) {
-          // Hvis trial_ends_at er i fortiden eller brukeren har hatt aktivt abonnement
           const trialEnded = profile.trial_ends_at 
             ? new Date(profile.trial_ends_at) < new Date() 
             : false;
           const hadActiveSubscription = profile.subscription_status === 'active';
-          
           setHasHadTrial(trialEnded || hadActiveSubscription);
         }
       }
@@ -59,63 +56,61 @@ export default function PricingPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Kunne ikke opprette checkout-sesjon');
+        const error = await response.json();
+        throw new Error(error.message || 'Something went wrong');
       }
 
       const { url } = await response.json();
       window.location.href = url;
     } catch (error) {
-      console.error('Feil:', error);
-      showToast('Noe gikk galt. Prøv igjen.', 'error');
+      console.error('Error:', error);
+      showToast('Something went wrong. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const features = [
-    'Ubegrenset leads',
-    'AI-genererte landingssider',
+    'Unlimited leads',
+    'AI-generated landing pages',
     'AI lead scoring',
-    'Smarte oppfølgingsmeldinger',
-    'Pipeline verdi-sporing',
-    'E-post tracking',
+    'Smart follow-up messages',
+    'Pipeline value tracking',
+    'Email tracking',
     'Task management',
-    'Prioritert support',
+    'Priority support',
   ];
 
-  // Bestem knappetekst basert på brukerstatus
   const getButtonText = () => {
-    if (!isLoggedIn) return 'Start 14 dagers gratis prøveperiode';
-    if (hasHadTrial) return 'Oppgrader nå';
-    return 'Start 14 dagers gratis prøveperiode';
+    if (!isLoggedIn) return 'Start 14-day free trial';
+    if (hasHadTrial) return 'Upgrade now';
+    return 'Start 14-day free trial';
+  };
+
+  const getDescriptionText = () => {
+    if (!isLoggedIn) return 'Start your 14-day free trial. No credit card required.';
+    if (hasHadTrial) return 'Continue with Pro plan';
+    return 'Start your 14-day free trial. No credit card required.';
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-20">
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">
-            Enkel prising for vekst
-          </h1>
-          <p className="text-xl text-gray-600">
-            {!isLoggedIn 
-              ? 'Start gratis i 14 dager. Ingen kredittkort påkrevd.'
-              : hasHadTrial 
-                ? 'Fortsett med Pro-abonnement'
-                : 'Start gratis i 14 dager. Ingen kredittkort påkrevd.'}
-          </p>
+          <h1 className="text-4xl font-bold mb-4">Simple, predictable pricing</h1>
+          <p className="text-xl text-gray-600">{getDescriptionText()}</p>
         </div>
 
         <div className="max-w-md mx-auto">
           <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-blue-500 relative">
             <span className="absolute top-0 -translate-y-1/2 bg-blue-500 text-white px-4 py-1 rounded-full text-sm font-semibold left-1/2 -translate-x-1/2">
-              Mest populær
+              Most popular
             </span>
             
             <h3 className="text-2xl font-bold text-center mb-2">Pro</h3>
             <div className="text-center mb-6">
               <span className="text-5xl font-bold">$29</span>
-              <span className="text-gray-600"> / måned</span>
+              <span className="text-gray-600"> / month</span>
             </div>
             
             <ul className="space-y-4 mb-8">
@@ -129,18 +124,12 @@ export default function PricingPage() {
               ))}
             </ul>
             
-            <Button
-              onClick={handleSubscribe}
-              loading={loading}
-              fullWidth
-              size="lg"
-              className="mb-4"
-            >
+            <Button onClick={handleSubscribe} loading={loading} fullWidth size="lg" className="mb-4">
               {getButtonText()}
             </Button>
             
             <p className="text-sm text-gray-500 text-center">
-              Ingen binding. Kanseller når som helst.
+              No commitment. Cancel anytime.
             </p>
           </div>
         </div>
