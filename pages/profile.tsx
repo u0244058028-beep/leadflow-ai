@@ -118,11 +118,14 @@ export default function Profile() {
     }
   }
 
-  // Åpne Stripe Customer Portal
+  // 🟢 OPPDATERT: Åpne Stripe Customer Portal med bedre feilhåndtering
   async function handleManageBilling() {
     try {
+      setMessage({ type: '', text: '' })
       const user = (await supabase.auth.getUser()).data.user
       if (!user) return
+
+      console.log('🔍 Opening billing portal for user:', user.id)
 
       const response = await fetch('/api/stripe/portal', {
         method: 'POST',
@@ -130,14 +133,16 @@ export default function Profile() {
         body: JSON.stringify({ userId: user.id }),
       })
 
+      const data = await response.json()
+      console.log('📦 Portal response:', data)
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message)
+        throw new Error(data.message || 'Error opening billing portal')
       }
 
-      const { url } = await response.json()
-      window.location.href = url
+      window.location.href = data.url
     } catch (err: any) {
+      console.error('❌ Portal error:', err)
       setMessage({
         type: 'error',
         text: err.message || 'Error opening billing portal',
@@ -189,7 +194,7 @@ export default function Profile() {
         <h1 className="text-2xl font-bold mb-6">Your Profile</h1>
 
         <div className="bg-white rounded-lg shadow p-6">
-          {/* Profile Form - DIN ORIGINALE KODE */}
+          {/* Profile Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700">Email</label>
@@ -248,7 +253,7 @@ export default function Profile() {
             </div>
           </form>
 
-          {/* 🆕 Subscription Management - OPPDATERT VERSJON */}
+          {/* Subscription Management */}
           <div className="mt-8 pt-6 border-t border-gray-200">
             <h2 className="text-lg font-semibold mb-4">Subscription</h2>
             
@@ -274,7 +279,7 @@ export default function Profile() {
                   </div>
                 </div>
 
-                {/* 🆕 Trial Expiring Soon Warning (3 days or less) */}
+                {/* Trial Expiring Soon Warning */}
                 {subscription.isTrial && subscription.daysLeft !== null && subscription.daysLeft <= 3 && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                     <p className="text-yellow-800 text-sm font-medium">
@@ -342,7 +347,7 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Danger Zone - DIN ORIGINALE KODE */}
+          {/* Danger Zone */}
           <div className="mt-8 pt-6 border-t border-red-200">
             <h2 className="text-lg font-semibold text-red-600 mb-2">Danger Zone</h2>
             <p className="text-sm text-gray-600 mb-4">
