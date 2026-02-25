@@ -7,51 +7,24 @@ import { useToast } from '@/components/Toast';
 export default function PricingPage() {
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [hasHadTrial, setHasHadTrial] = useState(false);
   const [isActive, setIsActive] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<any>(null); // For debugging
   const router = useRouter();
   const { showToast } = useToast();
 
   useEffect(() => {
     const checkUserStatus = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('👤 User:', user);
       setIsLoggedIn(!!user);
 
       if (user) {
-        const { data: profile, error } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
-          .select('trial_ends_at, subscription_status')
+          .select('subscription_status')
           .eq('id', user.id)
           .single();
 
-        console.log('📊 Profile:', profile);
-        console.log('❌ Error:', error);
-
         if (profile) {
-          const trialEndsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
-          const now = new Date();
-          const trialEnded = trialEndsAt ? trialEndsAt < now : false;
-          const hadActiveSubscription = profile.subscription_status === 'active';
-          
-          console.log('📅 trialEndsAt:', trialEndsAt);
-          console.log('⏰ now:', now);
-          console.log('✅ trialEnded:', trialEnded);
-          console.log('💳 hadActiveSubscription:', hadActiveSubscription);
-          
-          setHasHadTrial(trialEnded || hadActiveSubscription);
           setIsActive(profile.subscription_status === 'active');
-          
-          // For debugging
-          setDebugInfo({
-            trialEndsAt: trialEndsAt?.toISOString(),
-            now: now.toISOString(),
-            trialEnded,
-            hadActiveSubscription,
-            subscription_status: profile.subscription_status,
-            hasHadTrial: trialEnded || hadActiveSubscription
-          });
         }
       }
     };
@@ -104,25 +77,20 @@ export default function PricingPage() {
     'Priority support',
   ];
 
+  // Bestem knappetekst basert på brukerstatus
   const getButtonText = () => {
     if (!isLoggedIn) return 'Start 14-day free trial';
     if (isActive) return 'Manage Subscription';
-    if (hasHadTrial) return 'Upgrade Now';
-    return 'Start 14-day free trial';
+    return 'Upgrade Now'; // Alle innloggede som ikke er aktive (både trial og utløpt)
   };
 
   const getDescriptionText = () => {
     if (!isLoggedIn) return 'Start your 14-day free trial. No credit card required.';
     if (isActive) return 'You have an active Pro subscription.';
-    if (hasHadTrial) return 'Continue with Pro plan.';
-    return 'Start your 14-day free trial. No credit card required.';
+    return 'Upgrade to Pro and unlock all features.'; // For trial-brukere
   };
 
-  // Debug-visning (fjern etter testing)
-  if (debugInfo) {
-    console.log('🔍 Debug info:', debugInfo);
-  }
-
+  // Hvis allerede aktiv, vis annen layout
   if (isActive) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-20">
@@ -150,18 +118,6 @@ export default function PricingPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Simple, predictable pricing</h1>
           <p className="text-xl text-gray-600">{getDescriptionText()}</p>
-          
-          {/* Midlertidig debug-info - fjern etter testing */}
-          {debugInfo && (
-            <div className="mt-4 p-4 bg-gray-100 rounded-lg text-left text-sm">
-              <p><strong>Debug:</strong></p>
-              <p>trialEndsAt: {debugInfo.trialEndsAt}</p>
-              <p>now: {debugInfo.now}</p>
-              <p>trialEnded: {debugInfo.trialEnded.toString()}</p>
-              <p>subscription_status: {debugInfo.subscription_status}</p>
-              <p>hasHadTrial: {debugInfo.hasHadTrial.toString()}</p>
-            </div>
-          )}
         </div>
 
         <div className="max-w-md mx-auto">
@@ -200,6 +156,13 @@ export default function PricingPage() {
             <p className="text-sm text-gray-500 text-center">
               No commitment. Cancel anytime.
             </p>
+
+            {/* For trial-brukere, vis en liten påminnelse */}
+            {isLoggedIn && !isActive && (
+              <p className="text-xs text-blue-600 text-center mt-4">
+                💡 You're currently on a 14-day free trial. Upgrade now to secure your account.
+              </p>
+            )}
           </div>
         </div>
       </div>
