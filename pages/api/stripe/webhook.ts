@@ -1,13 +1,20 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { stripe } from '@/lib/stripe';
 import { supabase } from '@/lib/supabaseClient';
-import { buffer } from 'micro';
 
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: false, // Vi må skru av bodyParser for å få raw body
   },
 };
+
+async function buffer(readable: any) {
+  const chunks = [];
+  for await (const chunk of readable) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks);
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -41,10 +48,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           throw new Error('Ingen userId i metadata');
         }
 
-        // Hent abonnementsdetaljer fra Stripe
         const subscription = await stripe.subscriptions.retrieve(subscriptionId as string);
 
-        // Oppdater brukeren i databasen
         await supabase
           .from('profiles')
           .update({
@@ -94,7 +99,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object;
-        const subscriptionId = invoice.subscription;
         const customerId = invoice.customer;
 
         const customer = await stripe.customers.retrieve(customerId as string);
