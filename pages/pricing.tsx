@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '@/lib/supabaseClient';
 import Button from '@/components/Button';
@@ -6,8 +6,38 @@ import { useToast } from '@/components/Toast';
 
 export default function PricingPage() {
   const [loading, setLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [hasHadTrial, setHasHadTrial] = useState(false);
   const router = useRouter();
   const { showToast } = useToast();
+
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsLoggedIn(!!user);
+
+      if (user) {
+        // Sjekk om brukeren allerede har hatt trial
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('trial_ends_at, subscription_status')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          // Hvis trial_ends_at er i fortiden eller brukeren har hatt aktivt abonnement
+          const trialEnded = profile.trial_ends_at 
+            ? new Date(profile.trial_ends_at) < new Date() 
+            : false;
+          const hadActiveSubscription = profile.subscription_status === 'active';
+          
+          setHasHadTrial(trialEnded || hadActiveSubscription);
+        }
+      }
+    };
+
+    checkUserStatus();
+  }, []);
 
   const handleSubscribe = async () => {
     try {
@@ -53,6 +83,13 @@ export default function PricingPage() {
     'Prioritert support',
   ];
 
+  // Bestem knappetekst basert på brukerstatus
+  const getButtonText = () => {
+    if (!isLoggedIn) return 'Start 14 dagers gratis prøveperiode';
+    if (hasHadTrial) return 'Oppgrader nå';
+    return 'Start 14 dagers gratis prøveperiode';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-20">
       <div className="max-w-7xl mx-auto px-4">
@@ -61,7 +98,11 @@ export default function PricingPage() {
             Enkel prising for vekst
           </h1>
           <p className="text-xl text-gray-600">
-            Start gratis i 14 dager. Ingen kredittkort påkrevd.
+            {!isLoggedIn 
+              ? 'Start gratis i 14 dager. Ingen kredittkort påkrevd.'
+              : hasHadTrial 
+                ? 'Fortsett med Pro-abonnement'
+                : 'Start gratis i 14 dager. Ingen kredittkort påkrevd.'}
           </p>
         </div>
 
@@ -95,7 +136,7 @@ export default function PricingPage() {
               size="lg"
               className="mb-4"
             >
-              Start 14 dagers gratis prøveperiode
+              {getButtonText()}
             </Button>
             
             <p className="text-sm text-gray-500 text-center">
