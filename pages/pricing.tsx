@@ -8,6 +8,7 @@ export default function PricingPage() {
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasHadTrial, setHasHadTrial] = useState(false);
+  const [isActive, setIsActive] = useState(false);
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -28,7 +29,9 @@ export default function PricingPage() {
             ? new Date(profile.trial_ends_at) < new Date() 
             : false;
           const hadActiveSubscription = profile.subscription_status === 'active';
+          
           setHasHadTrial(trialEnded || hadActiveSubscription);
+          setIsActive(profile.subscription_status === 'active');
         }
       }
     };
@@ -81,17 +84,42 @@ export default function PricingPage() {
     'Priority support',
   ];
 
+  // Bestem knappetekst basert på brukerstatus
   const getButtonText = () => {
     if (!isLoggedIn) return 'Start 14-day free trial';
-    if (hasHadTrial) return 'Upgrade now';
-    return 'Start 14-day free trial';
+    if (isActive) return 'Manage Subscription'; // Allerede aktiv
+    if (hasHadTrial) return 'Upgrade Now'; // Har hatt trial før
+    return 'Start 14-day free trial'; // Ny bruker
   };
 
   const getDescriptionText = () => {
     if (!isLoggedIn) return 'Start your 14-day free trial. No credit card required.';
-    if (hasHadTrial) return 'Continue with Pro plan';
+    if (isActive) return 'You have an active Pro subscription.';
+    if (hasHadTrial) return 'Continue with Pro plan.';
     return 'Start your 14-day free trial. No credit card required.';
   };
+
+  // Hvis allerede aktiv, vis annen knapp
+  if (isActive) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-20">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <h1 className="text-4xl font-bold mb-4">You're already a Pro!</h1>
+          <p className="text-xl text-gray-600 mb-8">
+            You have an active subscription. Visit your profile to manage it.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Button onClick={() => router.push('/profile')}>
+              Go to Profile
+            </Button>
+            <Button onClick={handleSubscribe} variant="secondary">
+              Manage Billing
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-20">
@@ -124,7 +152,13 @@ export default function PricingPage() {
               ))}
             </ul>
             
-            <Button onClick={handleSubscribe} loading={loading} fullWidth size="lg" className="mb-4">
+            <Button
+              onClick={handleSubscribe}
+              loading={loading}
+              fullWidth
+              size="lg"
+              className="mb-4"
+            >
               {getButtonText()}
             </Button>
             
