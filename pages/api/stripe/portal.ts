@@ -10,6 +10,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { userId } = req.body;
 
+    if (!userId) {
+      return res.status(400).json({ message: 'Missing userId' });
+    }
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('stripe_customer_id')
@@ -22,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
+      return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/profile`,
     });
 
     res.status(200).json({ url: session.url });
