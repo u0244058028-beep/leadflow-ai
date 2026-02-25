@@ -9,86 +9,99 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { userId, email } = req.body;
-    console.log('🔍 Create-checkout start:', { userId, email });
-
-    if (!userId || !email) {
-      console.log('❌ Mangler userId eller email');
-      return res.status(400).json({ message: 'Mangler userId eller email' });
-    }
-
-    // Sjekk at price ID finnes
-    const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY;
-    console.log('💰 Price ID:', priceId);
     
-    if (!priceId) {
-      console.log('❌ Price ID mangler i miljøvariabler');
-      return res.status(500).json({ message: 'Price ID ikke konfigurert' });
+    // SJEKK 1: Finnes userId og email?
+    if (!userId || !email) {
+      return res.status(400).json({ 
+        error: 'Mangler userId eller email',
+        received: { userId, email }
+      });
     }
 
-    // Hent eller opprett Stripe customer
-    const { data: profile } = await supabase
+    // SJEKK 2: Finnes price ID?
+    const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY;
+    if (!priceId) {
+      return res.status(500).json({ 
+        error: 'Price ID mangler i miljøvariabler',
+        env: {
+          hasPriceId: !!process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO_MONTHLY,
+          hasSecretKey: !!process.env.STRIPE_SECRET_KEY,
+          hasPublishableKey: !!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        }
+      });
+    }
+
+    // SJEKK 3: Fungerer Supabase?
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('stripe_customer_id')
       .eq('id', userId)
       .single();
 
-    console.log('👤 Profil funnet:', profile);
+    if (profileError) {
+      return res.status(500).json({ 
+        error: 'Supabase-feil',
+        details: profileError.message
+      });
+    }
 
     let customerId = profile?.stripe_customer_id;
 
     if (!customerId) {
-      console.log('➕ Oppretter ny Stripe customer for:', email);
-      const customer = await stripe.customers.create({
-        email,
-        metadata: { userId },
-      });
-      
-      customerId = customer.id;
-      console.log('✅ Customer opprettet:', customerId);
+      try {
+        const customer = await stripe.customers.create({
+          email,
+          metadata: { userId },
+        });
+        customerId = customer.id;
 
-      await supabase
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', userId);
+        await supabase
+          .from('profiles')
+          .update({ stripe_customer_id: customerId })
+          .eq('id', userId);
+      } catch (stripeError: any) {
+        return res.status(500).json({ 
+          error: 'Stripe customer creation feilet',
+          message: stripeError.message,
+          type: stripeError.type
+        });
+      }
     }
 
-    // Opprett checkout session
-    console.log('🛒 Oppretter checkout session med priceId:', priceId);
-    
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
+    // SJEKK 4: Opprett checkout session
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: 'subscription',
+        subscription_data: {
+          trial_period_days: 14,
+          metadata: { userId },
         },
-      ],
-      mode: 'subscription',
-      subscription_data: {
-        trial_period_days: 14,
-        trial_settings: {
-          end_behavior: {
-            missing_payment_method: 'cancel',
-          },
-        },
+        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
         metadata: { userId },
-      },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
-      metadata: { userId },
-      allow_promotion_codes: true,
-    });
+      });
 
-    console.log('✅ Checkout session opprettet:', session.id);
-    res.status(200).json({ url: session.url });
-    
-  } catch (error) {
-    console.error('❌ Stripe error:', error);
-    // Send mer detaljert feilmelding
-    res.status(500).json({ 
-      message: 'Intern serverfeil', 
-      error: error instanceof Error ? error.message : 'Ukjent feil' 
+      return res.status(200).json({ url: session.url });
+      
+    } catch (stripeError: any) {
+      return res.status(500).json({ 
+        error: 'Checkout session creation feilet',
+        message: stripeError.message,
+        type: stripeError.type,
+        param: stripeError.param,
+        code: stripeError.code
+      });
+    }
+
+  } catch (error: any) {
+    // Siste sikkerhetsnett
+    return res.status(500).json({ 
+      error: 'Uventet feil',
+      message: error.message,
+      stack: error.stack
     });
   }
 }
