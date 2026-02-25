@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import Button from './Button'
 
 interface Props {
   message: string
@@ -36,13 +35,12 @@ export default function ErrorMessage({ message, details, onRetry, className = ''
           )}
           
           {onRetry && (
-            <Button
+            <button
               onClick={onRetry}
-              variant="danger"
-              size="sm"
+              className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition"
             >
               Try again
-            </Button>
+            </button>
           )}
         </div>
       </div>
