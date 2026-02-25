@@ -10,9 +10,16 @@ export default function AIGeneratePage() {
   const [generatedPage, setGeneratedPage] = useState<any>(null)
   const [description, setDescription] = useState('')
   const [profile, setProfile] = useState<any>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState('modern')
+  
+  // Lagrede prompts
+  const [savedPrompts, setSavedPrompts] = useState<any[]>([])
+  const [showSavePromptModal, setShowSavePromptModal] = useState(false)
+  const [promptName, setPromptName] = useState('')
 
   useEffect(() => {
     loadProfile()
+    loadSavedPrompts()
   }, [])
 
   async function loadProfile() {
@@ -30,14 +37,44 @@ export default function AIGeneratePage() {
     }
   }
 
+  async function loadSavedPrompts() {
+    const user = (await supabase.auth.getUser()).data.user
+    if (!user) return
+
+    const { data } = await supabase
+      .from('saved_prompts')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('last_used', { ascending: false })
+      .limit(5)
+
+    setSavedPrompts(data || [])
+  }
+
+  async function savePrompt() {
+    const user = (await supabase.auth.getUser()).data.user
+    if (!user || !promptName.trim() || !description.trim()) return
+
+    await supabase.from('saved_prompts').insert({
+      user_id: user.id,
+      name: promptName,
+      prompt: description,
+      template: selectedTemplate
+    })
+
+    setShowSavePromptModal(false)
+    setPromptName('')
+    loadSavedPrompts()
+  }
+
+  async function usePrompt(promptText: string, template: string) {
+    setDescription(promptText)
+    setSelectedTemplate(template || 'modern')
+  }
+
   async function generateWithAI() {
     if (!description.trim()) {
       alert('Please describe what you want to offer')
-      return
-    }
-
-    if (typeof window.puter === 'undefined') {
-      alert('Puter is not loaded. Please refresh the page.')
       return
     }
 
@@ -45,29 +82,55 @@ export default function AIGeneratePage() {
     setStep('generating')
     
     try {
+      const user = (await supabase.auth.getUser()).data.user
+      if (!user) {
+        alert('You must be logged in')
+        return
+      }
+
+      // Hent oppdatert profil hvis ikke allerede lastet
+      let currentProfile = profile
+      if (!currentProfile) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('full_name, company_name, industry, target_audience, default_offer')
+          .eq('id', user.id)
+          .single()
+        currentProfile = data
+      }
+
+      // Template styles
+      const templateStyles = {
+        modern: 'Clean, professional, lots of whitespace, modern fonts',
+        minimal: 'Simple, focused, short form, minimal distractions',
+        professional: 'Trust-building, authority-focused, testimonials, professional tone',
+        playful: 'Creative, fun, emojis, friendly tone, colorful',
+        urgent: 'Scarcity, limited time, action-oriented, countdown, urgent language'
+      }
+
       const prompt = `You are an expert copywriter. Create a landing page based on this description:
 
 "${description}"
 
-IMPORTANT: The form MUST have:
-- Full Name (required)
-- Email Address (required)
-- PLUS 3-4 OPTIONAL fields (Job Title, Company, Phone, Industry)
+TEMPLATE STYLE: ${selectedTemplate} - ${templateStyles[selectedTemplate as keyof typeof templateStyles]}
+
+CONTEXT:
+- Business: ${currentProfile?.company_name || 'Unknown'}
+- Industry: ${currentProfile?.industry || 'Unknown'}
+- Target audience: ${currentProfile?.target_audience || 'professionals'}
 
 Return ONLY valid JSON in this exact format:
 {
   "title": "A compelling headline about their offer",
   "subheadline": "A short supporting line explaining the value",
   "description": "2-3 sentences about what they'll get",
-  "offer": "The specific thing they're offering (e.g., '14-Day Free Trial', 'Free Guide', 'Demo')",
+  "offer": "The specific thing they're offering",
   "benefits": ["Benefit 1", "Benefit 2", "Benefit 3"],
   "fields": [
     { "type": "text", "label": "Full Name", "placeholder": "John Doe", "required": true },
     { "type": "email", "label": "Email Address", "placeholder": "john@company.com", "required": true },
     { "type": "text", "label": "Job Title (optional)", "placeholder": "e.g., CEO", "required": false },
-    { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false },
-    { "type": "tel", "label": "Phone (optional)", "placeholder": "+1 234 567 890", "required": false },
-    { "type": "text", "label": "Industry (optional)", "placeholder": "e.g., SaaS", "required": false }
+    { "type": "text", "label": "Company (optional)", "placeholder": "e.g., Acme Inc", "required": false }
   ],
   "buttonText": "Call to action button text",
   "trustElements": ["No spam", "Privacy guaranteed"]
@@ -98,52 +161,25 @@ Return ONLY valid JSON in this exact format:
       } catch (e) {
         console.error('Error parsing JSON:', e)
         
-        // Intelligent fallback
-        const words = description.toLowerCase()
-        let offer = 'Free Resource'
-        let title = 'Free Resource'
-        let buttonText = 'Get Access'
-        let benefits = ['Save time', 'Expert insights', 'Practical tips']
-        
-        if (words.includes('trial') || words.includes('14 days') || words.includes('free')) {
-          offer = '14-Day Free Trial'
-          title = 'Try Our Product Free for 14 Days'
-          buttonText = 'Start Free Trial'
-          benefits = ['Full access to all features', 'No credit card required', 'Cancel anytime']
-        } else if (words.includes('demo')) {
-          offer = 'Free Personalized Demo'
-          title = 'See Our Solution in Action'
-          buttonText = 'Book My Demo'
-          benefits = ['Tailored to your needs', 'Live walkthrough', 'Q&A session included']
-        } else if (words.includes('consult') || words.includes('strategy')) {
-          offer = 'Free Strategy Session'
-          title = 'Book Your Free 30-Minute Strategy Call'
-          buttonText = 'Book My Session'
-          benefits = ['Personalized advice', 'Actionable insights', 'No sales pitch']
-        }
-        
+        // Fallback
         aiSuggestion = {
-          title: title,
-          subheadline: `The ultimate resource for ${profile?.target_audience || 'professionals'}`,
-          description: `Get instant access and start seeing results today.`,
-          offer: offer,
-          benefits: benefits,
+          title: "Free Resource: How to Succeed",
+          subheadline: "The ultimate guide for professionals",
+          description: "Get instant access and start seeing results today.",
+          offer: "Free Guide",
+          benefits: ["Save time", "Expert insights", "Practical tips"],
           fields: [
             { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
             { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true },
             { type: 'text', label: 'Job Title (optional)', placeholder: 'e.g., CEO', required: false },
-            { type: 'text', label: 'Company (optional)', placeholder: 'e.g., Acme Inc', required: false },
-            { type: 'tel', label: 'Phone (optional)', placeholder: '+1 234 567 890', required: false },
-            { type: 'text', label: 'Industry (optional)', placeholder: 'e.g., SaaS', required: false }
+            { type: 'text', label: 'Company (optional)', placeholder: 'e.g., Acme Inc', required: false }
           ],
-          buttonText: buttonText,
-          trustElements: ['No spam, unsubscribe anytime', 'We respect your privacy']
+          buttonText: "Get Access",
+          trustElements: ["No spam", "Privacy guaranteed"]
         }
       }
 
-      console.log('📥 Parsed suggestion:', aiSuggestion)
-
-      // 🔥 VALIDER OG SIKRE ALLE FELT
+      // Sikre at alle nødvendige felt finnes
       const safePage = {
         title: aiSuggestion?.title || 'Free Resource',
         subheadline: aiSuggestion?.subheadline || 'Get access now',
@@ -154,24 +190,10 @@ Return ONLY valid JSON in this exact format:
           'Expert insights',
           'Practical tips'
         ],
-        fields: (() => {
-          if (!aiSuggestion?.fields || !Array.isArray(aiSuggestion.fields) || aiSuggestion.fields.length === 0) {
-            return [
-              { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
-              { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true },
-              { type: 'text', label: 'Job Title (optional)', placeholder: 'e.g., CEO', required: false },
-              { type: 'text', label: 'Company (optional)', placeholder: 'e.g., Acme Inc', required: false },
-              { type: 'tel', label: 'Phone (optional)', placeholder: '+1 234 567 890', required: false },
-              { type: 'text', label: 'Industry (optional)', placeholder: 'e.g., SaaS', required: false }
-            ]
-          }
-          return aiSuggestion.fields.map((field: any) => ({
-            type: field.type || 'text',
-            label: field.label || 'Field',
-            placeholder: field.placeholder || '',
-            required: field.required !== false
-          }))
-        })(),
+        fields: Array.isArray(aiSuggestion?.fields) ? aiSuggestion.fields : [
+          { type: 'text', label: 'Full Name', placeholder: 'John Doe', required: true },
+          { type: 'email', label: 'Email Address', placeholder: 'john@company.com', required: true }
+        ],
         buttonText: aiSuggestion?.buttonText || 'Get Access',
         trustElements: Array.isArray(aiSuggestion?.trustElements) ? aiSuggestion.trustElements : [
           'No spam, unsubscribe anytime',
@@ -179,8 +201,7 @@ Return ONLY valid JSON in this exact format:
         ]
       }
 
-      console.log('✅ Validated page:', safePage)
-
+      // Generer slug fra beskrivelsen
       const slug = description
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '-')
@@ -191,15 +212,15 @@ Return ONLY valid JSON in this exact format:
       setGeneratedPage({
         ...safePage,
         primaryColor: '#3b82f6',
-        template: 'modern',
+        template: selectedTemplate,
         slug: slug
       })
 
       setStep('preview')
       
     } catch (error: any) {
-      console.error('❌ AI error:', error)
-      alert('Error: ' + (error?.message || 'Unknown error'))
+      console.error('AI generation error:', error)
+      alert('Failed to generate page: ' + error.message)
       setStep('form')
     } finally {
       setLoading(false)
@@ -230,17 +251,7 @@ Return ONLY valid JSON in this exact format:
         counter++
       }
       
-      console.log('Saving page with ALL data:', {
-        title: generatedPage.title,
-        subheadline: generatedPage.subheadline,
-        description: generatedPage.description,
-        offer: generatedPage.offer,
-        benefits: generatedPage.benefits,
-        buttonText: generatedPage.buttonText,
-        trustElements: generatedPage.trustElements
-      })
-
-      // Opprett siden med ALL data i settings
+      // Opprett siden
       const { data: page, error: pageError } = await supabase
         .from('landing_pages')
         .insert({
@@ -255,11 +266,7 @@ Return ONLY valid JSON in this exact format:
             benefits: generatedPage.benefits,
             trustElements: generatedPage.trustElements,
             offer: generatedPage.offer,
-            buttonText: generatedPage.buttonText,
-            fullDescription: generatedPage.description, // Lagre hele beskrivelsen
-            longBenefits: generatedPage.benefits, // Sikre at benefits lagres
-            headline: generatedPage.title,
-            subheadline: generatedPage.subheadline
+            buttonText: generatedPage.buttonText
           }
         })
         .select()
@@ -270,22 +277,16 @@ Return ONLY valid JSON in this exact format:
       // Opprett feltene
       for (let i = 0; i < generatedPage.fields.length; i++) {
         const field = generatedPage.fields[i]
-        console.log('Creating field:', field)
-        
-        const { error: fieldError } = await supabase
+        await supabase
           .from('landing_page_fields')
           .insert({
             landing_page_id: page.id,
             field_type: field.type,
             label: field.label,
-            placeholder: field.placeholder || '',
+            placeholder: field.placeholder,
             required: field.required !== false,
             sort_order: i
           })
-
-        if (fieldError) {
-          console.error('Error creating field:', fieldError)
-        }
       }
 
       router.push(`/landing-pages/${page.id}`)
@@ -344,6 +345,26 @@ Return ONLY valid JSON in this exact format:
               </div>
             )}
 
+            {/* Lagrede prompts */}
+            {savedPrompts.length > 0 && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  📋 Your saved prompts
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {savedPrompts.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => usePrompt(p.prompt, p.template)}
+                      className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -358,13 +379,52 @@ Return ONLY valid JSON in this exact format:
                 />
               </div>
 
+              {/* Lagre prompt-knapp */}
+              {description.trim() && (
+                <button
+                  onClick={() => setShowSavePromptModal(true)}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  💾 Save this prompt
+                </button>
+              )}
+
+              {/* Template selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  🎨 Choose a template
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: 'modern', name: 'Modern', icon: '✨', desc: 'Clean & professional' },
+                    { id: 'minimal', name: 'Minimal', icon: '🎯', desc: 'Simple & focused' },
+                    { id: 'professional', name: 'Professional', icon: '👔', desc: 'Trust & authority' },
+                    { id: 'playful', name: 'Playful', icon: '🎨', desc: 'Creative & fun' },
+                    { id: 'urgent', name: 'Urgent', icon: '⏰', desc: 'Limited time offer' }
+                  ].map(template => (
+                    <button
+                      key={template.id}
+                      onClick={() => setSelectedTemplate(template.id)}
+                      className={`p-4 border rounded-lg text-left transition ${
+                        selectedTemplate === template.id
+                          ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-600'
+                          : 'hover:border-gray-400'
+                      }`}
+                    >
+                      <span className="text-2xl mb-2 block">{template.icon}</span>
+                      <span className="font-medium block">{template.name}</span>
+                      <span className="text-xs text-gray-500">{template.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <h3 className="font-medium text-gray-800 mb-2">✨ Examples</h3>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li>"Free eBook about email marketing for e-commerce stores"</li>
                   <li>"Personalized demo of our project management software"</li>
                   <li>"30-minute strategy session for real estate agents"</li>
-                  <li>"14-day free trial of myleadassistant.com for small business owners"</li>
                 </ul>
               </div>
 
@@ -373,7 +433,7 @@ Return ONLY valid JSON in this exact format:
                 disabled={!description.trim() || loading}
                 className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
               >
-                {loading ? 'Generating...' : 'Generate Landing Page'}
+                Generate Landing Page
               </button>
             </div>
           </div>
@@ -470,6 +530,49 @@ Return ONLY valid JSON in this exact format:
           </div>
         )}
       </div>
+
+      {/* Modal for å lagre prompt */}
+      {showSavePromptModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold mb-4">Save this prompt</h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Prompt name</label>
+              <input
+                type="text"
+                value={promptName}
+                onChange={(e) => setPromptName(e.target.value)}
+                className="w-full border rounded-md p-2"
+                placeholder="e.g., SaaS demo request"
+              />
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Preview:</p>
+              <div className="bg-gray-50 p-3 rounded text-sm">
+                "{description.substring(0, 100)}..."
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowSavePromptModal(false)}
+                className="px-4 py-2 border rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={savePrompt}
+                disabled={!promptName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }
