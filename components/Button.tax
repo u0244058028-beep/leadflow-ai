@@ -37,12 +37,6 @@ export default function Button({
     lg: 'px-6 py-3 text-lg'
   }
   
-  const iconSizes = {
-    sm: 'w-4 h-4',
-    md: 'w-5 h-5',
-    lg: 'w-6 h-6'
-  }
-  
   return (
     <button
       className={`
@@ -64,13 +58,13 @@ export default function Button({
       )}
       
       {!loading && icon && iconPosition === 'left' && (
-        <span className={iconSizes[size]}>{icon}</span>
+        <span className="text-current">{icon}</span>
       )}
       
       {children}
       
       {!loading && icon && iconPosition === 'right' && (
-        <span className={iconSizes[size]}>{icon}</span>
+        <span className="text-current">{icon}</span>
       )}
     </button>
   )
