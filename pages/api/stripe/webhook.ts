@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { stripe } from '@/lib/stripe';
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseAdmin'; // 🟢 Endret til admin-klient
 
 export const config = {
   api: {
@@ -81,8 +81,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: 'Ingen userId i metadata' });
         }
 
-        // Sjekk om brukeren finnes i databasen
-        const { data: existingUser, error: findError } = await supabase
+        // Sjekk om brukeren finnes i databasen (bruker admin-klient)
+        const { data: existingUser, error: findError } = await supabaseAdmin
           .from('profiles')
           .select('id, email, subscription_status')
           .eq('id', userId)
@@ -110,8 +110,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           current_period_end: subscription.current_period_end
         });
 
-        // Oppdater brukeren i databasen
-        const { data: updateData, error: updateError } = await supabase
+        // Oppdater brukeren i databasen (bruker admin-klient)
+        const { data: updateData, error: updateError } = await supabaseAdmin
           .from('profiles')
           .update({
             subscription_id: subscriptionId,
@@ -142,7 +142,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('🔄 subscription.updated:', { userId, status: subscription.status });
 
         if (userId) {
-          const { error: updateError } = await supabase
+          const { error: updateError } = await supabaseAdmin
             .from('profiles')
             .update({
               subscription_status: subscription.status,
@@ -167,7 +167,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('🗑️ subscription.deleted:', { userId });
 
         if (userId) {
-          const { error: updateError } = await supabase
+          const { error: updateError } = await supabaseAdmin
             .from('profiles')
             .update({
               subscription_status: 'cancelled',
@@ -194,7 +194,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const userId = (customer as any).metadata?.userId;
 
         if (userId) {
-          const { error: updateError } = await supabase
+          const { error: updateError } = await supabaseAdmin
             .from('profiles')
             .update({
               subscription_status: 'past_due',
