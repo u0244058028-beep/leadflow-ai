@@ -55,9 +55,11 @@ export function useSubscription() {
             subscriptionStatus: profile.subscription_status,
             loading: false,
           });
+        } else {
+          setStatus(prev => ({ ...prev, loading: false }));
         }
       } catch (error) {
-        console.error('Error fetching subscription:', error);
+        console.error('Feil ved henting av abonnement:', error);
         setStatus(prev => ({ ...prev, loading: false }));
       }
     };
@@ -68,7 +70,9 @@ export function useSubscription() {
       fetchSubscription();
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   return status;
