@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
-import { useSubscription } from '@/hooks/useSubscription' // 🆕 NY
-import Button from '@/components/Button' // 🆕 NY (hvis du har Button-komponent)
+import { useSubscription } from '@/hooks/useSubscription'
 
 export default function Profile() {
   const router = useRouter()
@@ -15,7 +14,7 @@ export default function Profile() {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState({ type: '', text: '' })
   
-  // 🆕 NY: Abonnementshooks
+  // Subscription hooks
   const subscription = useSubscription()
   const [cancelling, setCancelling] = useState(false)
 
@@ -83,7 +82,7 @@ export default function Profile() {
     }
   }
 
-  // 🆕 NY: Håndter kansellering av abonnement
+  // Håndter kansellering av abonnement
   async function handleCancelSubscription() {
     if (!confirm('Are you sure you want to cancel your subscription? You will lose access to Pro features at the end of your billing period.')) {
       return
@@ -119,7 +118,7 @@ export default function Profile() {
     }
   }
 
-  // 🆕 NY: Åpne Stripe Customer Portal
+  // Åpne Stripe Customer Portal
   async function handleManageBilling() {
     try {
       const user = (await supabase.auth.getUser()).data.user
@@ -131,12 +130,17 @@ export default function Profile() {
         body: JSON.stringify({ userId: user.id }),
       })
 
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message)
+      }
+
       const { url } = await response.json()
       window.location.href = url
     } catch (err: any) {
       setMessage({
         type: 'error',
-        text: 'Error opening billing portal',
+        text: err.message || 'Error opening billing portal',
       })
     }
   }
@@ -185,7 +189,7 @@ export default function Profile() {
         <h1 className="text-2xl font-bold mb-6">Your Profile</h1>
 
         <div className="bg-white rounded-lg shadow p-6">
-          {/* Eksisterende profilskjema */}
+          {/* Profile Form - DIN ORIGINALE KODE */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700">Email</label>
@@ -244,7 +248,7 @@ export default function Profile() {
             </div>
           </form>
 
-          {/* 🆕 NY SEKSJON: Subscription Management */}
+          {/* 🆕 Subscription Management - OPPDATERT VERSJON */}
           <div className="mt-8 pt-6 border-t border-gray-200">
             <h2 className="text-lg font-semibold mb-4">Subscription</h2>
             
@@ -268,17 +272,35 @@ export default function Profile() {
                       )}
                     </p>
                   </div>
-                  {!subscription.isActive && !subscription.isTrial && (
+                </div>
+
+                {/* 🆕 Trial Expiring Soon Warning (3 days or less) */}
+                {subscription.isTrial && subscription.daysLeft !== null && subscription.daysLeft <= 3 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-yellow-800 text-sm font-medium">
+                      ⚠️ Your trial ends in {subscription.daysLeft} days. 
+                      Upgrade now to avoid interruption.
+                    </p>
+                  </div>
+                )}
+
+                {/* Trial Info & Actions */}
+                {subscription.isTrial && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-blue-800 text-sm mb-3">
+                      You're on a 14-day free trial. You won't be charged until your trial ends. 
+                      Upgrade anytime to keep using Pro features.
+                    </p>
                     <button
                       onClick={() => router.push('/pricing')}
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
                     >
                       Upgrade Now
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                {/* Subscription Actions */}
+                {/* Active Subscription Actions */}
                 {subscription.isActive && (
                   <div className="space-y-3">
                     <button
@@ -302,17 +324,17 @@ export default function Profile() {
                   </div>
                 )}
 
-                {/* Trial Info */}
-                {subscription.isTrial && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-blue-800 text-sm">
-                      You're on a 14-day free trial. You won't be charged until your trial ends.
+                {/* No Subscription */}
+                {!subscription.isActive && !subscription.isTrial && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                    <p className="text-gray-600 text-sm mb-3">
+                      You don't have an active subscription.
                     </p>
                     <button
                       onClick={() => router.push('/pricing')}
-                      className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
                     >
-                      Upgrade Now
+                      View Plans
                     </button>
                   </div>
                 )}
@@ -320,7 +342,7 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Danger Zone (din eksisterende) */}
+          {/* Danger Zone - DIN ORIGINALE KODE */}
           <div className="mt-8 pt-6 border-t border-red-200">
             <h2 className="text-lg font-semibold text-red-600 mb-2">Danger Zone</h2>
             <p className="text-sm text-gray-600 mb-4">
