@@ -9,29 +9,49 @@ export default function PricingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasHadTrial, setHasHadTrial] = useState(false);
   const [isActive, setIsActive] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null); // For debugging
   const router = useRouter();
   const { showToast } = useToast();
 
   useEffect(() => {
     const checkUserStatus = async () => {
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('👤 User:', user);
       setIsLoggedIn(!!user);
 
       if (user) {
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('trial_ends_at, subscription_status')
           .eq('id', user.id)
           .single();
 
+        console.log('📊 Profile:', profile);
+        console.log('❌ Error:', error);
+
         if (profile) {
-          const trialEnded = profile.trial_ends_at 
-            ? new Date(profile.trial_ends_at) < new Date() 
-            : false;
+          const trialEndsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+          const now = new Date();
+          const trialEnded = trialEndsAt ? trialEndsAt < now : false;
           const hadActiveSubscription = profile.subscription_status === 'active';
+          
+          console.log('📅 trialEndsAt:', trialEndsAt);
+          console.log('⏰ now:', now);
+          console.log('✅ trialEnded:', trialEnded);
+          console.log('💳 hadActiveSubscription:', hadActiveSubscription);
           
           setHasHadTrial(trialEnded || hadActiveSubscription);
           setIsActive(profile.subscription_status === 'active');
+          
+          // For debugging
+          setDebugInfo({
+            trialEndsAt: trialEndsAt?.toISOString(),
+            now: now.toISOString(),
+            trialEnded,
+            hadActiveSubscription,
+            subscription_status: profile.subscription_status,
+            hasHadTrial: trialEnded || hadActiveSubscription
+          });
         }
       }
     };
@@ -84,12 +104,11 @@ export default function PricingPage() {
     'Priority support',
   ];
 
-  // Bestem knappetekst basert på brukerstatus
   const getButtonText = () => {
     if (!isLoggedIn) return 'Start 14-day free trial';
-    if (isActive) return 'Manage Subscription'; // Allerede aktiv
-    if (hasHadTrial) return 'Upgrade Now'; // Har hatt trial før
-    return 'Start 14-day free trial'; // Ny bruker
+    if (isActive) return 'Manage Subscription';
+    if (hasHadTrial) return 'Upgrade Now';
+    return 'Start 14-day free trial';
   };
 
   const getDescriptionText = () => {
@@ -99,7 +118,11 @@ export default function PricingPage() {
     return 'Start your 14-day free trial. No credit card required.';
   };
 
-  // Hvis allerede aktiv, vis annen knapp
+  // Debug-visning (fjern etter testing)
+  if (debugInfo) {
+    console.log('🔍 Debug info:', debugInfo);
+  }
+
   if (isActive) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-20">
@@ -127,6 +150,18 @@ export default function PricingPage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Simple, predictable pricing</h1>
           <p className="text-xl text-gray-600">{getDescriptionText()}</p>
+          
+          {/* Midlertidig debug-info - fjern etter testing */}
+          {debugInfo && (
+            <div className="mt-4 p-4 bg-gray-100 rounded-lg text-left text-sm">
+              <p><strong>Debug:</strong></p>
+              <p>trialEndsAt: {debugInfo.trialEndsAt}</p>
+              <p>now: {debugInfo.now}</p>
+              <p>trialEnded: {debugInfo.trialEnded.toString()}</p>
+              <p>subscription_status: {debugInfo.subscription_status}</p>
+              <p>hasHadTrial: {debugInfo.hasHadTrial.toString()}</p>
+            </div>
+          )}
         </div>
 
         <div className="max-w-md mx-auto">
