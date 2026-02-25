@@ -22,7 +22,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const buf = await buffer(req);
-  const sig = req.headers['stripe-signature']!;
+  const sigHeader = req.headers['stripe-signature'];
+  
+  // 🔧 FIX: Håndter at signature kan være string eller string[]
+  const sig = Array.isArray(sigHeader) ? sigHeader[0] : sigHeader;
+
+  if (!sig) {
+    console.error('❌ Ingen Stripe-signatur funnet i headers');
+    return res.status(400).json({ error: 'Mangler Stripe-signatur' });
+  }
 
   console.log('🔍 Webhook mottatt');
   console.log('Signature:', sig.substring(0, 20) + '...');
@@ -77,6 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             subscription_status: 'active',
             subscription_period_end: new Date(subscription.current_period_end * 1000),
             trial_ends_at: null,
+            stripe_customer_id: customerId,
           })
           .eq('id', userId)
           .select();
@@ -93,8 +102,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         break;
       }
 
-      // ... resten av events
-      
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object;
+        const userId = subscription.metadata?.userId;
+
+        if (userId) {
+          await supabase
+            .from('profiles')
+            .update({
+              subscription_status: subscription.status,
+              subscription_period_end: new Date(subscription.current_period_end * 1000),
+              cancelled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
+            })
+            .eq('id', userId);
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        const userId = subscription.metadata?.userId;
+
+        if (userId) {
+          await supabase
+            .from('profiles')
+            .update({
+              subscription_status: 'cancelled',
+              subscription_id: null,
+            })
+            .eq('id', userId);
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        const customerId = invoice.customer;
+
+        const customer = await stripe.customers.retrieve(customerId as string);
+        const userId = (customer as any).metadata?.userId;
+
+        if (userId) {
+          await supabase
+            .from('profiles')
+            .update({
+              subscription_status: 'past_due',
+            })
+            .eq('id', userId);
+        }
+        break;
+      }
+
       default:
         console.log('📌 Ignorerer event:', event.type);
     }
