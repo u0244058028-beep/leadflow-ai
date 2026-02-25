@@ -20,7 +20,7 @@ export default function App({ Component, pageProps }: AppProps) {
           console.error('❌ [APP] Auth-feil:', error)
         }
 
-        const publicPaths = ['/login', '/', '/s/', '/onboarding']
+        const publicPaths = ['/login', '/', '/s/', '/onboarding', '/pricing'] // 🆕 Legg til pricing som public
         const isPublicPath = publicPaths.some(path => 
           router.pathname === path || router.pathname.startsWith('/s/')
         )
@@ -36,9 +36,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
         console.log('✅ [APP] Bruker funnet:', user.id, user.email)
 
+        // 🆕 Hent flere felt fra profiles inkludert abonnementsstatus
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id, full_name, onboarding_completed, welcome_email_sent')
+          .select('id, full_name, onboarding_completed, welcome_email_sent, subscription_status, trial_ends_at')
           .eq('id', user.id)
           .maybeSingle()
 
@@ -54,6 +55,10 @@ export default function App({ Component, pageProps }: AppProps) {
                           user.email?.split('@')[0] || 
                           'User'
 
+          // 🆕 Legg til trial_ends_at ved opprettelse
+          const trialEndsAt = new Date()
+          trialEndsAt.setDate(trialEndsAt.getDate() + 14) // 14 dagers trial
+
           const { error: insertError } = await supabase
             .from('profiles')
             .insert({
@@ -62,7 +67,9 @@ export default function App({ Component, pageProps }: AppProps) {
               full_name: fullName,
               avatar_url: user.user_metadata?.avatar_url || null,
               onboarding_completed: false,
-              welcome_email_sent: false
+              welcome_email_sent: false,
+              subscription_status: 'trial', // 🆕
+              trial_ends_at: trialEndsAt.toISOString() // 🆕
             })
 
           if (insertError) {
@@ -75,6 +82,27 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
+        // 🆕 NY SEKSJON: Sjekk abonnementsstatus
+        if (profile && !isPublicPath && router.pathname !== '/pricing') {
+          const trialEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null
+          const now = new Date()
+          
+          // Hvis trial er utløpt og ingen aktivt abonnement
+          if (trialEnd && trialEnd < now && profile.subscription_status !== 'active') {
+            console.log('⚠️ [APP] Trial utløpt, redirect til pricing')
+            router.push('/pricing')
+            return
+          }
+
+          // Hvis abonnementet er kansellert eller utløpt
+          if (profile.subscription_status === 'cancelled' || profile.subscription_status === 'past_due') {
+            console.log('⚠️ [APP] Abonnement problem, redirect til pricing')
+            router.push('/pricing')
+            return
+          }
+        }
+
+        // Hent oppdatert profil for onboarding-sjekk
         const { data: updatedProfile } = await supabase
           .from('profiles')
           .select('full_name, onboarding_completed')
@@ -110,30 +138,39 @@ export default function App({ Component, pageProps }: AppProps) {
       if (event === 'SIGNED_IN') {
         const createProfileOnSignIn = async () => {
           if (session?.user) {
+            // 🆕 Sjekk om profil finnes med abonnementsstatus
             const { data: profile } = await supabase
               .from('profiles')
-              .select('id')
+              .select('id, subscription_status')
               .eq('id', session.user.id)
               .maybeSingle()
 
             if (!profile) {
+              const fullName = session.user.user_metadata?.full_name || 
+                              session.user.user_metadata?.name || 
+                              session.user.email?.split('@')[0] || 
+                              'User'
+
+              // 🆕 Sett trial ved ny profil
+              const trialEndsAt = new Date()
+              trialEndsAt.setDate(trialEndsAt.getDate() + 14)
+
               await supabase.from('profiles').insert({
                 id: session.user.id,
                 email: session.user.email,
-                full_name: session.user.user_metadata?.full_name || 
-                          session.user.user_metadata?.name || 
-                          session.user.email?.split('@')[0] || 
-                          'User',
+                full_name: fullName,
                 avatar_url: session.user.user_metadata?.avatar_url || null,
                 onboarding_completed: false,
-                welcome_email_sent: false
+                welcome_email_sent: false,
+                subscription_status: 'trial', // 🆕
+                trial_ends_at: trialEndsAt.toISOString() // 🆕
               })
               console.log('✅ [APP] Profil opprettet ved SIGNED_IN')
               
               if (session.user.email) {
                 await sendWelcomeEmail(
                   session.user.email, 
-                  session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+                  fullName,
                   session.user.id
                 )
               }
