@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/router'
 import OnboardingGuide from '@/components/OnboardingGuide'
+import { ToastProvider } from '@/components/Toast'
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
@@ -19,7 +20,6 @@ export default function App({ Component, pageProps }: AppProps) {
           console.error('❌ [APP] Auth-feil:', error)
         }
 
-        // Publiske sider som ikke krever innlogging
         const publicPaths = ['/login', '/', '/s/', '/onboarding']
         const isPublicPath = publicPaths.some(path => 
           router.pathname === path || router.pathname.startsWith('/s/')
@@ -36,7 +36,6 @@ export default function App({ Component, pageProps }: AppProps) {
 
         console.log('✅ [APP] Bruker funnet:', user.id, user.email)
 
-        // Sjekk om profilen finnes i public.profiles
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, full_name, onboarding_completed, welcome_email_sent')
@@ -47,9 +46,6 @@ export default function App({ Component, pageProps }: AppProps) {
           console.error('❌ [APP] Profil-sjekk feil:', profileError)
         }
 
-        console.log('📋 [APP] Profil finnes?', !!profile)
-
-        // Hvis profilen mangler, opprett den!
         if (!profile) {
           console.log('➕ [APP] Oppretter profil for:', user.id)
           
@@ -73,15 +69,12 @@ export default function App({ Component, pageProps }: AppProps) {
             console.error('❌ [APP] Feil ved opprettelse av profil:', insertError)
           } else {
             console.log('✅ [APP] Profil opprettet!')
-            
-            // Send velkomst-e-post
             if (user.email) {
               await sendWelcomeEmail(user.email, fullName, user.id)
             }
           }
         }
 
-        // SJEKK OM BRUKER TRENGER ONBOARDING
         const { data: updatedProfile } = await supabase
           .from('profiles')
           .select('full_name, onboarding_completed')
@@ -98,7 +91,6 @@ export default function App({ Component, pageProps }: AppProps) {
           return
         }
 
-        // Hvis bruker er på login-siden og er innlogget, send til dashboard
         if (router.pathname === '/login') {
           router.push('/dashboard')
         }
@@ -112,12 +104,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
     checkUserAndCreateProfile()
 
-    // Lytt på auth-endringer
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('📢 [APP] Auth state changed:', event)
       
       if (event === 'SIGNED_IN') {
-        // Ved innlogging, sjekk og opprett profil
         const createProfileOnSignIn = async () => {
           if (session?.user) {
             const { data: profile } = await supabase
@@ -140,7 +130,6 @@ export default function App({ Component, pageProps }: AppProps) {
               })
               console.log('✅ [APP] Profil opprettet ved SIGNED_IN')
               
-              // Send velkomst-e-post
               if (session.user.email) {
                 await sendWelcomeEmail(
                   session.user.email, 
@@ -150,7 +139,6 @@ export default function App({ Component, pageProps }: AppProps) {
               }
             }
             
-            // Sjekk om bruker trenger onboarding
             const { data: newProfile } = await supabase
               .from('profiles')
               .select('onboarding_completed, full_name')
@@ -175,7 +163,6 @@ export default function App({ Component, pageProps }: AppProps) {
     }
   }, [router])
 
-  // Funksjon for å sende velkomst-e-post
   async function sendWelcomeEmail(email: string, name: string, userId: string) {
     try {
       console.log('📧 [APP] Sender velkomst-e-post til:', email)
@@ -190,8 +177,6 @@ export default function App({ Component, pageProps }: AppProps) {
       
       if (response.ok) {
         console.log('✅ [APP] Velkomst-e-post sendt!', data)
-        
-        // Marker at e-post er sendt
         await supabase
           .from('profiles')
           .update({ welcome_email_sent: true })
@@ -216,9 +201,9 @@ export default function App({ Component, pageProps }: AppProps) {
   }
 
   return (
-    <>
+    <ToastProvider>
       <Component {...pageProps} />
       <OnboardingGuide />
-    </>
+    </ToastProvider>
   )
 }
