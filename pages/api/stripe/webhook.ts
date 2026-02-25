@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { stripe } from '@/lib/stripe';
-import { supabaseAdmin } from '@/lib/supabaseAdmin'; // 🟢 Endret til admin-klient
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const config = {
   api: {
@@ -17,28 +17,17 @@ async function buffer(readable: any) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Logg start
-  console.log('🚀 Webhook function start');
-  
   if (req.method !== 'POST') {
-    console.log('❌ Feil metode:', req.method);
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   const buf = await buffer(req);
   const sigHeader = req.headers['stripe-signature'];
-  
-  // Håndter at signature kan være string eller string[]
   const sig = Array.isArray(sigHeader) ? sigHeader[0] : sigHeader;
 
   if (!sig) {
-    console.error('❌ Ingen Stripe-signatur funnet i headers');
-    return res.status(400).json({ error: 'Mangler Stripe-signatur' });
+    return res.status(400).json({ error: 'Missing Stripe signature' });
   }
-
-  console.log('🔍 Webhook mottatt');
-  console.log('Signature:', sig.substring(0, 20) + '...');
-  console.log('Body length:', buf.length);
 
   let event;
 
@@ -48,19 +37,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-    console.log('✅ Event konstruert:', event.type);
-    console.log('📦 Event data:', JSON.stringify(event.data.object, null, 2));
   } catch (err) {
-    console.error('❌ Webhook signature verification failed:', err);
-    return res.status(400).json({ 
-      error: 'Webhook signature verification failed',
-      message: err instanceof Error ? err.message : 'Unknown error'
-    });
+    return res.status(400).json({ error: 'Webhook signature verification failed' });
   }
 
   try {
-    console.log('🔄 Behandler event:', event.type);
-    
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;
@@ -68,50 +49,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const subscriptionId = session.subscription;
         const customerId = session.customer;
 
-        console.log('💰 checkout.session.completed:', { 
-          userId, 
-          subscriptionId, 
-          customerId,
-          metadata: session.metadata,
-          email: session.customer_details?.email
-        });
-
         if (!userId) {
-          console.log('❌ Ingen userId i metadata');
-          return res.status(400).json({ error: 'Ingen userId i metadata' });
+          throw new Error('No userId in metadata');
         }
 
-        // Sjekk om brukeren finnes i databasen (bruker admin-klient)
-        const { data: existingUser, error: findError } = await supabaseAdmin
-          .from('profiles')
-          .select('id, email, subscription_status')
-          .eq('id', userId)
-          .maybeSingle();
-
-        console.log('👤 Eksisterende bruker:', existingUser);
-        
-        if (findError) {
-          console.error('❌ Feil ved søk etter bruker:', findError);
-          return res.status(500).json({ 
-            error: 'Databasefeil ved søk',
-            details: findError.message 
-          });
-        }
-
-        if (!existingUser) {
-          console.log('❌ Bruker ikke funnet i database:', userId);
-          return res.status(404).json({ error: 'Bruker ikke funnet' });
-        }
-
-        // Hent abonnementsdetaljer fra Stripe
         const subscription = await stripe.subscriptions.retrieve(subscriptionId as string);
-        console.log('📊 Abonnementsdetaljer:', {
-          status: subscription.status,
-          current_period_end: subscription.current_period_end
-        });
 
-        // Oppdater brukeren i databasen (bruker admin-klient)
-        const { data: updateData, error: updateError } = await supabaseAdmin
+        await supabaseAdmin
           .from('profiles')
           .update({
             subscription_id: subscriptionId,
@@ -120,18 +64,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             trial_ends_at: null,
             stripe_customer_id: customerId,
           })
-          .eq('id', userId)
-          .select();
+          .eq('id', userId);
 
-        if (updateError) {
-          console.error('❌ Supabase update error:', updateError);
-          return res.status(500).json({ 
-            error: 'Supabase update feilet',
-            details: updateError.message 
-          });
-        }
-
-        console.log('✅ Bruker oppdatert i Supabase:', updateData);
         break;
       }
 
@@ -139,10 +73,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const subscription = event.data.object;
         const userId = subscription.metadata?.userId;
 
-        console.log('🔄 subscription.updated:', { userId, status: subscription.status });
-
         if (userId) {
-          const { error: updateError } = await supabaseAdmin
+          await supabaseAdmin
             .from('profiles')
             .update({
               subscription_status: subscription.status,
@@ -150,12 +82,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               cancelled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
             })
             .eq('id', userId);
-
-          if (updateError) {
-            console.error('❌ Feil ved oppdatering:', updateError);
-          } else {
-            console.log('✅ subscription.updated fullført');
-          }
         }
         break;
       }
@@ -164,22 +90,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const subscription = event.data.object;
         const userId = subscription.metadata?.userId;
 
-        console.log('🗑️ subscription.deleted:', { userId });
-
         if (userId) {
-          const { error: updateError } = await supabaseAdmin
+          await supabaseAdmin
             .from('profiles')
             .update({
               subscription_status: 'cancelled',
               subscription_id: null,
             })
             .eq('id', userId);
-
-          if (updateError) {
-            console.error('❌ Feil ved sletting:', updateError);
-          } else {
-            console.log('✅ subscription.deleted fullført');
-          }
         }
         break;
       }
@@ -188,38 +106,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const invoice = event.data.object;
         const customerId = invoice.customer;
 
-        console.log('❌ invoice.payment_failed:', { customerId });
-
         const customer = await stripe.customers.retrieve(customerId as string);
         const userId = (customer as any).metadata?.userId;
 
         if (userId) {
-          const { error: updateError } = await supabaseAdmin
+          await supabaseAdmin
             .from('profiles')
             .update({
               subscription_status: 'past_due',
             })
             .eq('id', userId);
-
-          if (updateError) {
-            console.error('❌ Feil ved oppdatering:', updateError);
-          } else {
-            console.log('✅ invoice.payment_failed fullført');
-          }
         }
         break;
       }
-
-      default:
-        console.log('📌 Ignorerer event:', event.type);
     }
 
-    // Alltid returner 200 OK til Stripe
     res.json({ received: true });
-    
   } catch (error) {
-    console.error('❌ Webhook handling error:', error);
-    // Selv ved feil, returner 200 for å unngå at Stripe prøver igjen
-    res.json({ received: true, error: error instanceof Error ? error.message : 'Unknown error' });
+    console.error('Webhook error:', error);
+    res.json({ received: true }); // Always return 200 to Stripe
   }
 }
