@@ -39,7 +39,7 @@ export default function LandingPage() {
                     Log in
                   </Link>
                   <Link
-                    href="/pricing"  // 🆕 Endret fra /login?signup=true til /pricing
+                    href="/signup"  // 🟢 Endret til signup (ikke pricing)
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
                   >
                     Start free trial
@@ -66,7 +66,7 @@ export default function LandingPage() {
           </p>
           <div className="flex gap-4 justify-center">
             <Link
-              href="/pricing"  // 🆕 Endret fra /login?signup=true til /pricing
+              href="/signup"  // 🟢 Endret til signup
               className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-lg font-medium"
             >
               Start 14-day free trial
@@ -174,7 +174,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* New Feature Highlight: AI Landing Pages */}
+      {/* AI Landing Pages Feature */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -206,7 +206,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               <Link
-                href="/pricing"  // 🆕 Endret fra /login?signup=true til /pricing
+                href="/signup"  // 🟢 Endret til signup
                 className="mt-8 inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
               >
                 Try it now
@@ -325,7 +325,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Link
-                href="/pricing"  // 🆕 Endret til å gå til pricing-siden
+                href="/pricing"  // 🟢 Denne skal fortsatt gå til pricing
                 className="block w-full text-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
               >
                 See pricing details
