@@ -39,7 +39,7 @@ export default function LandingPage() {
                     Log in
                   </Link>
                   <Link
-                    href="/signup"  // 🟢 Endret til signup (ikke pricing)
+                    href="/signup"
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
                   >
                     Start free trial
@@ -66,7 +66,7 @@ export default function LandingPage() {
           </p>
           <div className="flex gap-4 justify-center">
             <Link
-              href="/signup"  // 🟢 Endret til signup
+              href="/signup"
               className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-lg font-medium"
             >
               Start 14-day free trial
@@ -206,7 +206,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               <Link
-                href="/signup"  // 🟢 Endret til signup
+                href="/signup"
                 className="mt-8 inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
               >
                 Try it now
@@ -325,7 +325,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Link
-                href="/pricing"  // 🟢 Denne skal fortsatt gå til pricing
+                href="/pricing"
                 className="block w-full text-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
               >
                 See pricing details
@@ -335,7 +335,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Footer - OPPDATERT MED DINE LENKER */}
       <footer className="bg-gray-900 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-8">
@@ -364,8 +364,26 @@ export default function LandingPage() {
             <div>
               <h4 className="text-lg font-semibold mb-4">Follow us</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">Twitter</a></li>
-                <li><a href="#" className="hover:text-white">LinkedIn</a></li>
+                <li>
+                  <a 
+                    href="https://x.com/L30401My" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-white transition"
+                  >
+                    X (Twitter)
+                  </a>
+                </li>
+                <li>
+                  <a 
+                    href="https://www.linkedin.com/in/tor-arne-storesund-23b90b104" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="hover:text-white transition"
+                  >
+                    LinkedIn
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
