@@ -20,7 +20,18 @@ export default function App({ Component, pageProps }: AppProps) {
           console.error('❌ [APP] Auth-feil:', error)
         }
 
-        const publicPaths = ['/login', '/', '/s/', '/onboarding', '/pricing']
+        // 🟢 Legg til about, contact, privacy som offentlige sider
+        const publicPaths = [
+          '/login', 
+          '/', 
+          '/s/', 
+          '/onboarding', 
+          '/pricing',
+          '/about',        // 🆕 Lagt til
+          '/contact',      // 🆕 Lagt til
+          '/privacy'       // 🆕 Lagt til
+        ]
+        
         const isPublicPath = publicPaths.some(path => 
           router.pathname === path || router.pathname.startsWith('/s/')
         )
@@ -36,7 +47,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
         console.log('✅ [APP] Bruker funnet:', user.id, user.email)
 
-        // 🟢 Hent alle nødvendige felt for engangskjøp
+        // Hent alle nødvendige felt for engangskjøp
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, full_name, onboarding_completed, welcome_email_sent, subscription_status, trial_ends_at, has_active_purchase, purchase_expires_at')
@@ -56,9 +67,8 @@ export default function App({ Component, pageProps }: AppProps) {
                           'User'
 
           const trialEndsAt = new Date()
-          trialEndsAt.setDate(trialEndsAt.getDate() + 14) // 14 dagers trial
+          trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
-          // 🟢 Opprett profil med nye felt for engangskjøp
           const { error: insertError } = await supabase
             .from('profiles')
             .insert({
@@ -84,34 +94,20 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
-        // 🟢 NY SEKSJON: Sjekk tilgang (trial eller kjøp)
+        // Sjekk tilgang (trial eller kjøp) - men IKKE for offentlige sider
         if (profile && !isPublicPath && router.pathname !== '/pricing') {
           const now = new Date()
           
-          // Sjekk om brukeren er i trial
           const trialEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null
           const isInTrial = trialEnd && trialEnd > now && profile.subscription_status === 'trial'
           
-          // Sjekk om brukeren har aktivt kjøp
           const purchaseExpires = profile.purchase_expires_at ? new Date(profile.purchase_expires_at) : null
           const hasActivePurchase = profile.has_active_purchase && purchaseExpires && purchaseExpires > now
 
-          // Hvis verken trial eller aktivt kjøp, redirect til pricing
           if (!isInTrial && !hasActivePurchase) {
             console.log('⚠️ [APP] Ingen aktiv tilgang, redirect til pricing')
             router.push('/pricing')
             return
-          }
-
-          // Logg status for debugging
-          if (isInTrial) {
-            const daysLeft = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-            console.log(`✅ [APP] Bruker i trial - ${daysLeft} dager igjen`)
-          }
-          
-          if (hasActivePurchase) {
-            const daysLeft = Math.ceil((purchaseExpires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-            console.log(`✅ [APP] Bruker har aktivt kjøp - ${daysLeft} dager igjen`)
           }
         }
 
@@ -166,7 +162,6 @@ export default function App({ Component, pageProps }: AppProps) {
               const trialEndsAt = new Date()
               trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
-              // 🟢 Opprett profil med nye felt
               await supabase.from('profiles').insert({
                 id: session.user.id,
                 email: session.user.email,
