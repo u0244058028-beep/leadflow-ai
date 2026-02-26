@@ -20,7 +20,7 @@ export default function App({ Component, pageProps }: AppProps) {
           console.error('❌ [APP] Auth-feil:', error)
         }
 
-        const publicPaths = ['/login', '/', '/s/', '/onboarding', '/pricing'] // 🆕 Legg til pricing som public
+        const publicPaths = ['/login', '/', '/s/', '/onboarding', '/pricing']
         const isPublicPath = publicPaths.some(path => 
           router.pathname === path || router.pathname.startsWith('/s/')
         )
@@ -36,10 +36,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
         console.log('✅ [APP] Bruker funnet:', user.id, user.email)
 
-        // 🆕 Hent flere felt fra profiles inkludert abonnementsstatus
+        // 🟢 Hent alle nødvendige felt for engangskjøp
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id, full_name, onboarding_completed, welcome_email_sent, subscription_status, trial_ends_at')
+          .select('id, full_name, onboarding_completed, welcome_email_sent, subscription_status, trial_ends_at, has_active_purchase, purchase_expires_at')
           .eq('id', user.id)
           .maybeSingle()
 
@@ -55,10 +55,10 @@ export default function App({ Component, pageProps }: AppProps) {
                           user.email?.split('@')[0] || 
                           'User'
 
-          // 🆕 Legg til trial_ends_at ved opprettelse
           const trialEndsAt = new Date()
           trialEndsAt.setDate(trialEndsAt.getDate() + 14) // 14 dagers trial
 
+          // 🟢 Opprett profil med nye felt for engangskjøp
           const { error: insertError } = await supabase
             .from('profiles')
             .insert({
@@ -68,8 +68,10 @@ export default function App({ Component, pageProps }: AppProps) {
               avatar_url: user.user_metadata?.avatar_url || null,
               onboarding_completed: false,
               welcome_email_sent: false,
-              subscription_status: 'trial', // 🆕
-              trial_ends_at: trialEndsAt.toISOString() // 🆕
+              subscription_status: 'trial',
+              trial_ends_at: trialEndsAt.toISOString(),
+              has_active_purchase: false,
+              purchase_expires_at: null
             })
 
           if (insertError) {
@@ -82,23 +84,34 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
-        // 🆕 NY SEKSJON: Sjekk abonnementsstatus
+        // 🟢 NY SEKSJON: Sjekk tilgang (trial eller kjøp)
         if (profile && !isPublicPath && router.pathname !== '/pricing') {
-          const trialEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null
           const now = new Date()
           
-          // Hvis trial er utløpt og ingen aktivt abonnement
-          if (trialEnd && trialEnd < now && profile.subscription_status !== 'active') {
-            console.log('⚠️ [APP] Trial utløpt, redirect til pricing')
+          // Sjekk om brukeren er i trial
+          const trialEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null
+          const isInTrial = trialEnd && trialEnd > now && profile.subscription_status === 'trial'
+          
+          // Sjekk om brukeren har aktivt kjøp
+          const purchaseExpires = profile.purchase_expires_at ? new Date(profile.purchase_expires_at) : null
+          const hasActivePurchase = profile.has_active_purchase && purchaseExpires && purchaseExpires > now
+
+          // Hvis verken trial eller aktivt kjøp, redirect til pricing
+          if (!isInTrial && !hasActivePurchase) {
+            console.log('⚠️ [APP] Ingen aktiv tilgang, redirect til pricing')
             router.push('/pricing')
             return
           }
 
-          // Hvis abonnementet er kansellert eller utløpt
-          if (profile.subscription_status === 'cancelled' || profile.subscription_status === 'past_due') {
-            console.log('⚠️ [APP] Abonnement problem, redirect til pricing')
-            router.push('/pricing')
-            return
+          // Logg status for debugging
+          if (isInTrial) {
+            const daysLeft = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            console.log(`✅ [APP] Bruker i trial - ${daysLeft} dager igjen`)
+          }
+          
+          if (hasActivePurchase) {
+            const daysLeft = Math.ceil((purchaseExpires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            console.log(`✅ [APP] Bruker har aktivt kjøp - ${daysLeft} dager igjen`)
           }
         }
 
@@ -138,10 +151,9 @@ export default function App({ Component, pageProps }: AppProps) {
       if (event === 'SIGNED_IN') {
         const createProfileOnSignIn = async () => {
           if (session?.user) {
-            // 🆕 Sjekk om profil finnes med abonnementsstatus
             const { data: profile } = await supabase
               .from('profiles')
-              .select('id, subscription_status')
+              .select('id')
               .eq('id', session.user.id)
               .maybeSingle()
 
@@ -151,10 +163,10 @@ export default function App({ Component, pageProps }: AppProps) {
                               session.user.email?.split('@')[0] || 
                               'User'
 
-              // 🆕 Sett trial ved ny profil
               const trialEndsAt = new Date()
               trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
+              // 🟢 Opprett profil med nye felt
               await supabase.from('profiles').insert({
                 id: session.user.id,
                 email: session.user.email,
@@ -162,8 +174,10 @@ export default function App({ Component, pageProps }: AppProps) {
                 avatar_url: session.user.user_metadata?.avatar_url || null,
                 onboarding_completed: false,
                 welcome_email_sent: false,
-                subscription_status: 'trial', // 🆕
-                trial_ends_at: trialEndsAt.toISOString() // 🆕
+                subscription_status: 'trial',
+                trial_ends_at: trialEndsAt.toISOString(),
+                has_active_purchase: false,
+                purchase_expires_at: null
               })
               console.log('✅ [APP] Profil opprettet ved SIGNED_IN')
               
