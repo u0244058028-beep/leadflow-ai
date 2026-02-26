@@ -5,11 +5,31 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/router'
 import OnboardingGuide from '@/components/OnboardingGuide'
 import { ToastProvider } from '@/components/Toast'
-import { Analytics } from '@vercel/analytics/react' // 🟢 Vercel Analytics
+import { Analytics } from '@vercel/analytics/react'
+import Script from 'next/script'
+
+// Google Analytics ID - bytt ut med din egen
+const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX' // 🟢 Sett din Google Analytics ID her
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
+
+  // Google Analytics sidevisningssporing
+  useEffect(() => {
+    const handleRouteChange = (url: string) => {
+      if (typeof window !== 'undefined' && window.gtag) {
+        window.gtag('config', GA_MEASUREMENT_ID, {
+          page_path: url,
+        })
+      }
+    }
+    
+    router.events.on('routeChangeComplete', handleRouteChange)
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChange)
+    }
+  }, [router.events])
 
   useEffect(() => {
     const checkUserAndCreateProfile = async () => {
@@ -31,11 +51,14 @@ export default function App({ Component, pageProps }: AppProps) {
           '/about',
           '/contact',
           '/privacy',
-          '/signup'
+          '/signup',
+          '/ads/ai-lead-scoring', // 🟢 Google Ads landingssider
+          '/ads/ai-landing-pages',
+          '/ads/lead-followup'
         ]
         
         const isPublicPath = publicPaths.some(path => 
-          router.pathname === path || router.pathname.startsWith('/s/')
+          router.pathname === path || router.pathname.startsWith('/s/') || router.pathname.startsWith('/ads/')
         )
 
         if (!user) {
@@ -264,9 +287,25 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <ToastProvider>
+      {/* Google Analytics Script */}
+      <Script
+        src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+        strategy="afterInteractive"
+      />
+      <Script id="google-analytics" strategy="afterInteractive">
+        {`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', '${GA_MEASUREMENT_ID}', {
+            page_path: window.location.pathname,
+          });
+        `}
+      </Script>
+
       <Component {...pageProps} />
       <OnboardingGuide />
-      <Analytics /> {/* 🟢 Vercel Analytics - sporer sidevisninger */}
+      <Analytics /> {/* Vercel Analytics */}
     </ToastProvider>
   )
 }
