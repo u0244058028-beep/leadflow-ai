@@ -9,7 +9,7 @@ import { Analytics } from '@vercel/analytics/react'
 import Script from 'next/script'
 
 // Google Analytics ID - bytt ut med din egen
-const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX' // Sett din Google Analytics ID her
+const GA_MEASUREMENT_ID = 'G-9WWNVV764B' // Sett din Google Analytics ID her
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
