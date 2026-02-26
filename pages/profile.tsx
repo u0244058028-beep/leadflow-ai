@@ -13,13 +13,48 @@ export default function Profile() {
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState({ type: '', text: '' })
+  const [isInTrial, setIsInTrial] = useState(false) // 🟢 Ny
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null) // 🟢 Ny
   
-  // 🟢 Bruk purchase hook i stedet for subscription
+  // Bruk purchase hook
   const purchase = usePurchase()
 
   useEffect(() => {
     loadProfile()
+    checkTrialStatus() // 🟢 Sjekk trial-status
   }, [])
+
+  // 🟢 Ny funksjon for å sjekke trial
+  async function checkTrialStatus() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status, trial_ends_at')
+        .eq('id', user.id)
+        .single()
+
+      if (profile) {
+        const now = new Date()
+        const trialEndsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null
+        
+        const trialActive = profile.subscription_status === 'trial' && 
+                           trialEndsAt !== null && 
+                           trialEndsAt > now
+
+        setIsInTrial(trialActive)
+
+        if (trialActive && trialEndsAt) {
+          const daysLeft = Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          setTrialDaysLeft(daysLeft)
+        }
+      }
+    } catch (error) {
+      console.error('Error checking trial:', error)
+    }
+  }
 
   async function loadProfile() {
     try {
@@ -136,7 +171,6 @@ export default function Profile() {
     }
   }
 
-  // 🟢 Ny funksjon for å kjøpe tilgang
   async function handlePurchase() {
     try {
       setMessage({ type: '', text: '' })
@@ -279,7 +313,7 @@ export default function Profile() {
             </div>
           </form>
 
-          {/* 🟢 Access Management - Ny versjon for engangskjøp */}
+          {/* Access Management */}
           <div className="mt-8 pt-6 border-t border-gray-200">
             <h2 className="text-lg font-semibold mb-4">Access & Billing</h2>
             
@@ -287,12 +321,16 @@ export default function Profile() {
               <div className="text-center py-4 text-gray-500">Loading access details...</div>
             ) : (
               <div className="space-y-4">
-                {/* Current Status */}
+                {/* Current Status - VISER BÅDE TRIAL OG KJØP */}
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div>
                     <p className="font-medium">Current Status</p>
                     <p className="text-sm text-gray-600">
-                      {purchase.hasAccess ? (
+                      {isInTrial ? ( // 🟢 Hvis i trial
+                        <span className="text-blue-600">
+                          Trial - {trialDaysLeft} days remaining
+                        </span>
+                      ) : purchase.hasAccess ? ( // 🟢 Hvis aktivt kjøp
                         <span className="text-green-600">
                           Active - {purchase.daysLeft} days remaining
                         </span>
@@ -300,16 +338,36 @@ export default function Profile() {
                         <span className="text-orange-600">No active access</span>
                       )}
                     </p>
-                    {purchase.expiresAt && (
+                    {purchase.expiresAt && !isInTrial && (
                       <p className="text-xs text-gray-500 mt-1">
                         Expires: {purchase.expiresAt.toLocaleDateString()}
+                      </p>
+                    )}
+                    {isInTrial && trialDaysLeft && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Your trial ends in {trialDaysLeft} days
                       </p>
                     )}
                   </div>
                 </div>
 
-                {/* Purchase Info & Actions */}
-                {!purchase.hasAccess ? (
+                {/* Trial Info */}
+                {isInTrial && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-blue-800 text-sm mb-3">
+                      You're on a 14-day free trial. After it ends, you'll need to purchase access to continue using Pro features.
+                    </p>
+                    <button
+                      onClick={handlePurchase}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                    >
+                      Purchase Now - $29
+                    </button>
+                  </div>
+                )}
+
+                {/* Purchase Info */}
+                {!isInTrial && !purchase.hasAccess && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="text-blue-800 text-sm mb-3">
                       Get 30 days of full access to all Pro features for just $29.
@@ -321,24 +379,20 @@ export default function Profile() {
                       Purchase Access - $29
                     </button>
                   </div>
-                ) : (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <p className="text-green-800 text-sm">
-                      You have active access until {purchase.expiresAt?.toLocaleDateString()}.
-                      {purchase.daysLeft && purchase.daysLeft <= 3 && (
-                        <span className="block mt-2 text-orange-600 font-medium">
-                          ⚠️ Your access expires soon. Purchase again to continue.
-                        </span>
-                      )}
+                )}
+
+                {/* Active Purchase Warning */}
+                {purchase.hasAccess && purchase.daysLeft && purchase.daysLeft <= 3 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-yellow-800 text-sm font-medium">
+                      ⚠️ Your access expires in {purchase.daysLeft} days. Purchase again to continue.
                     </p>
-                    {purchase.daysLeft && purchase.daysLeft <= 3 && (
-                      <button
-                        onClick={handlePurchase}
-                        className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-                      >
-                        Purchase Again - $29
-                      </button>
-                    )}
+                    <button
+                      onClick={handlePurchase}
+                      className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                    >
+                      Purchase Again - $29
+                    </button>
                   </div>
                 )}
               </div>
