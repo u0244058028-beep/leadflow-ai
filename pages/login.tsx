@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/router'
 
@@ -8,6 +8,13 @@ export default function Login() {
   const [isLogin, setIsLogin] = useState(true)
   const [message, setMessage] = useState('')
   const router = useRouter()
+
+  // 🟢 NY: Sjekk om vi skal vise signup basert på URL-parameter
+  useEffect(() => {
+    if (router.query.signup === 'true') {
+      setIsLogin(false)
+    }
+  }, [router.query])
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,7 +33,17 @@ export default function Login() {
         password,
       })
       if (error) setMessage(error.message)
-      else setMessage('Check your email for confirmation!')
+      else {
+        setMessage('Check your email for confirmation!')
+        // Opsjonelt: Spor konvertering for Google Ads
+        if (typeof window !== 'undefined' && typeof window.gtag !== 'undefined') {
+          window.gtag('event', 'conversion', {
+            'send_to': 'AW-CONVERSION_ID/CONVERSION_LABEL',
+            'value': 29.0,
+            'currency': 'USD'
+          })
+        }
+      }
     }
   }
 
