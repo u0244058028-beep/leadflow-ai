@@ -22,29 +22,78 @@ export default function Profile() {
     loadProfile()
   }, [])
 
+  // 🟢 OPPDATERT: loadProfile med bedre feilhåndtering
   async function loadProfile() {
-    const user = (await supabase.auth.getUser()).data.user
-    if (!user) {
-      router.push('/login')
-      return
-    }
+    try {
+      console.log('🔍 loadProfile starter...')
+      
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      console.log('👤 Hent bruker:', { user, authError })
 
-    setEmail(user.email || '')
+      if (authError) {
+        console.error('❌ Auth error:', authError)
+        setMessage({ type: 'error', text: 'Authentication error' })
+        return
+      }
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+      if (!user) {
+        console.log('🚫 Ingen bruker funnet, redirect til login')
+        router.push('/login')
+        return
+      }
 
-    if (error) {
-      console.error('Error loading profile:', error)
-      return
-    }
+      setEmail(user.email || '')
+      console.log('📧 Email satt til:', user.email)
 
-    if (data) {
+      // Hent profilen med maybeSingle() i stedet for single()
+      console.log('📊 Henter profil for userId:', user.id)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      console.log('📦 Profil data:', data)
+      console.log('❌ Profil error:', error)
+
+      if (error) {
+        console.error('❌ Error loading profile:', error)
+        setMessage({ type: 'error', text: 'Failed to load profile' })
+        return
+      }
+
+      if (!data) {
+        console.log('⚠️ Ingen profil funnet, oppretter ny...')
+        
+        // Opprett profil hvis den mangler
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email,
+            full_name: '',
+            company_name: '',
+            subscription_status: 'trial',
+            trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          })
+
+        if (insertError) {
+          console.error('❌ Kunne ikke opprette profil:', insertError)
+          setMessage({ type: 'error', text: 'Could not create profile' })
+        } else {
+          console.log('✅ Profil opprettet, laster siden på nytt')
+          window.location.reload()
+        }
+        return
+      }
+
+      console.log('✅ Profil lastet:', data)
       setFullName(data.full_name || '')
       setCompanyName(data.company_name || '')
+      
+    } catch (err) {
+      console.error('❌ Uventet feil:', err)
+      setMessage({ type: 'error', text: 'An unexpected error occurred' })
     }
   }
 
@@ -54,8 +103,11 @@ export default function Profile() {
     setMessage({ type: '', text: '' })
 
     try {
-      const user = (await supabase.auth.getUser()).data.user
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) throw authError
       if (!user) throw new Error('No user found')
+
+      console.log('💾 Oppdaterer profil for user:', user.id)
 
       const { error } = await supabase
         .from('profiles')
@@ -68,11 +120,13 @@ export default function Profile() {
 
       if (error) throw error
 
+      console.log('✅ Profil oppdatert')
       setMessage({
         type: 'success',
         text: 'Profile updated successfully!',
       })
     } catch (err: any) {
+      console.error('❌ Update error:', err)
       setMessage({
         type: 'error',
         text: err.message,
@@ -90,8 +144,11 @@ export default function Profile() {
 
     setCancelling(true)
     try {
-      const user = (await supabase.auth.getUser()).data.user
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) throw authError
       if (!user) throw new Error('No user found')
+
+      console.log('🔴 Kansellerer abonnement for user:', user.id)
 
       const response = await fetch('/api/stripe/cancel-subscription', {
         method: 'POST',
@@ -99,9 +156,11 @@ export default function Profile() {
         body: JSON.stringify({ userId: user.id }),
       })
 
+      const data = await response.json()
+      console.log('📦 Cancel response:', data)
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message)
+        throw new Error(data.message || 'Error cancelling subscription')
       }
 
       setMessage({
@@ -109,6 +168,7 @@ export default function Profile() {
         text: 'Subscription cancelled successfully. You will have access until the end of your billing period.',
       })
     } catch (err: any) {
+      console.error('❌ Cancel error:', err)
       setMessage({
         type: 'error',
         text: err.message || 'Error cancelling subscription',
@@ -122,10 +182,21 @@ export default function Profile() {
   async function handleManageBilling() {
     try {
       setMessage({ type: '', text: '' })
-      const user = (await supabase.auth.getUser()).data.user
-      if (!user) return
+      
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      console.log('🔍 Current user for billing:', { user, authError })
+      
+      if (authError) {
+        throw new Error('Authentication error')
+      }
 
-      console.log('🔍 Opening billing portal for user:', user.id)
+      if (!user) {
+        setMessage({ type: 'error', text: 'Please log in again' })
+        router.push('/login')
+        return
+      }
+
+      console.log('📤 Sending userId to portal:', user.id)
 
       const response = await fetch('/api/stripe/portal', {
         method: 'POST',
@@ -140,6 +211,7 @@ export default function Profile() {
         throw new Error(data.message || 'Error opening billing portal')
       }
 
+      console.log('✅ Redirecting to portal:', data.url)
       window.location.href = data.url
     } catch (err: any) {
       console.error('❌ Portal error:', err)
@@ -155,10 +227,11 @@ export default function Profile() {
     setMessage({ type: '', text: '' })
     
     try {
-      const user = (await supabase.auth.getUser()).data.user
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) throw authError
       if (!user) throw new Error('No user found')
 
-      console.log('Sending delete request for user:', user.id)
+      console.log('🗑️ Sending delete request for user:', user.id)
 
       const response = await fetch('/api/delete-account', {
         method: 'POST',
@@ -177,7 +250,7 @@ export default function Profile() {
       router.push('/login?deleted=true')
       
     } catch (error: any) {
-      console.error('Delete error:', error)
+      console.error('❌ Delete error:', error)
       setMessage({
         type: 'error',
         text: 'Failed to delete account: ' + error.message
