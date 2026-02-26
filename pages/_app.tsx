@@ -9,7 +9,7 @@ import { Analytics } from '@vercel/analytics/react'
 import Script from 'next/script'
 
 // Google Analytics ID - bytt ut med din egen
-const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX' // 🟢 Sett din Google Analytics ID her
+const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX' // Sett din Google Analytics ID her
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
@@ -18,7 +18,8 @@ export default function App({ Component, pageProps }: AppProps) {
   // Google Analytics sidevisningssporing
   useEffect(() => {
     const handleRouteChange = (url: string) => {
-      if (typeof window !== 'undefined' && window.gtag) {
+      // 🟢 Fiks: Sjekk at gtag finnes på window
+      if (typeof window !== 'undefined' && typeof window.gtag !== 'undefined') {
         window.gtag('config', GA_MEASUREMENT_ID, {
           page_path: url,
         })
@@ -52,7 +53,7 @@ export default function App({ Component, pageProps }: AppProps) {
           '/contact',
           '/privacy',
           '/signup',
-          '/ads/ai-lead-scoring', // 🟢 Google Ads landingssider
+          '/ads/ai-lead-scoring',
           '/ads/ai-landing-pages',
           '/ads/lead-followup'
         ]
@@ -92,7 +93,7 @@ export default function App({ Component, pageProps }: AppProps) {
                           'User'
 
           const trialEndsAt = new Date()
-          trialEndsAt.setDate(trialEndsAt.getDate() + 14) // 14 dagers trial
+          trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
           const { error: insertError } = await supabase
             .from('profiles')
@@ -119,34 +120,20 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
-        // Sjekk tilgang (trial eller kjøp) - men ikke for offentlige sider
+        // Sjekk tilgang (trial eller kjøp)
         if (profile && !isPublicPath && router.pathname !== '/pricing') {
           const now = new Date()
           
-          // Sjekk om brukeren er i trial
           const trialEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null
           const isInTrial = trialEnd && trialEnd > now && profile.subscription_status === 'trial'
           
-          // Sjekk om brukeren har aktivt kjøp
           const purchaseExpires = profile.purchase_expires_at ? new Date(profile.purchase_expires_at) : null
           const hasActivePurchase = profile.has_active_purchase && purchaseExpires && purchaseExpires > now
 
-          // Hvis verken trial eller aktivt kjøp, redirect til pricing
           if (!isInTrial && !hasActivePurchase) {
             console.log('⚠️ [APP] Ingen aktiv tilgang, redirect til pricing')
             router.push('/pricing')
             return
-          }
-
-          // Logg status for debugging
-          if (isInTrial) {
-            const daysLeft = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-            console.log(`✅ [APP] Bruker i trial - ${daysLeft} dager igjen`)
-          }
-          
-          if (hasActivePurchase) {
-            const daysLeft = Math.ceil((purchaseExpires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-            console.log(`✅ [APP] Bruker har aktivt kjøp - ${daysLeft} dager igjen`)
           }
         }
 
@@ -305,7 +292,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
       <Component {...pageProps} />
       <OnboardingGuide />
-      <Analytics /> {/* Vercel Analytics */}
+      <Analytics />
     </ToastProvider>
   )
 }
