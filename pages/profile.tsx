@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
-import { useSubscription } from '@/hooks/useSubscription'
+import { usePurchase } from '@/hooks/usePurchase'
 
 export default function Profile() {
   const router = useRouter()
@@ -14,15 +14,13 @@ export default function Profile() {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState({ type: '', text: '' })
   
-  // Subscription hooks
-  const subscription = useSubscription()
-  const [cancelling, setCancelling] = useState(false)
+  // 🟢 Bruk purchase hook i stedet for subscription
+  const purchase = usePurchase()
 
   useEffect(() => {
     loadProfile()
   }, [])
 
-  // 🟢 OPPDATERT: loadProfile med bedre feilhåndtering
   async function loadProfile() {
     try {
       console.log('🔍 loadProfile starter...')
@@ -45,8 +43,6 @@ export default function Profile() {
       setEmail(user.email || '')
       console.log('📧 Email satt til:', user.email)
 
-      // Hent profilen med maybeSingle() i stedet for single()
-      console.log('📊 Henter profil for userId:', user.id)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -65,7 +61,9 @@ export default function Profile() {
       if (!data) {
         console.log('⚠️ Ingen profil funnet, oppretter ny...')
         
-        // Opprett profil hvis den mangler
+        const trialEndsAt = new Date()
+        trialEndsAt.setDate(trialEndsAt.getDate() + 14)
+
         const { error: insertError } = await supabase
           .from('profiles')
           .insert({
@@ -74,7 +72,9 @@ export default function Profile() {
             full_name: '',
             company_name: '',
             subscription_status: 'trial',
-            trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            trial_ends_at: trialEndsAt.toISOString(),
+            has_active_purchase: false,
+            purchase_expires_at: null,
           })
 
         if (insertError) {
@@ -136,88 +136,42 @@ export default function Profile() {
     }
   }
 
-  // Håndter kansellering av abonnement
-  async function handleCancelSubscription() {
-    if (!confirm('Are you sure you want to cancel your subscription? You will lose access to Pro features at the end of your billing period.')) {
-      return
-    }
-
-    setCancelling(true)
-    try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError) throw authError
-      if (!user) throw new Error('No user found')
-
-      console.log('🔴 Kansellerer abonnement for user:', user.id)
-
-      const response = await fetch('/api/stripe/cancel-subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id }),
-      })
-
-      const data = await response.json()
-      console.log('📦 Cancel response:', data)
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Error cancelling subscription')
-      }
-
-      setMessage({
-        type: 'success',
-        text: 'Subscription cancelled successfully. You will have access until the end of your billing period.',
-      })
-    } catch (err: any) {
-      console.error('❌ Cancel error:', err)
-      setMessage({
-        type: 'error',
-        text: err.message || 'Error cancelling subscription',
-      })
-    } finally {
-      setCancelling(false)
-    }
-  }
-
-  // 🟢 OPPDATERT: Åpne Stripe Customer Portal med bedre feilhåndtering
-  async function handleManageBilling() {
+  // 🟢 Ny funksjon for å kjøpe tilgang
+  async function handlePurchase() {
     try {
       setMessage({ type: '', text: '' })
       
       const { data: { user }, error: authError } = await supabase.auth.getUser()
-      console.log('🔍 Current user for billing:', { user, authError })
-      
-      if (authError) {
-        throw new Error('Authentication error')
-      }
-
+      if (authError) throw authError
       if (!user) {
-        setMessage({ type: 'error', text: 'Please log in again' })
         router.push('/login')
         return
       }
 
-      console.log('📤 Sending userId to portal:', user.id)
+      console.log('🛒 Starter kjøp for user:', user.id)
 
-      const response = await fetch('/api/stripe/portal', {
+      const response = await fetch('/api/stripe/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify({ 
+          userId: user.id,
+          email: user.email 
+        }),
       })
 
       const data = await response.json()
-      console.log('📦 Portal response:', data)
+      console.log('📦 Checkout response:', data)
 
       if (!response.ok) {
-        throw new Error(data.message || 'Error opening billing portal')
+        throw new Error(data.message || 'Error starting purchase')
       }
 
-      console.log('✅ Redirecting to portal:', data.url)
       window.location.href = data.url
     } catch (err: any) {
-      console.error('❌ Portal error:', err)
+      console.error('❌ Purchase error:', err)
       setMessage({
         type: 'error',
-        text: err.message || 'Error opening billing portal',
+        text: err.message || 'Error starting purchase',
       })
     }
   }
@@ -245,7 +199,6 @@ export default function Profile() {
         throw new Error(data.error || data.details || 'Failed to delete account')
       }
 
-      // Logg ut etter sletting
       await supabase.auth.signOut()
       router.push('/login?deleted=true')
       
@@ -326,94 +279,66 @@ export default function Profile() {
             </div>
           </form>
 
-          {/* Subscription Management */}
+          {/* 🟢 Access Management - Ny versjon for engangskjøp */}
           <div className="mt-8 pt-6 border-t border-gray-200">
-            <h2 className="text-lg font-semibold mb-4">Subscription</h2>
+            <h2 className="text-lg font-semibold mb-4">Access & Billing</h2>
             
-            {subscription.loading ? (
-              <div className="text-center py-4 text-gray-500">Loading subscription details...</div>
+            {purchase.loading ? (
+              <div className="text-center py-4 text-gray-500">Loading access details...</div>
             ) : (
               <div className="space-y-4">
                 {/* Current Status */}
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div>
-                    <p className="font-medium">Current Plan</p>
+                    <p className="font-medium">Current Status</p>
                     <p className="text-sm text-gray-600">
-                      {subscription.isActive ? (
-                        <span className="text-green-600">Pro Plan (Active)</span>
-                      ) : subscription.isTrial ? (
-                        <span className="text-blue-600">
-                          Pro Plan (Trial - {subscription.daysLeft} days left)
+                      {purchase.hasAccess ? (
+                        <span className="text-green-600">
+                          Active - {purchase.daysLeft} days remaining
                         </span>
                       ) : (
-                        <span className="text-gray-600">No active subscription</span>
+                        <span className="text-orange-600">No active access</span>
                       )}
                     </p>
+                    {purchase.expiresAt && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Expires: {purchase.expiresAt.toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {/* Trial Expiring Soon Warning */}
-                {subscription.isTrial && subscription.daysLeft !== null && subscription.daysLeft <= 3 && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <p className="text-yellow-800 text-sm font-medium">
-                      ⚠️ Your trial ends in {subscription.daysLeft} days. 
-                      Upgrade now to avoid interruption.
-                    </p>
-                  </div>
-                )}
-
-                {/* Trial Info & Actions */}
-                {subscription.isTrial && (
+                {/* Purchase Info & Actions */}
+                {!purchase.hasAccess ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="text-blue-800 text-sm mb-3">
-                      You're on a 14-day free trial. You won't be charged until your trial ends. 
-                      Upgrade anytime to keep using Pro features.
+                      Get 30 days of full access to all Pro features for just $29.
                     </p>
                     <button
-                      onClick={() => router.push('/pricing')}
+                      onClick={handlePurchase}
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
                     >
-                      Upgrade Now
+                      Purchase Access - $29
                     </button>
                   </div>
-                )}
-
-                {/* Active Subscription Actions */}
-                {subscription.isActive && (
-                  <div className="space-y-3">
-                    <button
-                      onClick={handleManageBilling}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm"
-                    >
-                      Update Payment Method
-                    </button>
-
-                    <button
-                      onClick={handleCancelSubscription}
-                      disabled={cancelling}
-                      className="w-full px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-md hover:bg-red-100 disabled:opacity-50 text-sm"
-                    >
-                      {cancelling ? 'Processing...' : 'Cancel Subscription'}
-                    </button>
-
-                    <p className="text-xs text-gray-500 text-center">
-                      Your subscription will remain active until the end of your current billing period.
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-green-800 text-sm">
+                      You have active access until {purchase.expiresAt?.toLocaleDateString()}.
+                      {purchase.daysLeft && purchase.daysLeft <= 3 && (
+                        <span className="block mt-2 text-orange-600 font-medium">
+                          ⚠️ Your access expires soon. Purchase again to continue.
+                        </span>
+                      )}
                     </p>
-                  </div>
-                )}
-
-                {/* No Subscription */}
-                {!subscription.isActive && !subscription.isTrial && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-                    <p className="text-gray-600 text-sm mb-3">
-                      You don't have an active subscription.
-                    </p>
-                    <button
-                      onClick={() => router.push('/pricing')}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-                    >
-                      View Plans
-                    </button>
+                    {purchase.daysLeft && purchase.daysLeft <= 3 && (
+                      <button
+                        onClick={handlePurchase}
+                        className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                      >
+                        Purchase Again - $29
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
