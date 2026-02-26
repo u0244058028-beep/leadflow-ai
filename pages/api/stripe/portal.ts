@@ -18,14 +18,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ message: 'Missing userId' });
     }
 
-    // Først, sjekk om brukeren finnes i auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    console.log('👤 Auth user:', user?.id);
-
-    // Hent profilen med maybeSingle() for å unngå 404-feil
+    // Hent profilen med maybeSingle()
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, email, stripe_customer_id, subscription_status')
+      .select('*')
       .eq('id', userId)
       .maybeSingle();
 
@@ -42,28 +38,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!profile) {
       console.log('❌ Ingen profil funnet for userId:', userId);
       
-      // Prøv å finne brukeren via email som backup
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData?.user?.email) {
-        const { data: profileByEmail } = await supabase
+      // Hent brukerens email fra auth som backup
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      console.log('👤 Auth user:', { user, authError });
+      
+      if (user?.email) {
+        // Prøv å finne profilen via email
+        const { data: profileByEmail, error: emailError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('email', userData.user.email)
+          .eq('email', user.email)
           .maybeSingle();
         
-        console.log('📧 Søkte på email:', userData.user.email, profileByEmail);
+        console.log('📧 Søkte på email:', user.email, profileByEmail, emailError);
         
         if (profileByEmail) {
           return res.status(200).json({ 
-            message: 'Found profile by email',
-            profile: profileByEmail 
+            message: 'Found profile by email - but ID mismatch!',
+            profile: profileByEmail,
+            authUserId: userId,
+            profileUserId: profileByEmail.id
           });
         }
       }
       
       return res.status(404).json({ 
         message: 'Profile not found',
-        userId: userId 
+        userId: userId,
+        note: 'The userId sent does not match any profile in database'
       });
     }
 
