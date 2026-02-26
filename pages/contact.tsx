@@ -82,7 +82,7 @@ export default function ContactPage() {
                 <div>
                   <h3 className="font-semibold mb-1">LinkedIn</h3>
                   <a 
-                    href="https://www.linkedin.com/company/myleadassistant" 
+                    href="https://www.linkedin.com/in/tor-arne-storesund-23b90b104" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline"
