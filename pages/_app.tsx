@@ -7,9 +7,9 @@ import OnboardingGuide from '@/components/OnboardingGuide'
 import { ToastProvider } from '@/components/Toast'
 import { Analytics } from '@vercel/analytics/react'
 import Script from 'next/script'
+import Head from 'next/head' // 🟢 NY
 
-// Google Analytics ID - bytt ut med din egen
-const GA_MEASUREMENT_ID = 'G-9WWNVV764B' // Sett din Google Analytics ID her
+const GA_MEASUREMENT_ID = 'G-17814229256' // Sett din Google Analytics ID her
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
@@ -18,7 +18,6 @@ export default function App({ Component, pageProps }: AppProps) {
   // Google Analytics sidevisningssporing
   useEffect(() => {
     const handleRouteChange = (url: string) => {
-      // 🟢 Fiks: Sjekk at gtag finnes på window
       if (typeof window !== 'undefined' && typeof window.gtag !== 'undefined') {
         window.gtag('config', GA_MEASUREMENT_ID, {
           page_path: url,
@@ -53,13 +52,24 @@ export default function App({ Component, pageProps }: AppProps) {
           '/contact',
           '/privacy',
           '/signup',
+          '/blog', // 🟢 NY
+          '/blog/[slug]', // 🟢 NY
+          '/comparisons', // 🟢 NY
+          '/comparisons/[slug]', // 🟢 NY
+          '/guides', // 🟢 NY
+          '/guides/[slug]', // 🟢 NY
           '/ads/ai-lead-scoring',
           '/ads/ai-landing-pages',
           '/ads/lead-followup'
         ]
         
         const isPublicPath = publicPaths.some(path => 
-          router.pathname === path || router.pathname.startsWith('/s/') || router.pathname.startsWith('/ads/')
+          router.pathname === path || 
+          router.pathname.startsWith('/s/') || 
+          router.pathname.startsWith('/ads/') ||
+          router.pathname.startsWith('/blog/') || // 🟢 NY
+          router.pathname.startsWith('/comparisons/') || // 🟢 NY
+          router.pathname.startsWith('/guides/') // 🟢 NY
         )
 
         if (!user) {
@@ -93,7 +103,7 @@ export default function App({ Component, pageProps }: AppProps) {
                           'User'
 
           const trialEndsAt = new Date()
-          trialEndsAt.setDate(trialEndsAt.getDate() + 14)
+          trialEndsAt.setDate(trialEndsAt.getDate() + 14) // 14 dagers trial
 
           const { error: insertError } = await supabase
             .from('profiles')
@@ -120,7 +130,7 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
-        // Sjekk tilgang (trial eller kjøp)
+        // Sjekk tilgang (trial eller kjøp) - men ikke for offentlige sider
         if (profile && !isPublicPath && router.pathname !== '/pricing') {
           const now = new Date()
           
@@ -273,26 +283,38 @@ export default function App({ Component, pageProps }: AppProps) {
   }
 
   return (
-    <ToastProvider>
-      {/* Google Analytics Script */}
-      <Script
-        src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-        strategy="afterInteractive"
-      />
-      <Script id="google-analytics" strategy="afterInteractive">
-        {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', '${GA_MEASUREMENT_ID}', {
-            page_path: window.location.pathname,
-          });
-        `}
-      </Script>
+    <>
+      <Head>
+        {/* 🟢 NY: Globale SEO-innstillinger */}
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="robots" content="index, follow" />
+        <meta name="googlebot" content="index, follow" />
+        <meta property="og:site_name" content="My Lead Assistant" />
+        <meta property="twitter:site" content="@L30401My" />
+        <link rel="canonical" href={`https://www.myleadassistant.com${router.pathname}`} />
+      </Head>
 
-      <Component {...pageProps} />
-      <OnboardingGuide />
-      <Analytics />
-    </ToastProvider>
+      <ToastProvider>
+        {/* Google Analytics Script */}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}', {
+              page_path: window.location.pathname,
+            });
+          `}
+        </Script>
+
+        <Component {...pageProps} />
+        <OnboardingGuide />
+        <Analytics />
+      </ToastProvider>
+    </>
   )
 }
