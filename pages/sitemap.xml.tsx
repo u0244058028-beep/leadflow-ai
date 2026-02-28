@@ -28,7 +28,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
   
   // Statiske sider med prioritet
   const staticPages = [
-    { loc: `${baseUrl}`, lastmod: today, priority: '1.0' }, // Høyest prioritet
+    { loc: `${baseUrl}`, lastmod: today, priority: '1.0' },
     { loc: `${baseUrl}/pricing`, lastmod: today, priority: '0.9' },
     { loc: `${baseUrl}/about`, lastmod: today, priority: '0.7' },
     { loc: `${baseUrl}/contact`, lastmod: today, priority: '0.7' },
@@ -40,11 +40,11 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
     { loc: `${baseUrl}/comparisons`, lastmod: today, priority: '0.8' },
   ]
 
-  // Hent blogginnlegg, guider og sammenligninger fra databasen
+  // Dynamiske sider fra databasen
   let dynamicPages: { loc: string; lastmod: string; priority: string }[] = []
   
   try {
-    // Hent landingssider laget av brukere (hvis de skal indekseres)
+    // Hent landingssider laget av brukere
     const { data: landingPages } = await supabase
       .from('landing_pages')
       .select('slug, updated_at')
@@ -74,36 +74,6 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
       dynamicPages = [...dynamicPages, ...blogUrls]
     }
 
-    // Hvis du har guides
-    const { data: guides } = await supabase
-      .from('guides')
-      .select('slug, updated_at')
-      .eq('published', true)
-
-    if (guides) {
-      const guideUrls = guides.map((guide) => ({
-        loc: `${baseUrl}/guides/${guide.slug}`,
-        lastmod: guide.updated_at?.split('T')[0] || today,
-        priority: '0.7'
-      }))
-      dynamicPages = [...dynamicPages, ...guideUrls]
-    }
-
-    // Hvis du har sammenligningssider
-    const { data: comparisons } = await supabase
-      .from('comparisons')
-      .select('slug, updated_at')
-      .eq('published', true)
-
-    if (comparisons) {
-      const comparisonUrls = comparisons.map((comp) => ({
-        loc: `${baseUrl}/comparisons/${comp.slug}`,
-        lastmod: comp.updated_at?.split('T')[0] || today,
-        priority: '0.7'
-      }))
-      dynamicPages = [...dynamicPages, ...comparisonUrls]
-    }
-
   } catch (error) {
     console.error('Error fetching dynamic pages for sitemap:', error)
   }
@@ -116,7 +86,7 @@ export const getServerSideProps: GetServerSideProps = async ({ res }) => {
 
   // Send som XML
   res.setHeader('Content-Type', 'text/xml')
-  res.setHeader('Cache-Control', 'public, max-age=86400') // Cache i 24 timer
+  res.setHeader('Cache-Control', 'public, max-age=86400')
   res.write(sitemap)
   res.end()
 
