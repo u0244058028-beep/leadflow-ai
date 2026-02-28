@@ -4,8 +4,18 @@ import Link from 'next/link'
 import Layout from '@/components/Layout'
 import SEO from '@/components/SEO'
 
-// Dette ville normalt komme fra en database
-const blogPosts = {
+// Definer en type for blogginnlegg
+interface BlogPost {
+  title: string
+  description: string
+  keywords: string
+  content: string
+  date: string
+  author: string
+}
+
+// Alle blogginnlegg med typer
+const blogPosts: Record<string, BlogPost> = {
   'ai-lead-scoring-guide-2026': {
     title: 'The Complete Guide to AI Lead Scoring in 2026',
     description: 'Learn how AI-powered lead scoring can increase your conversion rates by 300%. Complete guide with examples, best practices, and implementation tips.',
@@ -38,19 +48,44 @@ const blogPosts = {
     `,
     date: '2026-03-01',
     author: 'Tor Arne Storesund'
+  },
+  'why-traditional-lead-scoring-fails': {
+    title: 'Why Traditional Lead Scoring Fails (And What to Do Instead)',
+    description: 'Static rules and manual processes are letting your best leads slip away. Here\'s why AI is the answer.',
+    keywords: 'traditional lead scoring, lead scoring problems, AI lead scoring',
+    content: `
+      <p>Traditional lead scoring methods are broken. Here's why...</p>
+    `,
+    date: '2026-02-15',
+    author: 'Tor Arne Storesund'
+  },
+  '10-ways-ai-doubles-sales-productivity': {
+    title: '10 Ways AI Can Double Your Sales Team\'s Productivity',
+    description: 'From automated follow-ups to intelligent lead prioritization, discover how AI transforms sales teams.',
+    keywords: 'AI sales productivity, sales automation, lead prioritization',
+    content: `
+      <p>Discover how AI can transform your sales team...</p>
+    `,
+    date: '2026-02-01',
+    author: 'Tor Arne Storesund'
   }
 }
 
 export default function BlogPost() {
   const router = useRouter()
   const { slug } = router.query
-  const post = blogPosts[slug as string]
+  
+  // Sikkerhet: sjekk at slug er en string og finnes i blogPosts
+  const post = typeof slug === 'string' ? blogPosts[slug] : undefined
 
   if (!post) {
     return (
       <Layout>
         <div className="text-center py-20">
-          <h1 className="text-2xl">Post not found</h1>
+          <h1 className="text-2xl text-gray-600">Post not found</h1>
+          <Link href="/blog" className="text-blue-600 hover:underline mt-4 inline-block">
+            ← Back to Blog
+          </Link>
         </div>
       </Layout>
     )
