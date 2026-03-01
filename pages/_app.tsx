@@ -7,9 +7,9 @@ import OnboardingGuide from '@/components/OnboardingGuide'
 import { ToastProvider } from '@/components/Toast'
 import { Analytics } from '@vercel/analytics/react'
 import Script from 'next/script'
-import Head from 'next/head' // 🟢 NY
+import Head from 'next/head'
 
-const GA_MEASUREMENT_ID = 'G-17814229256' // Sett din Google Analytics ID her
+const GA_MEASUREMENT_ID = 'G-17814229256' // Din Google Analytics ID
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
@@ -41,7 +41,6 @@ export default function App({ Component, pageProps }: AppProps) {
           console.error('❌ [APP] Auth-feil:', error)
         }
 
-        // Offentlige sider (krever ikke innlogging)
         const publicPaths = [
           '/login', 
           '/', 
@@ -52,12 +51,12 @@ export default function App({ Component, pageProps }: AppProps) {
           '/contact',
           '/privacy',
           '/signup',
-          '/blog', // 🟢 NY
-          '/blog/[slug]', // 🟢 NY
-          '/comparisons', // 🟢 NY
-          '/comparisons/[slug]', // 🟢 NY
-          '/guides', // 🟢 NY
-          '/guides/[slug]', // 🟢 NY
+          '/blog',
+          '/blog/[slug]',
+          '/comparisons',
+          '/comparisons/[slug]',
+          '/guides',
+          '/guides/[slug]',
           '/ads/ai-lead-scoring',
           '/ads/ai-landing-pages',
           '/ads/lead-followup'
@@ -67,9 +66,9 @@ export default function App({ Component, pageProps }: AppProps) {
           router.pathname === path || 
           router.pathname.startsWith('/s/') || 
           router.pathname.startsWith('/ads/') ||
-          router.pathname.startsWith('/blog/') || // 🟢 NY
-          router.pathname.startsWith('/comparisons/') || // 🟢 NY
-          router.pathname.startsWith('/guides/') // 🟢 NY
+          router.pathname.startsWith('/blog/') ||
+          router.pathname.startsWith('/comparisons/') ||
+          router.pathname.startsWith('/guides/')
         )
 
         if (!user) {
@@ -83,7 +82,6 @@ export default function App({ Component, pageProps }: AppProps) {
 
         console.log('✅ [APP] Bruker funnet:', user.id, user.email)
 
-        // Hent profil fra databasen
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, full_name, onboarding_completed, welcome_email_sent, subscription_status, trial_ends_at, has_active_purchase, purchase_expires_at')
@@ -103,7 +101,7 @@ export default function App({ Component, pageProps }: AppProps) {
                           'User'
 
           const trialEndsAt = new Date()
-          trialEndsAt.setDate(trialEndsAt.getDate() + 14) // 14 dagers trial
+          trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
           const { error: insertError } = await supabase
             .from('profiles')
@@ -130,7 +128,6 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
-        // Sjekk tilgang (trial eller kjøp) - men ikke for offentlige sider
         if (profile && !isPublicPath && router.pathname !== '/pricing') {
           const now = new Date()
           
@@ -147,7 +144,6 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
-        // Hent oppdatert profil for onboarding-sjekk
         const { data: updatedProfile } = await supabase
           .from('profiles')
           .select('full_name, onboarding_completed')
@@ -285,7 +281,6 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <>
       <Head>
-        {/* 🟢 NY: Globale SEO-innstillinger */}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="robots" content="index, follow" />
         <meta name="googlebot" content="index, follow" />
@@ -294,23 +289,23 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="canonical" href={`https://www.myleadassistant.com${router.pathname}`} />
       </Head>
 
-      <ToastProvider>
-        {/* Google Analytics Script */}
-        <Script
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${GA_MEASUREMENT_ID}', {
-              page_path: window.location.pathname,
-            });
-          `}
-        </Script>
+      {/* Google Analytics Script - FLYTTET UTENFOR ToastProvider */}
+      <Script
+        src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+        strategy="afterInteractive"
+      />
+      <Script id="google-analytics" strategy="afterInteractive">
+        {`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', '${GA_MEASUREMENT_ID}', {
+            page_path: window.location.pathname,
+          });
+        `}
+      </Script>
 
+      <ToastProvider>
         <Component {...pageProps} />
         <OnboardingGuide />
         <Analytics />
