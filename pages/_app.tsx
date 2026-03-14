@@ -59,6 +59,8 @@ export default function App({ Component, pageProps }: AppProps) {
           '/guides/[slug]',
           '/ads/ai-lead-scoring',
           '/ads/ai-landing-pages',
+'/activate/[code]',
+  '/lifetime-signup/[code]',
           '/ads/lead-followup'
         ]
         
