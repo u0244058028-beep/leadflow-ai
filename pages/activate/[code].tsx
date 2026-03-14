@@ -4,37 +4,34 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import Link from 'next/link'
 import Layout from '@/components/Layout'
-import Button from '@/components/Button'
 
-// 🟢 FIX: Legg til 'activating' i typen
-type StatusType = 'loading' | 'valid' | 'invalid' | 'used' | 'activating'
+// Definer en union type for alle mulige statuser
+type ActivationStatus = 
+  | 'loading' 
+  | 'valid' 
+  | 'invalid' 
+  | 'used' 
+  | 'activating'
 
 export default function ActivateLifetime() {
   const router = useRouter()
   const { code } = router.query
-  const [status, setStatus] = useState<StatusType>('loading') // 🟢 FIX: Bruk StatusType
+  const [status, setStatus] = useState<ActivationStatus>('loading')
   const [user, setUser] = useState<any>(null)
   const [codeData, setCodeData] = useState<any>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     const checkCode = async () => {
-      if (!code) return
+      if (!code || typeof code !== 'string') return
 
-      // Sjekk om koden finnes og er ubrukt
       const { data, error } = await supabase
         .from('lifetime_codes')
         .select('*')
         .eq('code', code)
         .maybeSingle()
 
-      if (error) {
-        console.error('Error checking code:', error)
-        setStatus('invalid')
-        return
-      }
-
-      if (!data) {
+      if (error || !data) {
         setStatus('invalid')
         return
       }
@@ -48,7 +45,6 @@ export default function ActivateLifetime() {
 
       setStatus('valid')
       
-      // Hent innlogget bruker
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
     }
@@ -58,7 +54,6 @@ export default function ActivateLifetime() {
 
   const handleActivate = async () => {
     if (!user) {
-      // Bruker må logge inn først
       router.push(`/login?redirect=/activate/${code}`)
       return
     }
@@ -67,7 +62,6 @@ export default function ActivateLifetime() {
     setError('')
 
     try {
-      // Aktiver koden
       const { error: updateError } = await supabase
         .from('lifetime_codes')
         .update({ 
@@ -79,7 +73,6 @@ export default function ActivateLifetime() {
 
       if (updateError) throw updateError
 
-      // Oppdater brukerens konto til lifetime
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ 
@@ -95,28 +88,27 @@ export default function ActivateLifetime() {
 
       if (profileError) throw profileError
 
-      // Send bekreftelsesmail (valgfritt)
       await fetch('/api/send-lifetime-confirmation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, code: code })
+        body: JSON.stringify({ email: user.email, code })
       })
 
       router.push('/dashboard?lifetime=activated')
     } catch (err: any) {
-      console.error('Activation error:', err)
       setError(err.message)
-      setStatus('valid') // 🟢 FIX: Sett tilbake til 'valid' ved feil
+      setStatus('valid')
     }
   }
 
+  // ... (resten av JSX-en er identisk, bare med korrekte status-sjekker)
   return (
     <Layout>
       <div className="min-h-[60vh] flex items-center justify-center py-12 px-4">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
           {status === 'loading' && (
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4" />
               <p className="text-gray-600">Validating your lifetime access...</p>
             </div>
           )}
@@ -204,7 +196,7 @@ export default function ActivateLifetime() {
               <div className="space-y-3">
                 <button
                   onClick={handleActivate}
-                  disabled={status === 'activating'} // 🟢 FIX: Nå fungerer dette
+                  disabled={status === 'activating'}
                   className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                 >
                   {status === 'activating' ? 'Activating...' : '✓ Activate My Lifetime Account'}
