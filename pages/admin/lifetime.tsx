@@ -5,9 +5,6 @@ import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
 import Link from 'next/link'
 
-// Definer type for meldinger
-type MessageType = { type: 'success' | 'error'; text: string } | null
-
 export default function AdminLifetime() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -16,107 +13,87 @@ export default function AdminLifetime() {
   const [generatedLink, setGeneratedLink] = useState('')
   const [codes, setCodes] = useState<any[]>([])
   const [price, setPrice] = useState('297')
-  const [message, setMessage] = useState<MessageType>(null) // 🟢 FIX: Riktig type
-  const [authChecked, setAuthChecked] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
 
   useEffect(() => {
-    const checkAdmin = async () => {
-      try {
-        console.log('🔍 Sjekker admin-status...')
-        
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        console.log('👤 Bruker:', user?.email)
-        console.log('❌ Auth error:', authError)
+    checkAdminStatus()
+  }, [])
 
-        if (authError || !user) {
-          console.log('🚫 Ikke logget inn, redirect til login')
-          router.push('/login?redirect=/admin/lifetime')
-          return
-        }
-
-        console.log('📡 Henter profil for user:', user.id)
-        
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('is_admin, email, full_name')
-          .eq('id', user.id)
-          .maybeSingle()
-
-        console.log('📦 Profil data:', profile)
-        console.log('❌ Profil error:', profileError)
-
-        if (profileError) {
-          console.error('❌ Database error:', profileError)
-          setMessage({ type: 'error', text: 'Database error: ' + profileError.message }) // 🟢 Nå fungerer dette
-          setLoading(false)
-          setAuthChecked(true)
-          return
-        }
-
-        if (!profile) {
-          console.log('⚠️ Ingen profil funnet for bruker')
-          setMessage({ type: 'error', text: 'Profile not found. Try logging out and in again.' })
-          setLoading(false)
-          setAuthChecked(true)
-          return
-        }
-
-        const hasAdminAccess = profile.is_admin === true
-        console.log('🔑 Har admin-tilgang:', hasAdminAccess)
-
-        setIsAdmin(hasAdminAccess)
-
-        if (!hasAdminAccess) {
-          console.log('⛔ Ikke admin, redirect til dashboard')
-          router.push('/dashboard')
-          return
-        }
-
-        console.log('✅ Admin bekreftet, laster koder...')
-        await loadCodes()
-        
-      } catch (error: any) {
-        console.error('❌ Uventet feil:', error)
-        setMessage({ type: 'error', text: 'An unexpected error occurred: ' + error.message })
-      } finally {
-        setLoading(false)
-        setAuthChecked(true)
+  const checkAdminStatus = async () => {
+    try {
+      console.log('🔍 Sjekker admin-status...')
+      
+      // Sjekk om bruker er logget inn
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError || !user) {
+        console.log('🚫 Ikke logget inn')
+        router.push('/login?redirect=/admin/lifetime')
+        return
       }
-    }
 
-    checkAdmin()
-  }, [router])
+      console.log('✅ Logget inn som:', user.email)
+
+      // Hent profilen direkte
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError) {
+        console.error('❌ Kunne ikke hente profil:', profileError)
+        setErrorMsg('Database error: ' + profileError.message)
+        setLoading(false)
+        return
+      }
+
+      console.log('📊 Profil:', profile)
+
+      // Sjekk admin-status
+      if (profile.is_admin !== true) {
+        console.log('⛔ Ikke admin, redirect til dashboard')
+        router.push('/dashboard')
+        return
+      }
+
+      console.log('✅ Admin bekreftet!')
+      setIsAdmin(true)
+      loadCodes()
+      
+    } catch (error: any) {
+      console.error('❌ Uventet feil:', error)
+      setErrorMsg(error.message)
+      setLoading(false)
+    }
+  }
 
   const loadCodes = async () => {
     try {
       console.log('📊 Laster lifetime codes...')
       
+      // Enkel SELECT uten join
       const { data, error } = await supabase
         .from('lifetime_codes')
-        .select(`
-          *,
-          profiles:used_by (
-            email,
-            full_name
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
 
       if (error) {
-        console.error('❌ Feil ved lasting av koder:', error)
-        setMessage({ type: 'error', text: 'Failed to load codes: ' + error.message })
+        console.error('❌ Feil ved lasting:', error)
+        setErrorMsg('Failed to load codes: ' + error.message)
         return
       }
 
       console.log(`✅ Lastet ${data?.length || 0} koder`)
       setCodes(data || [])
-      setMessage(null) // Fjern eventuelle tidligere feilmeldinger
+      setLoading(false)
       
     } catch (error: any) {
-      console.error('❌ Uventet feil ved lasting:', error)
-      setMessage({ type: 'error', text: 'Failed to load codes: ' + error.message })
+      console.error('❌ Uventet feil:', error)
+      setErrorMsg(error.message)
+      setLoading(false)
     }
   }
 
@@ -130,7 +107,8 @@ export default function AdminLifetime() {
 
   const handleGenerate = async () => {
     setGenerating(true)
-    setMessage(null)
+    setErrorMsg('')
+    setSuccessMsg('')
     
     try {
       const code = generateCode()
@@ -144,22 +122,21 @@ export default function AdminLifetime() {
           code: code,
           used: false,
           created_by: user?.id,
-          price_paid: parseFloat(price),
-          expires_at: null
+          price_paid: parseFloat(price)
         })
 
       if (error) {
         console.error('❌ Feil ved lagring:', error)
-        setMessage({ type: 'error', text: 'Error generating code: ' + error.message })
+        setErrorMsg('Error generating code: ' + error.message)
       } else {
-        console.log('✅ Kode lagret:', code)
+        console.log('✅ Kode lagret')
         setGeneratedLink(`${process.env.NEXT_PUBLIC_SITE_URL}/activate/${code}`)
-        setMessage({ type: 'success', text: '✅ Code generated successfully!' })
-        await loadCodes()
+        setSuccessMsg('✅ Code generated successfully!')
+        loadCodes()
       }
     } catch (error: any) {
       console.error('❌ Uventet feil:', error)
-      setMessage({ type: 'error', text: error.message })
+      setErrorMsg(error.message)
     } finally {
       setGenerating(false)
     }
@@ -170,8 +147,8 @@ export default function AdminLifetime() {
     alert('Copied to clipboard!')
   }
 
-  // Debug-visning hvis noe er galt
-  if (!authChecked) {
+  // Vis loading
+  if (loading && !isAdmin) {
     return (
       <Layout>
         <div className="text-center py-20">
@@ -182,42 +159,11 @@ export default function AdminLifetime() {
     )
   }
 
+  // Vis kun admin-innhold hvis bekreftet
   if (!isAdmin) {
     return (
       <Layout>
-        <div className="max-w-2xl mx-auto py-12 px-4 text-center">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-8">
-            <h1 className="text-2xl font-bold text-red-700 mb-4">Access Denied</h1>
-            <p className="text-gray-700 mb-4">
-              You don't have admin privileges to access this page.
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              If you believe this is a mistake, check that:
-            </p>
-            <ul className="text-sm text-left text-gray-600 mb-6 space-y-2">
-              <li>✓ You are logged in with the correct account</li>
-              <li>✓ Your profile has is_admin = true in the database</li>
-              <li>✓ Try logging out and back in</li>
-            </ul>
-            <Link 
-              href="/dashboard"
-              className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Go to Dashboard
-            </Link>
-          </div>
-        </div>
-      </Layout>
-    )
-  }
-
-  if (loading) {
-    return (
-      <Layout>
-        <div className="text-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading admin panel...</p>
-        </div>
+        <div className="text-center py-20">Redirecting...</div>
       </Layout>
     )
   }
@@ -227,12 +173,17 @@ export default function AdminLifetime() {
       <div className="max-w-6xl mx-auto py-8 px-4">
         <h1 className="text-3xl font-bold mb-8">Admin: Lifetime Access Codes</h1>
 
-        {/* Melding */}
-        {message && (
-          <div className={`mb-6 p-4 rounded-lg ${
-            message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-          }`}>
-            {message.text}
+        {/* Error melding */}
+        {errorMsg && (
+          <div className="mb-6 p-4 bg-red-50 text-red-800 rounded-lg">
+            {errorMsg}
+          </div>
+        )}
+
+        {/* Success melding */}
+        {successMsg && (
+          <div className="mb-6 p-4 bg-green-50 text-green-800 rounded-lg">
+            {successMsg}
           </div>
         )}
 
@@ -329,9 +280,7 @@ export default function AdminLifetime() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-sm">
-                        {code.profiles?.email || '-'}
-                      </td>
+                      <td className="px-4 py-2 text-sm">{code.used_by || '-'}</td>
                       <td className="px-4 py-2 text-sm">
                         {code.used_at ? new Date(code.used_at).toLocaleDateString() : '-'}
                       </td>
