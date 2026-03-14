@@ -13,18 +13,43 @@ export default function Profile() {
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState({ type: '', text: '' })
-  const [isInTrial, setIsInTrial] = useState(false) // 🟢 Ny
-  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null) // 🟢 Ny
+  const [isInTrial, setIsInTrial] = useState(false)
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
+  
+  // 🟢 NY: Lifetime status
+  const [isLifetime, setIsLifetime] = useState(false)
+  const [lifetimeActivatedAt, setLifetimeActivatedAt] = useState<string | null>(null)
   
   // Bruk purchase hook
   const purchase = usePurchase()
 
   useEffect(() => {
     loadProfile()
-    checkTrialStatus() // 🟢 Sjekk trial-status
+    checkTrialStatus()
+    checkLifetimeStatus() // 🟢 NY
   }, [])
 
-  // 🟢 Ny funksjon for å sjekke trial
+  // 🟢 NY: Sjekk lifetime status
+  async function checkLifetimeStatus() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_lifetime, lifetime_activated_at')
+        .eq('id', user.id)
+        .single()
+
+      if (profile) {
+        setIsLifetime(profile.is_lifetime || false)
+        setLifetimeActivatedAt(profile.lifetime_activated_at)
+      }
+    } catch (error) {
+      console.error('Error checking lifetime status:', error)
+    }
+  }
+
   async function checkTrialStatus() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -110,6 +135,7 @@ export default function Profile() {
             trial_ends_at: trialEndsAt.toISOString(),
             has_active_purchase: false,
             purchase_expires_at: null,
+            is_lifetime: false, // 🟢 NY
           })
 
         if (insertError) {
@@ -125,6 +151,8 @@ export default function Profile() {
       console.log('✅ Profil lastet:', data)
       setFullName(data.full_name || '')
       setCompanyName(data.company_name || '')
+      setIsLifetime(data.is_lifetime || false) // 🟢 NY
+      setLifetimeActivatedAt(data.lifetime_activated_at)
       
     } catch (err) {
       console.error('❌ Uventet feil:', err)
@@ -254,6 +282,26 @@ export default function Profile() {
         <h1 className="text-2xl font-bold mb-6">Your Profile</h1>
 
         <div className="bg-white rounded-lg shadow p-6">
+          {/* 🟢 NY: Lifetime badge */}
+          {isLifetime && (
+            <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded-full">
+                  LIFETIME
+                </span>
+                <span className="text-purple-800 font-medium">Thank you for your support! 🙏</span>
+              </div>
+              {lifetimeActivatedAt && (
+                <p className="text-xs text-purple-600">
+                  Activated: {new Date(lifetimeActivatedAt).toLocaleDateString()}
+                </p>
+              )}
+              <p className="text-sm text-purple-700 mt-2">
+                You have lifetime access to all Pro features – never pay again.
+              </p>
+            </div>
+          )}
+
           {/* Profile Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -321,16 +369,20 @@ export default function Profile() {
               <div className="text-center py-4 text-gray-500">Loading access details...</div>
             ) : (
               <div className="space-y-4">
-                {/* Current Status - VISER BÅDE TRIAL OG KJØP */}
+                {/* Current Status */}
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div>
                     <p className="font-medium">Current Status</p>
                     <p className="text-sm text-gray-600">
-                      {isInTrial ? ( // 🟢 Hvis i trial
+                      {isLifetime ? ( // 🟢 Lifetime vises først
+                        <span className="text-purple-600 font-semibold">
+                          ✨ LIFETIME ACCESS
+                        </span>
+                      ) : isInTrial ? (
                         <span className="text-blue-600">
                           Trial - {trialDaysLeft} days remaining
                         </span>
-                      ) : purchase.hasAccess ? ( // 🟢 Hvis aktivt kjøp
+                      ) : purchase.hasAccess ? (
                         <span className="text-green-600">
                           Active - {purchase.daysLeft} days remaining
                         </span>
@@ -338,7 +390,7 @@ export default function Profile() {
                         <span className="text-orange-600">No active access</span>
                       )}
                     </p>
-                    {purchase.expiresAt && !isInTrial && (
+                    {purchase.expiresAt && !isInTrial && !isLifetime && (
                       <p className="text-xs text-gray-500 mt-1">
                         Expires: {purchase.expiresAt.toLocaleDateString()}
                       </p>
@@ -352,7 +404,7 @@ export default function Profile() {
                 </div>
 
                 {/* Trial Info */}
-                {isInTrial && (
+                {isInTrial && !isLifetime && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="text-blue-800 text-sm mb-3">
                       You're on a 14-day free trial. After it ends, you'll need to purchase access to continue using Pro features.
@@ -367,7 +419,7 @@ export default function Profile() {
                 )}
 
                 {/* Purchase Info */}
-                {!isInTrial && !purchase.hasAccess && (
+                {!isInTrial && !purchase.hasAccess && !isLifetime && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="text-blue-800 text-sm mb-3">
                       Get 30 days of full access to all Pro features for just $29.
@@ -382,7 +434,7 @@ export default function Profile() {
                 )}
 
                 {/* Active Purchase Warning */}
-                {purchase.hasAccess && purchase.daysLeft && purchase.daysLeft <= 3 && (
+                {purchase.hasAccess && purchase.daysLeft && purchase.daysLeft <= 3 && !isLifetime && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                     <p className="text-yellow-800 text-sm font-medium">
                       ⚠️ Your access expires in {purchase.daysLeft} days. Purchase again to continue.
