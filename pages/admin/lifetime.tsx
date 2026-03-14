@@ -130,7 +130,7 @@ export default function AdminLifetime() {
         setErrorMsg('Error generating code: ' + error.message)
       } else {
         console.log('✅ Kode lagret')
-        setGeneratedLink(`${process.env.NEXT_PUBLIC_SITE_URL}/activate/${code}`)
+setGeneratedLink(`${process.env.NEXT_PUBLIC_SITE_URL}/lifetime-signup/${code}`)
         setSuccessMsg('✅ Code generated successfully!')
         loadCodes()
       }
