@@ -42,27 +42,29 @@ export default function App({ Component, pageProps }: AppProps) {
         }
 
         const publicPaths = [
-          '/login', 
-          '/', 
-          '/s/', 
-          '/onboarding', 
-          '/pricing',
-          '/about',
-          '/contact',
-          '/privacy',
-          '/signup',
-          '/blog',
-          '/blog/[slug]',
-          '/comparisons',
-          '/comparisons/[slug]',
-          '/guides',
-          '/guides/[slug]',
-          '/ads/ai-lead-scoring',
-          '/ads/ai-landing-pages',
-          '/activate/[code]',
-          '/lifetime-signup/[code]',
-          '/ads/lead-followup'
-        ]
+  '/login', 
+  '/', 
+  '/s/', 
+  '/onboarding', 
+  '/pricing',
+  '/about',
+  '/contact',
+  '/privacy',
+  '/signup',
+  '/blog',
+  '/blog/[slug]',
+  '/comparisons',
+  '/comparisons/[slug]',
+  '/guides',
+  '/guides/[slug]',
+  '/ads/ai-lead-scoring',
+  '/ads/ai-landing-pages',
+  '/activate/[code]',
+  '/lifetime-signup/[code]',
+  '/ads/lead-followup',
+  '/admin/lifetime',        // 🟢 LEGG TIL
+  '/admin/test'             // 🟢 LEGG TIL (hvis du har den)
+]
         
         const isPublicPath = publicPaths.some(path => 
           router.pathname === path || 
