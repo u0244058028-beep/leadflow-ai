@@ -59,8 +59,8 @@ export default function App({ Component, pageProps }: AppProps) {
           '/guides/[slug]',
           '/ads/ai-lead-scoring',
           '/ads/ai-landing-pages',
-'/activate/[code]',
-  '/lifetime-signup/[code]',
+          '/activate/[code]',
+          '/lifetime-signup/[code]',
           '/ads/lead-followup'
         ]
         
@@ -84,9 +84,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
         console.log('✅ [APP] Bruker funnet:', user.id, user.email)
 
+        // 🟢 NY: Hent is_lifetime fra profilen
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id, full_name, onboarding_completed, welcome_email_sent, subscription_status, trial_ends_at, has_active_purchase, purchase_expires_at')
+          .select('id, full_name, onboarding_completed, welcome_email_sent, subscription_status, trial_ends_at, has_active_purchase, purchase_expires_at, is_lifetime')
           .eq('id', user.id)
           .maybeSingle()
 
@@ -105,6 +106,7 @@ export default function App({ Component, pageProps }: AppProps) {
           const trialEndsAt = new Date()
           trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
+          // 🟢 NY: Legg til is_lifetime ved opprettelse
           const { error: insertError } = await supabase
             .from('profiles')
             .insert({
@@ -117,7 +119,8 @@ export default function App({ Component, pageProps }: AppProps) {
               subscription_status: 'trial',
               trial_ends_at: trialEndsAt.toISOString(),
               has_active_purchase: false,
-              purchase_expires_at: null
+              purchase_expires_at: null,
+              is_lifetime: false
             })
 
           if (insertError) {
@@ -130,8 +133,12 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
+        // 🟢 OPPDATERT: Sjekk tilgang med lifetime-støtte
         if (profile && !isPublicPath && router.pathname !== '/pricing') {
           const now = new Date()
+          
+          // 🟢 NY: Sjekk lifetime (viktigst!)
+          const isLifetime = profile.is_lifetime === true
           
           const trialEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null
           const isInTrial = trialEnd && trialEnd > now && profile.subscription_status === 'trial'
@@ -139,7 +146,20 @@ export default function App({ Component, pageProps }: AppProps) {
           const purchaseExpires = profile.purchase_expires_at ? new Date(profile.purchase_expires_at) : null
           const hasActivePurchase = profile.has_active_purchase && purchaseExpires && purchaseExpires > now
 
-          if (!isInTrial && !hasActivePurchase) {
+          // 🟢 Logg status
+          console.log('📊 [APP] Tilgangssjekk:', {
+            isLifetime,
+            isInTrial,
+            hasActivePurchase,
+            subscription_status: profile.subscription_status
+          })
+
+          // 🟢 NY: Lifetime-brukere slippes ALLTID gjennom
+          if (isLifetime) {
+            console.log('✅ [APP] Lifetime bruker - gir tilgang')
+            // Fortsett uten redirect
+          }
+          else if (!isInTrial && !hasActivePurchase) {
             console.log('⚠️ [APP] Ingen aktiv tilgang, redirect til pricing')
             router.push('/pricing')
             return
@@ -196,6 +216,7 @@ export default function App({ Component, pageProps }: AppProps) {
               const trialEndsAt = new Date()
               trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
+              // 🟢 NY: Legg til is_lifetime ved SIGNED_IN
               await supabase.from('profiles').insert({
                 id: session.user.id,
                 email: session.user.email,
@@ -206,7 +227,8 @@ export default function App({ Component, pageProps }: AppProps) {
                 subscription_status: 'trial',
                 trial_ends_at: trialEndsAt.toISOString(),
                 has_active_purchase: false,
-                purchase_expires_at: null
+                purchase_expires_at: null,
+                is_lifetime: false
               })
               console.log('✅ [APP] Profil opprettet ved SIGNED_IN')
               
@@ -291,7 +313,6 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="canonical" href={`https://www.myleadassistant.com${router.pathname}`} />
       </Head>
 
-      {/* Google Analytics Script - FLYTTET UTENFOR ToastProvider */}
       <Script
         src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
         strategy="afterInteractive"
