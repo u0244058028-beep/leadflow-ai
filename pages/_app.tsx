@@ -9,13 +9,13 @@ import { Analytics } from '@vercel/analytics/react'
 import Script from 'next/script'
 import Head from 'next/head'
 
-const GA_MEASUREMENT_ID = 'G-17814229256' // Din Google Analytics ID
+const GA_MEASUREMENT_ID = 'G-17814229256'
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
 
-  // Google Analytics sidevisningssporing
+  // Google Analytics
   useEffect(() => {
     const handleRouteChange = (url: string) => {
       if (typeof window !== 'undefined' && typeof window.gtag !== 'undefined') {
@@ -41,6 +41,13 @@ export default function App({ Component, pageProps }: AppProps) {
           console.error('❌ [APP] Auth-feil:', error)
         }
 
+        // 🟢 ALLE admin-sider er offentlige (slippes rett gjennom)
+        if (router.pathname.startsWith('/admin/')) {
+          console.log('👑 [APP] Admin-side - ingen sjekker, laster direkte')
+          setIsLoading(false)
+          return
+        }
+
         const publicPaths = [
           '/login', 
           '/', 
@@ -61,9 +68,7 @@ export default function App({ Component, pageProps }: AppProps) {
           '/ads/ai-landing-pages',
           '/activate/[code]',
           '/lifetime-signup/[code]',
-          '/ads/lead-followup',
-          '/admin/lifetime',        // 🟢 Admin-side
-          '/admin/test'             // 🟢 Admin test-side
+          '/ads/lead-followup'
         ]
         
         const isPublicPath = publicPaths.some(path => 
@@ -72,8 +77,7 @@ export default function App({ Component, pageProps }: AppProps) {
           router.pathname.startsWith('/ads/') ||
           router.pathname.startsWith('/blog/') ||
           router.pathname.startsWith('/comparisons/') ||
-          router.pathname.startsWith('/guides/') ||
-          router.pathname.startsWith('/admin/') // 🟢 Alle admin-sider er offentlige (sjekkes i komponent)
+          router.pathname.startsWith('/guides/')
         )
 
         if (!user) {
@@ -87,7 +91,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
         console.log('✅ [APP] Bruker funnet:', user.id, user.email)
 
-        // Hent profil med alle nødvendige felt
+        // Hent profil
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, full_name, onboarding_completed, welcome_email_sent, subscription_status, trial_ends_at, has_active_purchase, purchase_expires_at, is_lifetime')
@@ -135,11 +139,8 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
-        // 🟢 SJEKK OM DETTE ER EN ADMIN-SIDE
-        const isAdminPath = router.pathname.startsWith('/admin/')
-        
-        // Tilgangssjekk - men IKKE for admin-sider
-        if (profile && !isPublicPath && router.pathname !== '/pricing' && !isAdminPath) {
+        // Tilgangssjekk for vanlige brukere
+        if (profile && !isPublicPath && router.pathname !== '/pricing') {
           
           const now = new Date()
           
@@ -150,16 +151,6 @@ export default function App({ Component, pageProps }: AppProps) {
           const purchaseExpires = profile.purchase_expires_at ? new Date(profile.purchase_expires_at) : null
           const hasActivePurchase = profile.has_active_purchase && purchaseExpires && purchaseExpires > now
 
-          // Logg status for debugging
-          console.log('📊 [APP] Tilgangssjekk:', {
-            isLifetime,
-            isInTrial,
-            hasActivePurchase,
-            subscription_status: profile.subscription_status,
-            path: router.pathname
-          })
-
-          // Lifetime-brukere slippes ALLTID gjennom
           if (isLifetime) {
             console.log('✅ [APP] Lifetime bruker - gir tilgang')
           }
@@ -168,11 +159,9 @@ export default function App({ Component, pageProps }: AppProps) {
             router.push('/pricing')
             return
           }
-        } else if (isAdminPath) {
-          console.log('👑 [APP] Admin-side - hopper over tilgangssjekk')
         }
 
-        // Hent oppdatert profil for onboarding-sjekk
+        // Onboarding-sjekk (kun for vanlige brukere)
         const { data: updatedProfile } = await supabase
           .from('profiles')
           .select('full_name, onboarding_completed')
@@ -181,8 +170,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
         const needsOnboarding = 
           (!updatedProfile?.full_name || updatedProfile.full_name === 'User' || !updatedProfile?.onboarding_completed) &&
-          router.pathname !== '/onboarding' &&
-          !router.pathname.startsWith('/admin/') // 🟢 Ikke redirect admin-brukere fra admin-sider
+          router.pathname !== '/onboarding'
 
         if (needsOnboarding) {
           console.log('🔄 [APP] Bruker trenger onboarding, redirecter...')
@@ -190,7 +178,7 @@ export default function App({ Component, pageProps }: AppProps) {
           return
         }
 
-        if (router.pathname === '/login' && !router.pathname.startsWith('/admin/')) {
+        if (router.pathname === '/login') {
           router.push('/dashboard')
         }
 
