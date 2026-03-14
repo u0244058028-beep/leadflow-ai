@@ -35,17 +35,18 @@ export default function App({ Component, pageProps }: AppProps) {
     const checkUserAndCreateProfile = async () => {
       try {
         console.log('🔍 [APP] Sjekker bruker...')
+        
+        // 🟢 ADMIN-SJEKK SKAL VÆRE FØRST - INGEN UNNTAK!
+        if (router.pathname.startsWith('/admin/')) {
+          console.log('👑 [APP] Admin-side oppdaget - stopper ALL videre prosessering')
+          setIsLoading(false)
+          return
+        }
+
         const { data: { user }, error } = await supabase.auth.getUser()
         
         if (error) {
           console.error('❌ [APP] Auth-feil:', error)
-        }
-
-        // 🟢 ALLE admin-sider er offentlige (slippes rett gjennom)
-        if (router.pathname.startsWith('/admin/')) {
-          console.log('👑 [APP] Admin-side - ingen sjekker, laster direkte')
-          setIsLoading(false)
-          return
         }
 
         const publicPaths = [
