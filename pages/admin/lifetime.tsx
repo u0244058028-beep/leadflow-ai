@@ -15,16 +15,15 @@ export default function AdminLifetime() {
   const [price, setPrice] = useState('297')
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+  const [debug, setDebug] = useState<any>(null)
 
   useEffect(() => {
-    checkAdminStatus()
+    checkAdminAccess()
   }, [])
 
-  const checkAdminStatus = async () => {
+  const checkAdminAccess = async () => {
     try {
-      console.log('🔍 Sjekker admin-status...')
-      
-      // Sjekk om bruker er logget inn
+      // 1. Sjekk om bruker er logget inn
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       
       if (authError || !user) {
@@ -35,7 +34,7 @@ export default function AdminLifetime() {
 
       console.log('✅ Logget inn som:', user.email)
 
-      // Hent profilen direkte
+      // 2. Hent profilen direkte
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -43,37 +42,37 @@ export default function AdminLifetime() {
         .single()
 
       if (profileError) {
-        console.error('❌ Kunne ikke hente profil:', profileError)
+        console.error('❌ Database error:', profileError)
         setErrorMsg('Database error: ' + profileError.message)
+        setDebug({ profileError })
         setLoading(false)
         return
       }
 
       console.log('📊 Profil:', profile)
+      setDebug({ profile })
 
-      // Sjekk admin-status
-      if (profile.is_admin !== true) {
-        console.log('⛔ Ikke admin, redirect til dashboard')
-        router.push('/dashboard')
-        return
+      // 3. Sjekk admin-status
+      if (profile?.is_admin === true) {
+        console.log('✅ Admin bekreftet!')
+        setIsAdmin(true)
+        loadCodes()
+      } else {
+        console.log('⛔ Ikke admin. is_admin =', profile?.is_admin)
+        setErrorMsg(`Du er ikke admin (is_admin = ${profile?.is_admin}). Kontakt support.`)
+        setLoading(false)
       }
 
-      console.log('✅ Admin bekreftet!')
-      setIsAdmin(true)
-      loadCodes()
-      
     } catch (error: any) {
       console.error('❌ Uventet feil:', error)
       setErrorMsg(error.message)
+      setDebug({ error })
       setLoading(false)
     }
   }
 
   const loadCodes = async () => {
     try {
-      console.log('📊 Laster lifetime codes...')
-      
-      // Enkel SELECT uten join
       const { data, error } = await supabase
         .from('lifetime_codes')
         .select('*')
@@ -81,17 +80,13 @@ export default function AdminLifetime() {
         .limit(50)
 
       if (error) {
-        console.error('❌ Feil ved lasting:', error)
         setErrorMsg('Failed to load codes: ' + error.message)
         return
       }
 
-      console.log(`✅ Lastet ${data?.length || 0} koder`)
       setCodes(data || [])
       setLoading(false)
-      
     } catch (error: any) {
-      console.error('❌ Uventet feil:', error)
       setErrorMsg(error.message)
       setLoading(false)
     }
@@ -101,7 +96,6 @@ export default function AdminLifetime() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     const randomPart = () => 
       Array(4).fill(0).map(() => chars[Math.floor(Math.random() * chars.length)]).join('')
-    
     return `MLA-${randomPart()}-${randomPart()}`
   }
 
@@ -114,8 +108,6 @@ export default function AdminLifetime() {
       const code = generateCode()
       const { data: { user } } = await supabase.auth.getUser()
 
-      console.log('🆕 Genererer ny kode:', code)
-
       const { error } = await supabase
         .from('lifetime_codes')
         .insert({
@@ -126,16 +118,13 @@ export default function AdminLifetime() {
         })
 
       if (error) {
-        console.error('❌ Feil ved lagring:', error)
         setErrorMsg('Error generating code: ' + error.message)
       } else {
-        console.log('✅ Kode lagret')
-setGeneratedLink(`${process.env.NEXT_PUBLIC_SITE_URL}/lifetime-signup/${code}`)
+        setGeneratedLink(`${process.env.NEXT_PUBLIC_SITE_URL}/lifetime-signup/${code}`)
         setSuccessMsg('✅ Code generated successfully!')
         loadCodes()
       }
     } catch (error: any) {
-      console.error('❌ Uventet feil:', error)
       setErrorMsg(error.message)
     } finally {
       setGenerating(false)
@@ -148,46 +137,56 @@ setGeneratedLink(`${process.env.NEXT_PUBLIC_SITE_URL}/lifetime-signup/${code}`)
   }
 
   // Vis loading
-  if (loading && !isAdmin) {
+  if (loading) {
     return (
       <Layout>
         <div className="text-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Sjekker admin-tilgang...</p>
         </div>
       </Layout>
     )
   }
 
-  // Vis kun admin-innhold hvis bekreftet
-  if (!isAdmin) {
+  // Vis feilmelding (inkludert "ikke admin")
+  if (errorMsg || !isAdmin) {
     return (
       <Layout>
-        <div className="text-center py-20">Redirecting...</div>
+        <div className="max-w-2xl mx-auto py-12 px-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-8">
+            <h1 className="text-2xl font-bold text-red-700 mb-4">Access Denied</h1>
+            <p className="text-gray-700 mb-4">{errorMsg || 'Du har ikke admin-tilgang.'}</p>
+            
+            {debug && (
+              <div className="mt-4 p-4 bg-gray-100 rounded text-xs overflow-auto">
+                <pre>{JSON.stringify(debug, null, 2)}</pre>
+              </div>
+            )}
+
+            <Link 
+              href="/dashboard"
+              className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Go to Dashboard
+            </Link>
+          </div>
+        </div>
       </Layout>
     )
   }
 
+  // Vis admin-panel
   return (
     <Layout>
       <div className="max-w-6xl mx-auto py-8 px-4">
         <h1 className="text-3xl font-bold mb-8">Admin: Lifetime Access Codes</h1>
 
-        {/* Error melding */}
-        {errorMsg && (
-          <div className="mb-6 p-4 bg-red-50 text-red-800 rounded-lg">
-            {errorMsg}
-          </div>
-        )}
-
-        {/* Success melding */}
         {successMsg && (
           <div className="mb-6 p-4 bg-green-50 text-green-800 rounded-lg">
             {successMsg}
           </div>
         )}
 
-        {/* Generate new code */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Generate New Lifetime Code</h2>
           
@@ -231,14 +230,10 @@ setGeneratedLink(`${process.env.NEXT_PUBLIC_SITE_URL}/lifetime-signup/${code}`)
                   Copy
                 </button>
               </div>
-              <p className="text-sm text-gray-500 mt-2">
-                Send this link to the customer. It can only be used once.
-              </p>
             </div>
           )}
         </div>
 
-        {/* Existing codes */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">Recent Lifetime Codes</h2>
           
@@ -250,15 +245,13 @@ setGeneratedLink(`${process.env.NEXT_PUBLIC_SITE_URL}/lifetime-signup/${code}`)
                   <th className="px-4 py-2 text-left">Created</th>
                   <th className="px-4 py-2 text-left">Price</th>
                   <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-left">Used By</th>
-                  <th className="px-4 py-2 text-left">Used At</th>
                 </tr>
               </thead>
               <tbody>
                 {codes.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-gray-500">
-                      No codes generated yet. Click "Generate New Code" to create your first lifetime access link.
+                    <td colSpan={4} className="text-center py-8 text-gray-500">
+                      No codes generated yet.
                     </td>
                   </tr>
                 ) : (
@@ -271,18 +264,10 @@ setGeneratedLink(`${process.env.NEXT_PUBLIC_SITE_URL}/lifetime-signup/${code}`)
                       <td className="px-4 py-2">${code.price_paid}</td>
                       <td className="px-4 py-2">
                         {code.used ? (
-                          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs">
-                            Used
-                          </span>
+                          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs">Used</span>
                         ) : (
-                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                            Available
-                          </span>
+                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">Available</span>
                         )}
-                      </td>
-                      <td className="px-4 py-2 text-sm">{code.used_by || '-'}</td>
-                      <td className="px-4 py-2 text-sm">
-                        {code.used_at ? new Date(code.used_at).toLocaleDateString() : '-'}
                       </td>
                     </tr>
                   ))
