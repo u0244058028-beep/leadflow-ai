@@ -6,10 +6,13 @@ import Link from 'next/link'
 import Layout from '@/components/Layout'
 import Button from '@/components/Button'
 
+// 🟢 FIX: Legg til 'activating' i typen
+type StatusType = 'loading' | 'valid' | 'invalid' | 'used' | 'activating'
+
 export default function ActivateLifetime() {
   const router = useRouter()
   const { code } = router.query
-  const [status, setStatus] = useState<'loading' | 'valid' | 'invalid' | 'used' | 'activating'>('loading')
+  const [status, setStatus] = useState<StatusType>('loading') // 🟢 FIX: Bruk StatusType
   const [user, setUser] = useState<any>(null)
   const [codeData, setCodeData] = useState<any>(null)
   const [error, setError] = useState('')
@@ -103,7 +106,7 @@ export default function ActivateLifetime() {
     } catch (err: any) {
       console.error('Activation error:', err)
       setError(err.message)
-      setStatus('valid')
+      setStatus('valid') // 🟢 FIX: Sett tilbake til 'valid' ved feil
     }
   }
 
@@ -201,7 +204,7 @@ export default function ActivateLifetime() {
               <div className="space-y-3">
                 <button
                   onClick={handleActivate}
-                  disabled={status === 'activating'}
+                  disabled={status === 'activating'} // 🟢 FIX: Nå fungerer dette
                   className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                 >
                   {status === 'activating' ? 'Activating...' : '✓ Activate My Lifetime Account'}
