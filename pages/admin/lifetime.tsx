@@ -5,6 +5,9 @@ import { supabase } from '@/lib/supabaseClient'
 import Layout from '@/components/Layout'
 import Link from 'next/link'
 
+// Definer type for meldinger
+type MessageType = { type: 'success' | 'error'; text: string } | null
+
 export default function AdminLifetime() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -13,7 +16,7 @@ export default function AdminLifetime() {
   const [generatedLink, setGeneratedLink] = useState('')
   const [codes, setCodes] = useState<any[]>([])
   const [price, setPrice] = useState('297')
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState<MessageType>(null) // 🟢 FIX: Riktig type
   const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
@@ -45,7 +48,7 @@ export default function AdminLifetime() {
 
         if (profileError) {
           console.error('❌ Database error:', profileError)
-          setMessage({ type: 'error', text: 'Database error: ' + profileError.message })
+          setMessage({ type: 'error', text: 'Database error: ' + profileError.message }) // 🟢 Nå fungerer dette
           setLoading(false)
           setAuthChecked(true)
           return
@@ -73,9 +76,9 @@ export default function AdminLifetime() {
         console.log('✅ Admin bekreftet, laster koder...')
         await loadCodes()
         
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Uventet feil:', error)
-        setMessage({ type: 'error', text: 'An unexpected error occurred' })
+        setMessage({ type: 'error', text: 'An unexpected error occurred: ' + error.message })
       } finally {
         setLoading(false)
         setAuthChecked(true)
@@ -109,10 +112,11 @@ export default function AdminLifetime() {
 
       console.log(`✅ Lastet ${data?.length || 0} koder`)
       setCodes(data || [])
+      setMessage(null) // Fjern eventuelle tidligere feilmeldinger
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Uventet feil ved lasting:', error)
-      setMessage({ type: 'error', text: 'Failed to load codes' })
+      setMessage({ type: 'error', text: 'Failed to load codes: ' + error.message })
     }
   }
 
@@ -126,7 +130,7 @@ export default function AdminLifetime() {
 
   const handleGenerate = async () => {
     setGenerating(true)
-    setMessage({ type: '', text: '' })
+    setMessage(null)
     
     try {
       const code = generateCode()
@@ -224,7 +228,7 @@ export default function AdminLifetime() {
         <h1 className="text-3xl font-bold mb-8">Admin: Lifetime Access Codes</h1>
 
         {/* Melding */}
-        {message.text && (
+        {message && (
           <div className={`mb-6 p-4 rounded-lg ${
             message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
           }`}>
