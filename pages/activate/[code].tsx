@@ -6,12 +6,7 @@ import Link from 'next/link'
 import Layout from '@/components/Layout'
 
 // Definer en union type for alle mulige statuser
-type ActivationStatus = 
-  | 'loading' 
-  | 'valid' 
-  | 'invalid' 
-  | 'used' 
-  | 'activating'
+type ActivationStatus = 'loading' | 'valid' | 'invalid' | 'used' | 'activating'
 
 export default function ActivateLifetime() {
   const router = useRouter()
@@ -101,7 +96,9 @@ export default function ActivateLifetime() {
     }
   }
 
-  // ... (resten av JSX-en er identisk, bare med korrekte status-sjekker)
+  // Hjelpefunksjon for å sjekke status på en typesikker måte
+  const isActivating = status === 'activating'
+
   return (
     <Layout>
       <div className="min-h-[60vh] flex items-center justify-center py-12 px-4">
@@ -196,10 +193,10 @@ export default function ActivateLifetime() {
               <div className="space-y-3">
                 <button
                   onClick={handleActivate}
-                  disabled={status === 'activating'}
+                  disabled={isActivating}
                   className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                 >
-                  {status === 'activating' ? 'Activating...' : '✓ Activate My Lifetime Account'}
+                  {isActivating ? 'Activating...' : '✓ Activate My Lifetime Account'}
                 </button>
                 <Link
                   href="/dashboard"
