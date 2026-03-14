@@ -60,7 +60,7 @@ export default function LifetimeSignup() {
         options: {
           data: {
             full_name: fullName,
-            signup_method: 'lifetime' // 🟢 VIKTIG: Merker at dette er lifetime
+            signup_method: 'lifetime'
           }
         }
       })
@@ -69,7 +69,6 @@ export default function LifetimeSignup() {
       if (!authData.user) throw new Error('Kunne ikke opprette bruker')
 
       // 2. OMGÅ standard profile-trigger ved å oppdatere DIREKTE
-      // (vi venter 1 sekund for å la triggeren kjøre, så overskriver vi)
       setTimeout(async () => {
         const { error: profileError } = await supabase
           .from('profiles')
@@ -114,7 +113,13 @@ export default function LifetimeSignup() {
         password
       })
 
-      router.push('/dashboard?lifetime=activated')
+      // 🟢 SJEKK OM DETTE ER ADMIN-BRUKEREN
+      if (email === 'cosmicencounters5@gmail.com') {
+        console.log('👑 Admin-bruker opprettet, sender til admin-panel')
+        router.push('/admin/lifetime')
+      } else {
+        router.push('/dashboard?lifetime=activated')
+      }
 
     } catch (err: any) {
       console.error('Activation error:', err)
