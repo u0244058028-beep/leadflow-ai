@@ -42,29 +42,29 @@ export default function App({ Component, pageProps }: AppProps) {
         }
 
         const publicPaths = [
-  '/login', 
-  '/', 
-  '/s/', 
-  '/onboarding', 
-  '/pricing',
-  '/about',
-  '/contact',
-  '/privacy',
-  '/signup',
-  '/blog',
-  '/blog/[slug]',
-  '/comparisons',
-  '/comparisons/[slug]',
-  '/guides',
-  '/guides/[slug]',
-  '/ads/ai-lead-scoring',
-  '/ads/ai-landing-pages',
-  '/activate/[code]',
-  '/lifetime-signup/[code]',
-  '/ads/lead-followup',
-  '/admin/lifetime',        // 🟢 LEGG TIL
-  '/admin/test'             // 🟢 LEGG TIL (hvis du har den)
-]
+          '/login', 
+          '/', 
+          '/s/', 
+          '/onboarding', 
+          '/pricing',
+          '/about',
+          '/contact',
+          '/privacy',
+          '/signup',
+          '/blog',
+          '/blog/[slug]',
+          '/comparisons',
+          '/comparisons/[slug]',
+          '/guides',
+          '/guides/[slug]',
+          '/ads/ai-lead-scoring',
+          '/ads/ai-landing-pages',
+          '/activate/[code]',
+          '/lifetime-signup/[code]',
+          '/ads/lead-followup',
+          '/admin/lifetime',        // 🟢 Admin-side
+          '/admin/test'             // 🟢 Admin test-side
+        ]
         
         const isPublicPath = publicPaths.some(path => 
           router.pathname === path || 
@@ -72,7 +72,8 @@ export default function App({ Component, pageProps }: AppProps) {
           router.pathname.startsWith('/ads/') ||
           router.pathname.startsWith('/blog/') ||
           router.pathname.startsWith('/comparisons/') ||
-          router.pathname.startsWith('/guides/')
+          router.pathname.startsWith('/guides/') ||
+          router.pathname.startsWith('/admin/') // 🟢 Alle admin-sider er offentlige (sjekkes i komponent)
         )
 
         if (!user) {
@@ -86,7 +87,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
         console.log('✅ [APP] Bruker funnet:', user.id, user.email)
 
-        // 🟢 NY: Hent is_lifetime fra profilen
+        // Hent profil med alle nødvendige felt
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, full_name, onboarding_completed, welcome_email_sent, subscription_status, trial_ends_at, has_active_purchase, purchase_expires_at, is_lifetime')
@@ -108,7 +109,6 @@ export default function App({ Component, pageProps }: AppProps) {
           const trialEndsAt = new Date()
           trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
-          // 🟢 NY: Legg til is_lifetime ved opprettelse
           const { error: insertError } = await supabase
             .from('profiles')
             .insert({
@@ -135,39 +135,44 @@ export default function App({ Component, pageProps }: AppProps) {
           }
         }
 
-        // 🟢 OPPDATERT: Sjekk tilgang med lifetime-støtte
-        if (profile && !isPublicPath && router.pathname !== '/pricing') {
+        // 🟢 SJEKK OM DETTE ER EN ADMIN-SIDE
+        const isAdminPath = router.pathname.startsWith('/admin/')
+        
+        // Tilgangssjekk - men IKKE for admin-sider
+        if (profile && !isPublicPath && router.pathname !== '/pricing' && !isAdminPath) {
+          
           const now = new Date()
           
-          // 🟢 NY: Sjekk lifetime (viktigst!)
           const isLifetime = profile.is_lifetime === true
-          
           const trialEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null
           const isInTrial = trialEnd && trialEnd > now && profile.subscription_status === 'trial'
           
           const purchaseExpires = profile.purchase_expires_at ? new Date(profile.purchase_expires_at) : null
           const hasActivePurchase = profile.has_active_purchase && purchaseExpires && purchaseExpires > now
 
-          // 🟢 Logg status
+          // Logg status for debugging
           console.log('📊 [APP] Tilgangssjekk:', {
             isLifetime,
             isInTrial,
             hasActivePurchase,
-            subscription_status: profile.subscription_status
+            subscription_status: profile.subscription_status,
+            path: router.pathname
           })
 
-          // 🟢 NY: Lifetime-brukere slippes ALLTID gjennom
+          // Lifetime-brukere slippes ALLTID gjennom
           if (isLifetime) {
             console.log('✅ [APP] Lifetime bruker - gir tilgang')
-            // Fortsett uten redirect
           }
           else if (!isInTrial && !hasActivePurchase) {
             console.log('⚠️ [APP] Ingen aktiv tilgang, redirect til pricing')
             router.push('/pricing')
             return
           }
+        } else if (isAdminPath) {
+          console.log('👑 [APP] Admin-side - hopper over tilgangssjekk')
         }
 
+        // Hent oppdatert profil for onboarding-sjekk
         const { data: updatedProfile } = await supabase
           .from('profiles')
           .select('full_name, onboarding_completed')
@@ -176,7 +181,8 @@ export default function App({ Component, pageProps }: AppProps) {
 
         const needsOnboarding = 
           (!updatedProfile?.full_name || updatedProfile.full_name === 'User' || !updatedProfile?.onboarding_completed) &&
-          router.pathname !== '/onboarding'
+          router.pathname !== '/onboarding' &&
+          !router.pathname.startsWith('/admin/') // 🟢 Ikke redirect admin-brukere fra admin-sider
 
         if (needsOnboarding) {
           console.log('🔄 [APP] Bruker trenger onboarding, redirecter...')
@@ -184,7 +190,7 @@ export default function App({ Component, pageProps }: AppProps) {
           return
         }
 
-        if (router.pathname === '/login') {
+        if (router.pathname === '/login' && !router.pathname.startsWith('/admin/')) {
           router.push('/dashboard')
         }
 
@@ -218,7 +224,6 @@ export default function App({ Component, pageProps }: AppProps) {
               const trialEndsAt = new Date()
               trialEndsAt.setDate(trialEndsAt.getDate() + 14)
 
-              // 🟢 NY: Legg til is_lifetime ved SIGNED_IN
               await supabase.from('profiles').insert({
                 id: session.user.id,
                 email: session.user.email,
